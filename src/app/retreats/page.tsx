@@ -42,7 +42,7 @@ export default async function RetreatsPage() {
                 {a.claims.capacity}
               </p>
               <p className="text-sm max-w-prose mb-4">{a.description}</p>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 mb-3">
                 {a.claims.practiceStyle.map((s) => (
                   <span
                     key={s}
@@ -52,6 +52,12 @@ export default async function RetreatsPage() {
                   </span>
                 ))}
               </div>
+              <p className="tag pt-3 border-t border-[color:var(--hairline)] mt-2 flex justify-between">
+                <span>1 attestation</span>
+                <span className="opacity-70">
+                  {new Date(a.createdAt).toLocaleDateString()}
+                </span>
+              </p>
             </Link>
           </li>
         ))}

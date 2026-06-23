@@ -278,6 +278,9 @@ export function scoreRetreat(
     score,
     headline: headline(practitioner, a, energyMatch, socialMatch),
     reasoning: steps,
+    attestationCount: 1,
+    attestor: a.attestor,
+    attestedAt: a.createdAt,
   };
 
   return { result, steps };

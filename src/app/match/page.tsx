@@ -143,10 +143,22 @@ function MatchFlow() {
 
       <div className="space-y-6">
         <p className="tag">recommended</p>
-        <MatchCard result={top} rank={1} />
+        <MatchCard
+          result={top}
+          rank={1}
+          attestationCount={top.attestationCount}
+          attestor={top.attestor}
+          attestedAt={top.attestedAt}
+        />
         {run.results.slice(1, 3).map((r, i) => (
           <div key={r.id} className="opacity-80">
-            <MatchCard result={r} rank={i + 2} />
+            <MatchCard
+              result={r}
+              rank={i + 2}
+              attestationCount={r.attestationCount}
+              attestor={r.attestor}
+              attestedAt={r.attestedAt}
+            />
           </div>
         ))}
       </div>

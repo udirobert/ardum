@@ -36,6 +36,13 @@ export type MatchResult = {
   headline: string;
   // Ordered reasoning — the user sees these stream in during the reveal.
   reasoning: ReasoningStep[];
+  // Trust signal: how many wallets have attested this retreat. In demo mode
+  // always 1; in production this is the indexer query that grows over time.
+  attestationCount: number;
+  // Wallet that wrote the first attestation.
+  attestor?: string;
+  // When the first attestation was written.
+  attestedAt?: string;
 };
 
 export type MatchRun = {

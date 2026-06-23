@@ -1,15 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { MatchResult } from "./types";
 
 export default function MatchCard({
   result,
   rank,
+  attestationCount,
+  attestor,
+  attestedAt,
 }: {
   result: MatchResult;
   rank: number;
+  attestationCount?: number;
+  attestor?: string;
+  attestedAt?: string;
 }) {
   const pct = Math.round(result.score * 100);
   const [copied, setCopied] = useState(false);
@@ -40,6 +46,12 @@ export default function MatchCard({
       }
     }
   }
+
+  // First wallet to attest this retreat — the trust anchor. Shown only when
+  // we have it; falls back to the rootHash otherwise.
+  const attestorLine = attestor
+    ? `attested by ${shortAddress(attestor)}`
+    : null;
 
   return (
     <article className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8 sm:p-10 fade-in-up">
@@ -79,7 +91,7 @@ export default function MatchCard({
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4 mb-6">
         <Link
           href={`/match/${result.id}`}
           className="px-5 py-2.5 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors"
@@ -93,8 +105,56 @@ export default function MatchCard({
         >
           {copied ? "✓ copied" : "Copy share link"}
         </button>
-        <span className="tag break-all">{result.retreatRootHash}</span>
+        <button
+          type="button"
+          disabled
+          title="Direct booking is the next integration."
+          className="px-5 py-2.5 rounded-sm border border-dashed border-[color:var(--hairline)] text-[color:var(--muted)] cursor-not-allowed"
+        >
+          Book this retreat (soon)
+        </button>
       </div>
+
+      <AttestationFooter
+        attestationCount={attestationCount}
+        attestor={attestorLine}
+        attestedAt={attestedAt}
+        rootHash={result.retreatRootHash}
+      />
     </article>
   );
+}
+
+function AttestationFooter({
+  attestationCount,
+  attestor,
+  attestedAt,
+  rootHash,
+}: {
+  attestationCount?: number;
+  attestor: string | null;
+  attestedAt?: string;
+  rootHash: string;
+}) {
+  return (
+    <div className="pt-5 border-t border-[color:var(--hairline)] flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <p className="tag">
+        {attestationCount === 1
+          ? "1 attestation"
+          : `${attestationCount ?? "—"} attestations`}
+        {attestor ? ` · ${attestor}` : ""}
+      </p>
+      {attestedAt && (
+        <p className="tag">
+          first attested {new Date(attestedAt).toLocaleDateString()}
+        </p>
+      )}
+      <p className="tag break-all ml-auto opacity-70">{rootHash}</p>
+    </div>
+  );
+}
+
+function shortAddress(addr: string): string {
+  if (!addr.startsWith("0x") || addr.length < 10) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }

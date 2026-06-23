@@ -107,4 +107,19 @@ export async function listAttestations(): Promise<AttestationIndex[]> {
   return indexFromSeed();
 }
 
+// Count how many distinct attestations exist for a given rootHash. In demo
+// mode this is always 1 (one entry in the local store). In production this
+// would query the 0G indexer for all matching root hashes — multiple
+// attestors writing to the same rootHash is the way trust accumulates over
+// time.
+export async function countAttestations(rootHash: string): Promise<number> {
+  if (!has0GStorage()) {
+    return localStore.has(rootHash) ? 1 : 0;
+  }
+  // Real path: indexer.query({ rootHash }) — not yet implemented, return 1
+  // to keep the UI honest (the entry exists, attestor count is what we
+  // don't know yet).
+  return localStore.has(rootHash) ? 1 : 0;
+}
+
 export const SEED_ATTESTOR_ADDRESS = SEED_ATTESTOR;

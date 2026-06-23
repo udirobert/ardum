@@ -34,6 +34,7 @@ function pool(): Map<string, AttestationIndex> {
       title: a.title,
       description: a.description,
       claims: a.claims,
+      attestor: a.attestor,
       createdAt: a.createdAt,
     });
   }

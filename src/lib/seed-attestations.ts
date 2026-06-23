@@ -329,6 +329,7 @@ export function indexFromSeed() {
     title: a.title,
     description: a.description,
     claims: a.claims,
+    attestor: a.attestor,
     createdAt: a.createdAt,
   }));
 }

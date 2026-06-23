@@ -64,5 +64,11 @@ export type Attestation = {
 // be fetched by rootHash when the user clicks a match card.
 export type AttestationIndex = Pick<
   Attestation,
-  "rootHash" | "kind" | "title" | "description" | "claims" | "createdAt"
+  | "rootHash"
+  | "kind"
+  | "title"
+  | "description"
+  | "claims"
+  | "attestor"
+  | "createdAt"
 >;
