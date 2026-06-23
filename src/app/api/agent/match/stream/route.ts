@@ -5,7 +5,7 @@ import { streamMatchAgent } from "@/agent/client";
 
 // SSE stream of the matching agent's reasoning. Each event has the shape:
 //   event: reasoning
-//   data:  { axis, observation, weight, reasoning }
+//   data:  { axis, given, when, then, weight }
 //   event: done
 //   data:  { run: MatchRun }
 //   event: error

@@ -1,15 +1,23 @@
 // What the matching agent returns to the client. Reasoning is the point —
-// every step is visible.
+// every step is visible. The shape is Gherkin-style (Given / When / Then)
+// so the agent's logic is structured, not free-form:
+//
+//   given  — what the agent observed (practitioner + retreat inputs to
+//            this step). The precondition.
+//   when   — the trigger / matching rule that fired. The condition.
+//   then   — the conclusion drawn. The consequence.
+//   weight — how strongly this axis contributed to the composite score
+//            (0..1).
+//
+// The same shape is what we tell the LLM to return in buildMatchPrompt,
+// so the real 0G Compute path inherits the structure natively.
 
 export type ReasoningStep = {
-  // A short label, e.g. "Energy alignment".
   axis: string;
-  // What the agent observed about the practitioner/retreat pair.
-  observation: string;
-  // How strongly this axis pulled toward the match (0..1).
+  given: string;
+  when: string;
+  then: string;
   weight: number;
-  // Plain-language reasoning trace.
-  reasoning: string;
 };
 
 export type MatchResult = {

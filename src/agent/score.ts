@@ -1,6 +1,10 @@
 // Pure scoring logic — extracted so both the synchronous runMatchAgent
 // and the SSE streaming variant can share the same reasoning. No I/O,
 // no env access, no globals. Pure functions only.
+//
+// Each reasoning step is structured as Gherkin (Given / When / Then) so
+// the agent's logic is inspectable: what we observed, what rule fired,
+// what we concluded.
 
 import type {
   AttestationIndex,
@@ -18,21 +22,19 @@ export type ScoredAttestation = {
   steps: ReasoningStep[];
 };
 
-function overlap(a: string[], b: string[]): string[] {
-  return a.filter((x) => b.includes(x));
-}
-
 function axisScore(match: boolean, hasSignal: boolean): number {
   if (!hasSignal) return 0;
   return match ? 1 : 0;
 }
 
-function budgetScore(
-  band: string,
-  priceUsd: number
-): { score: number; note: string } {
-  // The band is the practitioner's stated upper bound; we score how well the
-  // retreat fits inside it.
+type BudgetVerdict = {
+  score: number;
+  given: string;
+  when: string;
+  then: string;
+};
+
+function budgetVerdict(band: string, priceUsd: number): BudgetVerdict {
   const limits: Record<string, number> = {
     "under-1k": 1000,
     "1k-2k": 2000,
@@ -40,16 +42,40 @@ function budgetScore(
     "3k-plus": Infinity,
   };
   const ceiling = limits[band] ?? Infinity;
-  if (priceUsd <= ceiling) return { score: 1, note: `fits inside ${band}.` };
+  const given = `Retreat $${priceUsd.toLocaleString()}. Practitioner band: ${band}.`;
+  if (priceUsd <= ceiling) {
+    return {
+      score: 1,
+      given,
+      when: "Price fits inside the band's ceiling.",
+      then: "Budget constraint satisfied.",
+    };
+  }
   const overshoot = (priceUsd - ceiling) / ceiling;
-  if (overshoot < 0.2)
-    return { score: 0.6, note: `slightly above ${band}.` };
-  if (overshoot < 0.5)
-    return { score: 0.3, note: `notably above ${band}.` };
-  return { score: 0.05, note: `well outside ${band}.` };
+  if (overshoot < 0.2) {
+    return {
+      score: 0.6,
+      given,
+      when: `Price exceeds ${band} ceiling by ${Math.round(overshoot * 100)}%.`,
+      then: "Slightly above stated band — still workable.",
+    };
+  }
+  if (overshoot < 0.5) {
+    return {
+      score: 0.3,
+      given,
+      when: `Price exceeds ${band} ceiling by ${Math.round(overshoot * 100)}%.`,
+      then: "Notably above stated band — a real stretch.",
+    };
+  }
+  return {
+    score: 0.05,
+    given,
+    when: `Price exceeds ${band} ceiling by ${Math.round(overshoot * 100)}%.`,
+    then: "Well outside stated band.",
+  };
 }
 
-// Composite headline — a single honest sentence about why this retreat fits.
 function headline(
   practitioner: PractitionerProfile,
   a: AttestationIndex,
@@ -78,11 +104,14 @@ export function scoreRetreat(
   const energyMatch = a.claims.energyFit.includes(practitioner.energy);
   steps.push({
     axis: "Energy alignment",
-    observation: `Practitioner energy: ${practitioner.energy}. Retreat fits: ${a.claims.energyFit.join(", ")}.`,
+    given: `Practitioner energy: ${practitioner.energy}. Retreat fits: ${a.claims.energyFit.join(", ")}.`,
+    when: energyMatch
+      ? `Both list '${practitioner.energy}' — direct match.`
+      : `'${practitioner.energy}' is not in the retreat's energy register.`,
+    then: energyMatch
+      ? "Strong energy fit; pulls toward this match."
+      : "Energy register doesn't match; retreats will feel mis-pitched.",
     weight: 0.35,
-    reasoning: energyMatch
-      ? `This retreat is held for someone arriving in a ${practitioner.energy} state.`
-      : `The retreat doesn't list ${practitioner.energy} as a fit — its energy register is different.`,
   });
   const energyScore = axisScore(energyMatch, true);
 
@@ -90,21 +119,25 @@ export function scoreRetreat(
   const socialMatch = a.claims.socialFit.includes(practitioner.social);
   steps.push({
     axis: "Social comfort",
-    observation: `Practitioner social comfort: ${practitioner.social}. Retreat fits: ${a.claims.socialFit.join(", ")}.`,
+    given: `Practitioner comfort: ${practitioner.social}. Retreat fits: ${a.claims.socialFit.join(", ")}. Cohort: ${a.claims.capacity}.`,
+    when: socialMatch
+      ? "Practitioner's comfort overlaps the retreat's social register."
+      : "No overlap in stated social registers.",
+    then: socialMatch
+      ? "Cohort shape matches stated comfort — won't feel draining or underwhelming."
+      : "Cohort shape is mismatched; expect social friction.",
     weight: 0.25,
-    reasoning: socialMatch
-      ? `Cohort size (${a.claims.capacity}) and the social register match the practitioner's stated comfort.`
-      : `The cohort shape here doesn't match the practitioner's stated social comfort.`,
   });
   const socialScore = axisScore(socialMatch, true);
 
   // Budget.
-  const budget = budgetScore(practitioner.budget, a.claims.priceUsd);
+  const budget = budgetVerdict(practitioner.budget, a.claims.priceUsd);
   steps.push({
     axis: "Budget",
-    observation: `Retreat price $${a.claims.priceUsd}. Practitioner band: ${practitioner.budget}.`,
+    given: budget.given,
+    when: budget.when,
+    then: budget.then,
     weight: 0.15,
-    reasoning: budget.note,
   });
 
   // Practice + breath alignment.
@@ -116,18 +149,22 @@ export function scoreRetreat(
     breathScore = axisScore(breathMatch, true);
     steps.push({
       axis: "Breath & practice",
-      observation: `Baseline breath: ${practitioner.pose.breathPhase}. Retreat breath: ${a.claims.breathPhase.join(", ")}.`,
+      given: `Baseline breath: ${practitioner.pose.breathPhase}. Retreat breath: ${a.claims.breathPhase.join(", ")}.`,
+      when: breathMatch
+        ? `Both list '${practitioner.pose.breathPhase}' — direct match.`
+        : `Baseline '${practitioner.pose.breathPhase}' not in the retreat's breath register.`,
+      then: breathMatch
+        ? "Breath phase is in this retreat's wheelhouse."
+        : "Breath phase is out of register — body work may feel off.",
       weight: 0.15,
-      reasoning: breathMatch
-        ? `Breath phase (${practitioner.pose.breathPhase}) is in this retreat's wheelhouse.`
-        : `This retreat's breath phase (${a.claims.breathPhase.join(", ")}) doesn't match the baseline.`,
     });
   } else {
     steps.push({
       axis: "Breath & practice",
-      observation: `No pose baseline provided. Inferring from stated energy (${practitioner.energy}).`,
+      given: `No pose baseline provided. Stated energy: ${practitioner.energy}.`,
+      when: "Without a pose sample, the agent reasons from stated energy alone.",
+      then: "Skipped the breath/mobility axes — match is less precise.",
       weight: 0.1,
-      reasoning: `Without a pose baseline, the agent leans on the energy axis and the retreat's practice style.`,
     });
   }
 
@@ -135,27 +172,39 @@ export function scoreRetreat(
   if (practitioner.pose) {
     const hipOpen = practitioner.pose.hipMobility !== "tight";
     const shoulderOpen = practitioner.pose.shoulderMobility !== "tight";
-    const practiceHint =
-      hipOpen && shoulderOpen
-        ? a.claims.practiceStyle.some((p) =>
-            ["vinyasa", "ashtanga", "power vinyasa"].includes(p)
-          )
-          ? "Mobility baseline is open enough for this retreat's flow style."
-          : "Mobility baseline is open; this retreat is gentler than the baseline suggests."
-        : a.claims.practiceStyle.some((p) =>
-            ["restorative", "yin", "meditation", "pranayama"].includes(p)
-          )
-        ? "Lower-mobility retreat matches a tighter baseline."
-        : "This retreat may demand more mobility than the baseline suggests.";
+    const flowStyle = a.claims.practiceStyle.some((p) =>
+      ["vinyasa", "ashtanga", "power vinyasa"].includes(p)
+    );
+    const gentleStyle = a.claims.practiceStyle.some((p) =>
+      ["restorative", "yin", "meditation", "pranayama"].includes(p)
+    );
+    let when: string;
+    let then: string;
+    if (hipOpen && shoulderOpen) {
+      when = flowStyle
+        ? "Mobility baseline is open AND retreat runs a flow practice."
+        : "Mobility baseline is open; retreat is gentler than the baseline.";
+      then = flowStyle
+        ? "Mobility is sufficient for this retreat's demands."
+        : "Retreat is gentler than the body is ready for — could feel under-challenging.";
+    } else {
+      when = gentleStyle
+        ? "Lower-mobility baseline AND retreat runs a gentler practice."
+        : "Lower-mobility baseline AND retreat runs a flow practice.";
+      then = gentleStyle
+        ? "Retreat matches the baseline's mobility — won't over-reach."
+        : "Retreat may demand more mobility than the baseline suggests.";
+    }
     steps.push({
       axis: "Mobility hint",
-      observation: `Shoulder ${practitioner.pose.shoulderMobility}, hip ${practitioner.pose.hipMobility}.`,
+      given: `Shoulder ${practitioner.pose.shoulderMobility}, hip ${practitioner.pose.hipMobility}. Practice style: ${a.claims.practiceStyle.join(", ")}.`,
+      when,
+      then,
       weight: 0.1,
-      reasoning: practiceHint,
     });
   }
 
-  // Composite: weighted sum, renormalised.
+  // Composite: weighted sum.
   const raw =
     energyScore * 0.35 +
     socialScore * 0.25 +
@@ -190,16 +239,7 @@ export function scoreAll(
     .sort((a, b) => b.result.score - a.result.score);
 }
 
-// A short, attention-getting reasoning step that names the retreat the agent
-// is now considering. Used as a "thinking out loud" header during streaming.
-export function consideringStep(title: string): ReasoningStep {
-  return {
-    axis: "Considering",
-    observation: `Looking at ${title}.`,
-    weight: 0,
-    reasoning: "Comparing against the practitioner's stated axes.",
-  };
-}
+// Stream-friendly header steps.
 
 // A first step that establishes the context — what the agent is reasoning
 // against. Always emitted at the start of a stream.
@@ -213,9 +253,22 @@ export function contextStep(args: {
     : "";
   return {
     axis: "Reading your profile",
-    observation: `Energy ${practitioner.energy}, budget ${practitioner.budget}, social ${practitioner.social}${poseLine}. Considering ${attestationCount} attestation${attestationCount === 1 ? "" : "s"}.`,
+    given: `Energy ${practitioner.energy}, budget ${practitioner.budget}, social ${practitioner.social}${poseLine}. Considering ${attestationCount} attestation${attestationCount === 1 ? "" : "s"}.`,
+    when: "Practitioner's stated axes set the constraints.",
+    then:
+      "Everything downstream is reasoning about fit, not ranking by price or popularity.",
     weight: 0,
-    reasoning:
-      "Holding the practitioner's axes as the fixed constraints; everything downstream is reasoning about fit, not ranking by price or popularity.",
+  };
+}
+
+// A short, attention-getting reasoning step that names the retreat the agent
+// is now considering. Used as a "thinking out loud" header during streaming.
+export function consideringStep(title: string): ReasoningStep {
+  return {
+    axis: "Considering",
+    given: title,
+    when: "Now scoring against the practitioner's stated axes.",
+    then: "Reasoning about fit on energy, social, budget, breath, mobility.",
+    weight: 0,
   };
 }
