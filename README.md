@@ -44,6 +44,26 @@ npm run dev      # http://localhost:3000
 npm run seed     # upload seed Bali-retreat attestations to 0G Storage
 ```
 
+Ardum runs in **demo mode** without any environment variables set —
+in-memory session store, the five seeded Bali retreats, and a
+deterministic local matcher that produces the real `MatchResult` shape.
+This is enough for a judge-facing demo link.
+
+## Wire up production
+
+Copy `.env.example` to `.env.local` and fill in the variables for the
+layers you want to enable. Each one is independent:
+
+| Vars                                | What you get                                                  |
+| ----------------------------------- | ------------------------------------------------------------- |
+| `OG_RPC_URL` + `OG_STORAGE_INDEXER` + `OG_PRIVATE_KEY` | Real `POST /api/attestations` writes to 0G Storage; the seed script uploads the Bali retreats for real. |
+| `OG_COMPUTE_ROUTER_URL` + `OG_COMPUTE_API_KEY`         | The matching agent calls the real 0G Compute Router instead of the deterministic stub. The prompt + response shape are already wired. |
+| `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`           | Sessions and match runs persist across restarts and across Vercel serverless cold-starts. |
+
+The adapter at `src/lib/og-storage.ts` lazy-imports the SDK only when
+needed, and the agent at `src/agent/client.ts` throws loudly (not
+silently) if a layer is configured but the call isn't implemented.
+
 ## Deploy
 
 Push to `main` → Vercel auto-deploys. The whole point of this stack is a
