@@ -13,11 +13,7 @@
 import "server-only";
 
 import { ethers } from "ethers";
-import {
-  SEED_ATTESTATIONS,
-  indexFromSeed,
-  SEED_ATTESTOR,
-} from "./seed-attestations";
+import { SEED_ATTESTATIONS, SEED_ATTESTOR } from "./seed-attestations";
 import type { Attestation, AttestationIndex } from "@/attestation/schema";
 import { has0GStorage } from "./env";
 
@@ -32,6 +28,20 @@ const localStore: Map<string, Attestation> =
 if (!globalThis.__ardumAttestations) {
   for (const a of SEED_ATTESTATIONS) localStore.set(a.rootHash, a);
   globalThis.__ardumAttestations = localStore;
+}
+
+// Convert a full Attestation to the lightweight index shape used by the
+// matching agent and the /retreats browser.
+function toIndex(a: Attestation): AttestationIndex {
+  return {
+    rootHash: a.rootHash,
+    kind: a.kind,
+    title: a.title,
+    description: a.description,
+    claims: a.claims,
+    attestor: a.attestor,
+    createdAt: a.createdAt,
+  };
 }
 
 // Lazily loaded only when 0G is configured. Keeps the SDK out of the bundle
@@ -77,6 +87,10 @@ export async function uploadAttestation(
   const txHash =
     "txHash" in tx ? tx.txHash : tx.txHashes?.[0];
 
+  // Cache locally so listAttestations() can include recently uploaded
+  // attestations without needing a full indexer listing.
+  localStore.set(rootHash, attestation);
+
   return { rootHash, storedOn: "0g", txHash };
 }
 
@@ -98,13 +112,13 @@ export async function getAttestation(
 }
 
 export async function listAttestations(): Promise<AttestationIndex[]> {
-  if (!has0GStorage()) {
-    return indexFromSeed();
-  }
-  // In production we'd query the indexer for a list of root hashes we care
-  // about; for v0 we return the seed index with the 0G marker so the client
-  // knows it's the curated set.
-  return indexFromSeed();
+  // Return every attestation in the local store — seeds plus any
+  // user-written attestations. In demo mode the store is the only
+  // persistence layer; in production mode it acts as a write-through
+  // cache (uploadAttestation sets it on every 0G upload).
+  return Array.from(localStore.values())
+    .map(toIndex)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 // Count how many distinct attestations exist for a given rootHash. In demo

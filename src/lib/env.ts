@@ -12,6 +12,7 @@ type ServerEnv = {
   OG_STORAGE_INDEXER: string;
   OG_COMPUTE_ROUTER_URL: string;
   OG_COMPUTE_API_KEY: string;
+  OG_COMPUTE_MODEL: string;
   OG_PRIVATE_KEY: string;
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
@@ -39,6 +40,7 @@ function readServerEnv(): ServerEnv {
     OG_STORAGE_INDEXER: process.env.OG_STORAGE_INDEXER ?? "",
     OG_COMPUTE_ROUTER_URL: process.env.OG_COMPUTE_ROUTER_URL ?? "",
     OG_COMPUTE_API_KEY: process.env.OG_COMPUTE_API_KEY ?? "",
+    OG_COMPUTE_MODEL: process.env.OG_COMPUTE_MODEL ?? "zai-org/GLM-5-FP8",
     OG_PRIVATE_KEY: process.env.OG_PRIVATE_KEY ?? "",
     SUPABASE_URL: process.env.SUPABASE_URL ?? "",
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
