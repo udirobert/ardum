@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import ReasoningList from "@/matching/ReasoningList";
+import StreamProgress from "@/matching/StreamProgress";
 import MatchCard from "@/matching/MatchCard";
 import type { MatchRun, ReasoningStep } from "@/matching/types";
 
@@ -102,13 +103,21 @@ function MatchFlow() {
   if (!run) {
     return (
       <section className="mx-auto max-w-2xl px-6 sm:px-10 pt-20">
-        <p className="tag mb-3">matching</p>
+        <div className="flex items-baseline justify-between mb-3">
+          <p className="tag">matching</p>
+          {steps.length > 0 && (
+            <p className="tag tabular-nums fade-in-up">
+              {steps.length} {steps.length === 1 ? "step" : "steps"} so far
+            </p>
+          )}
+        </div>
         <h1 className="font-serif text-4xl tracking-tight mb-6">
           {steps.length === 0
             ? "Reading your profile…"
             : "Reasoning out loud…"}
         </h1>
-        <ReasoningList steps={steps} />
+        <StreamProgress steps={steps.length} />
+        <ReasoningList steps={steps} isStreaming />
         {!streamOpen && (
           <p className="why pulse-soft mt-4">opening stream…</p>
         )}
@@ -127,7 +136,16 @@ function MatchFlow() {
 
   return (
     <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
-      <p className="tag mb-3">session {run.practitionerId.slice(0, 8)}…</p>
+      <div className="flex items-baseline justify-between mb-3">
+        <p className="tag">session {run.practitionerId.slice(0, 8)}…</p>
+        <p className="tag flex items-center gap-2 fade-in-up">
+          <span
+            aria-hidden
+            className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)]"
+          />
+          matched
+        </p>
+      </div>
       <h1 className="font-serif text-5xl sm:text-6xl leading-[1.02] tracking-tight mb-6">
         Reasoning first. Recommendation second.
       </h1>

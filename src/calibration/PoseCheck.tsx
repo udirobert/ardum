@@ -130,11 +130,13 @@ export default function PoseCheck({
   if (!enabled && !baseline) {
     return (
       <div className="border border-[color:var(--hairline)] rounded-sm p-6 bg-[color:var(--surface)]">
-        <p className="why mb-4">
-          Skip this and the agent will match on energy, budget, and social
-          comfort alone — still useful, just less precise.
+        <p className="why mb-4 max-w-prose">
+          Run a short posture sample and the agent can match against your
+          actual mobility and breath phase — not just your stated energy.
+          Your video stays in this browser tab; only derived signals are
+          sent upstream.
         </p>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <button
             type="button"
             onClick={onEnable}
@@ -147,7 +149,7 @@ export default function PoseCheck({
             onClick={onSkip}
             className="px-5 py-2.5 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors"
           >
-            Skip
+            Skip — match on stated energy only
           </button>
         </div>
       </div>
@@ -171,6 +173,7 @@ export default function PoseCheck({
         {status === "sampling" && (
           <p className="why pulse-soft">
             sampling — stand relaxed, arms by your sides, breathe normally.
+            The camera sees you, but the frames never leave this tab.
           </p>
         )}
         {status === "error" && (
