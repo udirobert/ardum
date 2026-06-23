@@ -195,6 +195,17 @@ body::before {
   will-change: filter, transform;
 }
 
+/* Skeleton pulse for image loading placeholders. */
+@keyframes shimmer {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+.skeleton-pulse {
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
 /* View Transitions API — progressive enhancement for Chromium. */
 @supports (view-transition-name: none) {
   ::view-transition-old(root) {

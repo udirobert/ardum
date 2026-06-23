@@ -1,9 +1,11 @@
 import Intake from "@/calibration/Intake";
 import MaskReveal from "@/components/MaskReveal";
+import HeroBackground from "@/components/HeroBackground";
 
 export default function Home() {
   return (
-    <>
+    <div className="relative">
+      <HeroBackground />
       <MaskReveal>
         <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-8 sm:pt-12 pb-6">
           <p className="tag mb-4">a short calibration</p>
@@ -19,6 +21,6 @@ export default function Home() {
         </section>
       </MaskReveal>
       <Intake />
-    </>
+    </div>
   );
 }

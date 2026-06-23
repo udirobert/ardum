@@ -1,6 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+        port: "",
+        pathname: "/photo-*",
+      },
+    ],
+  },
   // Pin the workspace root to this app's directory so Next.js ignores the
   // parent lockfile (silences a warning when this repo sits inside a parent
   // that has its own lockfile).

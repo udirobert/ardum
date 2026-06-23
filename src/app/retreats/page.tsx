@@ -1,7 +1,10 @@
 import Link from "next/link";
 
 import { listAttestations } from "@/lib/og-storage";
+import { RETREAT_PHOTOS, unsplashUrl, FALLBACK_GRADIENT } from "@/lib/retreat-photos";
 import SectionDivider from "@/components/SectionDivider";
+import ProgressiveBlurImage from "@/components/ProgressiveBlurImage";
+import MaskReveal from "@/components/MaskReveal";
 
 // /retreats — a transparent browse of the attestation pool. Anyone can see
 // what the matching agent is reasoning against, and click through to the
@@ -28,43 +31,59 @@ export default async function RetreatsPage() {
 
       <SectionDivider />
 
-      <ul className="grid sm:grid-cols-2 gap-4">
-        {attestations.map((a, i) => (
-          <li key={a.rootHash} className={`fade-in-up-${(i % 5) + 1}`}>
-            <Link
-              href={`/match/${a.rootHash}`}
-              className="block h-full border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 hover:border-[color:var(--accent-soft)] transition-colors hover-lift"
-            >
-              <p className="tag mb-2">{a.claims.location}</p>
-              <h2 className="font-serif text-2xl tracking-tight leading-tight mb-2">
-                {a.title}
-              </h2>
-              <p className="text-[color:var(--muted)] text-sm mb-4">
-                {a.claims.durationDays} days · $
-                {a.claims.priceUsd.toLocaleString()} · cohort of{" "}
-                {a.claims.capacity}
-              </p>
-              <p className="text-sm max-w-prose mb-4">{a.description}</p>
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {a.claims.practiceStyle.map((s) => (
-                  <span
-                    key={s}
-                    className="text-xs px-2 py-0.5 rounded-sm border border-[color:var(--hairline)] text-[color:var(--muted)]"
-                  >
-                    {s}
-                  </span>
-                ))}
-              </div>
-              <p className="tag pt-3 border-t border-[color:var(--hairline)] mt-2 flex justify-between">
-                <span>1 attestation</span>
-                <span className="opacity-70">
-                  {new Date(a.createdAt).toLocaleDateString()}
-                </span>
-              </p>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <MaskReveal>
+        <ul className="grid sm:grid-cols-2 gap-4">
+          {attestations.map((a, i) => {
+            const photo = RETREAT_PHOTOS[a.rootHash];
+            return (
+              <li key={a.rootHash} className={`fade-in-up-${(i % 5) + 1}`}>
+                <Link
+                  href={`/match/${a.rootHash}`}
+                  className="block h-full border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 hover:border-[color:var(--accent-soft)] transition-colors hover-lift"
+                >
+                  {photo && (
+                    <ProgressiveBlurImage
+                      src={unsplashUrl(photo.id, 600)}
+                      alt={photo.alt}
+                      width={600}
+                      height={400}
+                      aspectRatio="3/2"
+                      fallbackGradient={FALLBACK_GRADIENT}
+                      className="mb-4 rounded-sm"
+                    />
+                  )}
+                  <p className="tag mb-2">{a.claims.location}</p>
+                  <h2 className="font-serif text-2xl tracking-tight leading-tight mb-2">
+                    {a.title}
+                  </h2>
+                  <p className="text-[color:var(--muted)] text-sm mb-4">
+                    {a.claims.durationDays} days · $
+                    {a.claims.priceUsd.toLocaleString()} · cohort of{" "}
+                    {a.claims.capacity}
+                  </p>
+                  <p className="text-sm max-w-prose mb-4">{a.description}</p>
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {a.claims.practiceStyle.map((s) => (
+                      <span
+                        key={s}
+                        className="text-xs px-2 py-0.5 rounded-sm border border-[color:var(--hairline)] text-[color:var(--muted)]"
+                      >
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="tag pt-3 border-t border-[color:var(--hairline)] mt-2 flex justify-between">
+                    <span>1 attestation</span>
+                    <span className="opacity-70">
+                      {new Date(a.createdAt).toLocaleDateString()}
+                    </span>
+                  </p>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </MaskReveal>
 
       <p className="why mt-12 max-w-prose">
         These are the seed retreats. New ones land via{" "}

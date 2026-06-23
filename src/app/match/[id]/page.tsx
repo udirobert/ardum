@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 
 import { getAttestation } from "@/lib/og-storage";
+import { RETREAT_PHOTOS, unsplashUrl, FALLBACK_GRADIENT } from "@/lib/retreat-photos";
 import ReasoningList from "@/matching/ReasoningList";
 import BreathCycleDiagram from "@/matching/BreathCycleDiagram";
+import ProgressiveBlurImage from "@/components/ProgressiveBlurImage";
 import RevealSection from "@/components/RevealSection";
 import MaskReveal from "@/components/MaskReveal";
 
@@ -51,6 +53,7 @@ export default async function MatchDetail({
   const headline = match?.headline;
   const score = match?.score;
   const reasoning = match?.reasoning ?? [];
+  const photo = RETREAT_PHOTOS[id];
 
   return (
     <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
@@ -60,6 +63,20 @@ export default async function MatchDetail({
       >
         ← all matches
       </Link>
+
+      {photo && (
+        <div className="mt-8 mb-10 -mx-6 sm:-mx-10">
+          <ProgressiveBlurImage
+            src={unsplashUrl(photo.id, 1200)}
+            alt={photo.alt}
+            width={1200}
+            height={675}
+            aspectRatio="16/9"
+            fallbackGradient={FALLBACK_GRADIENT}
+            className="rounded-sm"
+          />
+        </div>
+      )}
 
       <p className="tag mt-10 mb-2">{location}</p>
       <h1 className="font-serif text-5xl sm:text-6xl leading-[1.02] tracking-tight mb-3">
