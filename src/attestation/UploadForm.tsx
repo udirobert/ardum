@@ -2,15 +2,17 @@
 
 import { useState } from "react";
 import WalletButton from "./WalletButton";
+import { canonicalAttestationMessage } from "./sign";
 import type { Attestation } from "./schema";
 
-// A minimal attestation write form. In v0 the form just collects the
-// fields and POSTs to /api/attestations; the SDK upload runs server-side
-// and the wallet is recorded as the attestor.
+// A minimal attestation write form. The wallet signs the canonical payload
+// (EIP-191 personal_sign) before posting — the server verifies the signature
+// recovers to attestation.attestor before handing it to 0G Storage.
 
 export default function UploadForm() {
   const [attestor, setAttestor] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [signingStep, setSigningStep] = useState<string | null>(null);
   const [result, setResult] = useState<{ rootHash: string; storedOn: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,10 +60,18 @@ export default function UploadForm() {
         attestor,
         createdAt: new Date().toISOString(),
       };
+
+      // Ask the wallet to sign the canonical payload. The server will verify
+      // the recovered address matches `attestor` before accepting.
+      setSigningStep("waiting for wallet signature…");
+      const message = canonicalAttestationMessage(attestation);
+      const signature = await personalSign(message, attestor);
+      setSigningStep(null);
+
       const res = await fetch("/api/attestations", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ attestation }),
+        body: JSON.stringify({ attestation, signature }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Upload failed.");
@@ -70,6 +80,7 @@ export default function UploadForm() {
       setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
       setSubmitting(false);
+      setSigningStep(null);
     }
   }
 
@@ -183,7 +194,11 @@ export default function UploadForm() {
           disabled={submitting || !attestor}
           className="px-6 py-3 rounded-sm bg-[color:var(--accent)] text-background disabled:opacity-50 hover:bg-[color:var(--accent-ink)] transition-colors"
         >
-          {submitting ? "writing…" : "Write attestation →"}
+          {signingStep
+            ? "signing…"
+            : submitting
+            ? "writing…"
+            : "Sign & write attestation →"}
         </button>
       </div>
 
@@ -234,4 +249,18 @@ async function deriveRootHash({
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
   return `0g-${hex.slice(0, 32)}`;
+}
+
+// EIP-191 personal_sign via the injected wallet. Returns the 0x-prefixed
+// signature. Throws on user rejection.
+async function personalSign(
+  message: string,
+  account: string
+): Promise<string> {
+  const eth = window.ethereum;
+  if (!eth) throw new Error("No injected wallet.");
+  return (await eth.request({
+    method: "personal_sign",
+    params: [message, account],
+  })) as string;
 }
