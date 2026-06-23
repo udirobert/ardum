@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { INTAKE_STEPS } from "./intakeSteps";
@@ -95,23 +95,45 @@ export default function Intake() {
     }
   }
 
-  // Keyboard: 1-4 picks an option, Enter advances.
+  // Keyboard: 1-4 picks an option, Enter advances, Backspace goes back.
+  // We attach the listener ONCE and keep the latest values in refs so the
+  // handler always sees fresh state without re-subscribing every render.
+  const stepRef = useRef(currentStep);
+  const canAdvanceRef = useRef(canAdvance);
+  const stepIndexRef = useRef(stepIndex);
+  const isFinalRef = useRef(isFinal);
+  const pickRef = useRef(pick);
+  const nextRef = useRef(next);
+  const backRef = useRef(back);
   useEffect(() => {
-    if (isFinal) return;
+    stepRef.current = currentStep;
+    canAdvanceRef.current = canAdvance;
+    stepIndexRef.current = stepIndex;
+    isFinalRef.current = isFinal;
+    pickRef.current = pick;
+    nextRef.current = next;
+    backRef.current = back;
+  });
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Ignore key events when the user is typing in a text field.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+      if (isFinalRef.current) return;
+      const step = stepRef.current;
       if (e.key >= "1" && e.key <= "4") {
         const idx = Number(e.key) - 1;
-        const opt = currentStep.options[idx];
-        if (opt) pick(opt.value);
-      } else if (e.key === "Enter" && canAdvance) {
-        next();
-      } else if (e.key === "Backspace" && stepIndex > 0) {
-        back();
+        const opt = step.options[idx];
+        if (opt) pickRef.current(opt.value);
+      } else if (e.key === "Enter" && canAdvanceRef.current) {
+        nextRef.current();
+      } else if (e.key === "Backspace" && stepIndexRef.current > 0) {
+        backRef.current();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, []);
 
   return (
     <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 sm:pt-20 pb-24">
