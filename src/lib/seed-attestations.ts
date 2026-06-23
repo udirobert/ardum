@@ -27,6 +27,12 @@ export const SEED_ATTESTATIONS: Attestation[] = [
       energyFit: ["settled", "low"],
       socialFit: ["solo", "small-circle"],
       breathPhase: ["extended", "even"],
+      breathCycle: {
+        unit: "seconds",
+        pre: [{ inhale: 6, exhale: 6 }],
+        cycle: [{ repeat: 10, inhale: 4, retain: 2, exhale: 6, sustain: 0 }],
+        ratio: "2:1:3:0",
+      },
       notes:
         "Owner-taught. Strong on subtlety — less suitable for practitioners " +
         "wanting high heat or large-group energy.",
@@ -75,6 +81,12 @@ export const SEED_ATTESTATIONS: Attestation[] = [
       energyFit: ["low", "settled"],
       socialFit: ["solo", "small-circle"],
       breathPhase: ["extended"],
+      breathCycle: {
+        unit: "seconds",
+        pre: [{ inhale: 8, exhale: 8 }],
+        cycle: [{ repeat: 8, inhale: 6, retain: 2, exhale: 8, sustain: 0 }],
+        ratio: "3:1:4:0",
+      },
       notes:
         "Hosted by a local family. The food alone is a reason to come. " +
         "Not for anyone wanting volume or variety.",
@@ -99,6 +111,12 @@ export const SEED_ATTESTATIONS: Attestation[] = [
       energyFit: ["settled", "in-movement"],
       socialFit: ["solo", "small-circle", "open-circle"],
       breathPhase: ["extended", "even"],
+      breathCycle: {
+        unit: "seconds",
+        pre: [{ inhale: 4, exhale: 4 }],
+        cycle: [{ repeat: 12, inhale: 4, retain: 4, exhale: 4, sustain: 0 }],
+        ratio: "1:1:1:0",
+      },
       notes:
         "If breathwork is your entry point and you want depth without " +
         "asana volume, this is the strongest fit in the region.",

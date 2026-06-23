@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { getAttestation } from "@/lib/og-storage";
 import ReasoningList from "@/matching/ReasoningList";
+import BreathCycleDiagram from "@/matching/BreathCycleDiagram";
 
 export const dynamic = "force-dynamic";
 
@@ -120,6 +121,19 @@ export default async function MatchDetail({
           {attestation.claims.notes && (
             <p className="why mt-4 max-w-prose">{attestation.claims.notes}</p>
           )}
+        </div>
+      )}
+
+      {attestation?.claims.breathCycle && (
+        <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8 mt-6">
+          <p className="tag mb-3">breath cycle</p>
+          <p className="text-sm mb-4 text-[color:var(--muted)]">
+            Nafas-shaped — {attestation.claims.breathCycle.ratio} ratio,
+            each phase in {attestation.claims.breathCycle.unit}.
+          </p>
+          <BreathCycleDiagram
+            cycle={attestation.claims.breathCycle}
+          />
         </div>
       )}
     </section>

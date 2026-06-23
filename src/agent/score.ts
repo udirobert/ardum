@@ -8,12 +8,14 @@
 
 import type {
   AttestationIndex,
+  BreathCycle,
 } from "@/attestation/schema";
 import type {
   MatchResult,
   ReasoningStep,
 } from "@/matching/types";
 import type {
+  PoseBaseline,
   PractitionerProfile,
 } from "@/calibration/schema";
 
@@ -25,6 +27,38 @@ export type ScoredAttestation = {
 function axisScore(match: boolean, hasSignal: boolean): number {
   if (!hasSignal) return 0;
   return match ? 1 : 0;
+}
+
+// Map a structured BreathCycle to a coarse "character" (extended/even/shallow)
+// so it can be compared against a practitioner pose baseline.
+function cycleCharacter(cycle: BreathCycle): {
+  character: "extended" | "even" | "shallow";
+  avgSeconds: number;
+  ratio: string;
+} {
+  let totalLen = 0;
+  let totalRepeat = 0;
+  for (const seg of cycle.cycle) {
+    totalLen +=
+      (seg.inhale + seg.retain + seg.exhale + seg.sustain) * seg.repeat;
+    totalRepeat += seg.repeat;
+  }
+  const avgSeconds = totalRepeat > 0 ? totalLen / totalRepeat : 0;
+  const character: "extended" | "even" | "shallow" =
+    avgSeconds > 10 ? "extended" : avgSeconds < 5 ? "shallow" : "even";
+  return { character, avgSeconds, ratio: cycle.ratio };
+}
+
+function cycleMatch(
+  practitionerBreath: PoseBaseline["breathPhase"],
+  cycle: BreathCycle
+): { match: boolean; detail: string } {
+  const { character, avgSeconds, ratio } = cycleCharacter(cycle);
+  const match = character === practitionerBreath;
+  return {
+    match,
+    detail: `${character} (avg ${avgSeconds.toFixed(1)}s/cycle, ratio ${ratio})`,
+  };
 }
 
 type BudgetVerdict = {
@@ -164,6 +198,25 @@ export function scoreRetreat(
       given: `No pose baseline provided. Stated energy: ${practitioner.energy}.`,
       when: "Without a pose sample, the agent reasons from stated energy alone.",
       then: "Skipped the breath/mobility axes — match is less precise.",
+      weight: 0.1,
+    });
+  }
+
+  // Breath cycle alignment (only when the retreat has a structured cycle
+  // AND the practitioner has a pose baseline). This is a stronger signal
+  // than the breathPhase string match above — actual cycle timing, not
+  // just a label.
+  if (practitioner.pose && a.claims.breathCycle) {
+    const cm = cycleMatch(practitioner.pose.breathPhase, a.claims.breathCycle);
+    steps.push({
+      axis: "Breath cycle",
+      given: `Baseline breath phase: ${practitioner.pose.breathPhase}. Retreat breath cycle: ${cm.detail}.`,
+      when: cm.match
+        ? "Computed cycle character matches the practitioner's baseline phase."
+        : "Computed cycle character doesn't match the practitioner's baseline phase.",
+      then: cm.match
+        ? "Actual cycle timing aligns with the practitioner's baseline."
+        : "Actual cycle timing is out of register with the practitioner's baseline.",
       weight: 0.1,
     });
   }
