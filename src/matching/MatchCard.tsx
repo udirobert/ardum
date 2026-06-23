@@ -52,7 +52,7 @@ export default function MatchCard({
 
   if (compact && !expanded) {
     return (
-      <article className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 fade-in-up">
+      <article className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 fade-in-up hover-lift">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <p className="tag mb-1">match #{rank}</p>
@@ -95,7 +95,7 @@ export default function MatchCard({
   }
 
   return (
-    <article className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8 sm:p-10 fade-in-up">
+    <article className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8 sm:p-10 fade-in-up hover-lift">
       <header className="flex items-start justify-between gap-6 mb-6">
         <div>
           <p className="tag mb-2">match #{rank}</p>

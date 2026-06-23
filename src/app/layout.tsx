@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import PageTransition from "@/components/PageTransition";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -75,7 +76,9 @@ export default function RootLayout({
             the shape of your practice
           </span>
         </header>
-        <main className="flex-1">{children}</main>
+        <main className="flex-1">
+          <PageTransition>{children}</PageTransition>
+        </main>
         <footer className="px-6 sm:px-10 py-6 rule border-t mt-12">
           <div className="flex flex-wrap items-baseline justify-between gap-4">
             <p className="text-sm text-[color:var(--muted)]">

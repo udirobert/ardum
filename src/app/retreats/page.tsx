@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { listAttestations } from "@/lib/og-storage";
+import SectionDivider from "@/components/SectionDivider";
 
 // /retreats — a transparent browse of the attestation pool. Anyone can see
 // what the matching agent is reasoning against, and click through to the
@@ -25,12 +26,14 @@ export default async function RetreatsPage() {
         from 0G Storage (or the seed when no 0G credentials are configured).
       </p>
 
+      <SectionDivider />
+
       <ul className="grid sm:grid-cols-2 gap-4">
-        {attestations.map((a) => (
-          <li key={a.rootHash}>
+        {attestations.map((a, i) => (
+          <li key={a.rootHash} className={`fade-in-up-${(i % 5) + 1}`}>
             <Link
               href={`/match/${a.rootHash}`}
-              className="block h-full border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 hover:border-[color:var(--accent-soft)] transition-colors"
+              className="block h-full border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 hover:border-[color:var(--accent-soft)] transition-colors hover-lift"
             >
               <p className="tag mb-2">{a.claims.location}</p>
               <h2 className="font-serif text-2xl tracking-tight leading-tight mb-2">

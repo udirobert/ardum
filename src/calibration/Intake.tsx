@@ -154,7 +154,7 @@ export default function Intake() {
                   <button
                     type="button"
                     onClick={() => pick(opt.value)}
-                    className={`w-full text-left px-5 py-4 rounded-sm border transition-colors ${
+                    className={`w-full text-left px-5 py-4 rounded-sm border transition-colors hover-lift ${
                       selected
                         ? "border-[color:var(--accent)] bg-[color:var(--surface)]"
                         : "border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] hover:bg-[color:var(--surface)]"

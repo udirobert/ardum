@@ -4,6 +4,8 @@ import Link from "next/link";
 import { getAttestation } from "@/lib/og-storage";
 import ReasoningList from "@/matching/ReasoningList";
 import BreathCycleDiagram from "@/matching/BreathCycleDiagram";
+import RevealSection from "@/components/RevealSection";
+import MaskReveal from "@/components/MaskReveal";
 
 export const dynamic = "force-dynamic";
 
@@ -99,42 +101,48 @@ export default async function MatchDetail({
       )}
 
       {reasoning.length > 0 && (
-        <div className="mb-12">
-          <h2 className="font-serif text-3xl tracking-tight mb-6">
-            Reasoning
-          </h2>
-          <ReasoningList steps={reasoning} />
-        </div>
+        <MaskReveal>
+          <div className="mb-12">
+            <h2 className="font-serif text-3xl tracking-tight mb-6">
+              Reasoning
+            </h2>
+            <ReasoningList steps={reasoning} />
+          </div>
+        </MaskReveal>
       )}
 
       {attestation && (
-        <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8">
-          <p className="tag mb-3">attestation</p>
-          <p className="text-sm mb-3">
-            <span className="text-[color:var(--muted)]">attestor: </span>
-            <span className="tag break-all">{attestation.attestor}</span>
-          </p>
-          <p className="text-sm">
-            <span className="text-[color:var(--muted)]">created: </span>
-            {new Date(attestation.createdAt).toLocaleDateString()}
-          </p>
-          {attestation.claims.notes && (
-            <p className="why mt-4 max-w-prose">{attestation.claims.notes}</p>
-          )}
-        </div>
+        <RevealSection delay={300}>
+          <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8">
+            <p className="tag mb-3">attestation</p>
+            <p className="text-sm mb-3">
+              <span className="text-[color:var(--muted)]">attestor: </span>
+              <span className="tag break-all">{attestation.attestor}</span>
+            </p>
+            <p className="text-sm">
+              <span className="text-[color:var(--muted)]">created: </span>
+              {new Date(attestation.createdAt).toLocaleDateString()}
+            </p>
+            {attestation.claims.notes && (
+              <p className="why mt-4 max-w-prose">{attestation.claims.notes}</p>
+            )}
+          </div>
+        </RevealSection>
       )}
 
       {attestation?.claims.breathCycle && (
-        <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8 mt-6">
-          <p className="tag mb-3">breath cycle</p>
-          <p className="text-sm mb-4 text-[color:var(--muted)]">
-            Nafas-shaped — {attestation.claims.breathCycle.ratio} ratio,
-            each phase in {attestation.claims.breathCycle.unit}.
-          </p>
-          <BreathCycleDiagram
-            cycle={attestation.claims.breathCycle}
-          />
-        </div>
+        <RevealSection delay={450}>
+          <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8 mt-6">
+            <p className="tag mb-3">breath cycle</p>
+            <p className="text-sm mb-4 text-[color:var(--muted)]">
+              Nafas-shaped — {attestation.claims.breathCycle.ratio} ratio,
+              each phase in {attestation.claims.breathCycle.unit}.
+            </p>
+            <BreathCycleDiagram
+              cycle={attestation.claims.breathCycle}
+            />
+          </div>
+        </RevealSection>
       )}
     </section>
   );

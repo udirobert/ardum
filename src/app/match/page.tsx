@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ReasoningList from "@/matching/ReasoningList";
 import StreamProgress from "@/matching/StreamProgress";
 import MatchCard from "@/matching/MatchCard";
+import MaskReveal from "@/components/MaskReveal";
 import type { MatchRun, ReasoningStep } from "@/matching/types";
 
 export default function MatchPage() {
@@ -156,7 +157,8 @@ function MatchFlow() {
 
   return (
     <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
-      <div className="flex items-baseline justify-between mb-3 fade-in-up">
+      <MaskReveal>
+        <div className="flex items-baseline justify-between mb-3 fade-in-up">
         <p className="tag">session {run.practitionerId.slice(0, 8)}&hellip;</p>
         <p className="tag flex items-center gap-2 fade-in-up">
           <span
@@ -212,6 +214,7 @@ function MatchFlow() {
           : `powered by ${run.agentTrace.model}`}
         &middot; prompt {run.agentTrace.promptVersion}
       </p>
+      </MaskReveal>
     </section>
   );
 }
