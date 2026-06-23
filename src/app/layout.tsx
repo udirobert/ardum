@@ -53,10 +53,26 @@ export default function RootLayout({
         </header>
         <main className="flex-1">{children}</main>
         <footer className="px-6 sm:px-10 py-6 rule border-t mt-12">
-          <p className="text-sm text-[color:var(--muted)]">
-            Built on 0G Storage + 0G Compute · MediaPipe runs in your
-            browser · wallet only for attestation writes
-          </p>
+          <div className="flex flex-wrap items-baseline justify-between gap-4">
+            <p className="text-sm text-[color:var(--muted)]">
+              Built on 0G Storage + 0G Compute · MediaPipe runs in your
+              browser · wallet only for attestation writes
+            </p>
+            <nav className="flex gap-5 text-sm">
+              <Link
+                href="/retreats"
+                className="text-[color:var(--muted)] hover:text-foreground transition-colors"
+              >
+                the pool
+              </Link>
+              <Link
+                href="/attest"
+                className="text-[color:var(--muted)] hover:text-foreground transition-colors"
+              >
+                attest
+              </Link>
+            </nav>
+          </div>
         </footer>
       </body>
     </html>

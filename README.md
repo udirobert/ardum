@@ -3,6 +3,28 @@
 Agentic yoga retreat matching built on 0G (Storage + Compute). Verified
 attestations, in-browser pose calibration, reasoning visible at every step.
 
+## Design references
+
+Repos that informed Ardum's agent-consumable retreat language and pose workflow:
+
+- **[Xe/when-then-zen](https://github.com/Xe/when-then-zen)** — Meditation instructions
+  formalized as Gherkin scenarios (`Given/When/Then`). Ardum's agent reasoning
+  follows the same pattern: retreat offerings and practices are structured as
+  spec-like facts that agents can consume, reason over, and surface to the user.
+  The metta and noting features are the closest model for how we encode practice
+  metadata in the matching pool.
+
+- **[sepandhaghighi/nafas](https://github.com/sepandhaghighi/nafas)** — CLI breathwork
+  app with programmable cycles (`inhale / retain / exhale / sustain` ratios +
+  durations). Nafas's JSON config schema (`{ unit, pre, cycle, ratio }`) is the
+  template for how breathwork activities get parameterized in Ardum's attestation
+  layer — agents reason over structured breath ratios, not prose.
+
+- **[alexcumplido/yoga-api](https://github.com/alexcumplido/yoga-api)** — REST API
+  returning yoga poses with SVG/PNG images. SVG assets could serve the PoseCheck
+  calibration UI. The API occasionally 503s; self-hosting from the SQLite source
+  is the reliable path.
+
 ## Stack
 
 - **Next.js 16.2** (App Router, Turbopack, React 19)
