@@ -129,12 +129,12 @@ describe("scoreAll — score bounds", () => {
     }
   });
 
-  it("all five retreats are ranked for every input", () => {
+  it("all ten seed retreats are ranked for every input", () => {
     const ranked = scoreAll(
       profile({ energy: "settled", social: "solo", budget: "1k-2k" }),
       attestations()
     );
-    expect(ranked).toHaveLength(5);
+    expect(ranked).toHaveLength(10);
   });
 });
 
