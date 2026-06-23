@@ -1,11 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import ReasoningList from "@/matching/ReasoningList";
 import MatchCard from "@/matching/MatchCard";
-import type { MatchRun } from "@/matching/types";
+import type { MatchRun, ReasoningStep } from "@/matching/types";
 
 export default function MatchPage() {
   return (
@@ -20,44 +20,81 @@ function MatchFlow() {
   const router = useRouter();
   const sessionId = sp.get("session");
 
+  const [steps, setSteps] = useState<ReasoningStep[]>([]);
   const [run, setRun] = useState<MatchRun | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [streamOpen, setStreamOpen] = useState(false);
+
+  // Keep latest state visible inside the EventSource handlers without
+  // re-subscribing on every render.
+  const stepsRef = useRef<ReasoningStep[]>([]);
+  useEffect(() => {
+    stepsRef.current = steps;
+  }, [steps]);
 
   useEffect(() => {
     if (!sessionId) {
       router.replace("/");
       return;
     }
-    let cancelled = false;
-    async function poll() {
+
+    const url = `/api/agent/match/stream?session=${encodeURIComponent(sessionId)}`;
+    const es = new EventSource(url);
+
+    es.addEventListener("open", () => setStreamOpen(true));
+
+    es.addEventListener("reasoning", (e) => {
       try {
-        // The match is computed server-side on POST /api/agent/match.
-        // On this page we re-fetch via a small server action so SSR can
-        // hydrate the reasoning even if the user reloads.
-        const res = await fetch(`/api/match-result?session=${sessionId}`);
-        if (!res.ok) {
-          // Not yet ready — retry shortly.
-          setTimeout(poll, 250);
-          return;
-        }
-        const json = await res.json();
-        if (cancelled) return;
-        setRun(json.run);
-      } catch (e) {
-        if (cancelled) return;
-        setErr(e instanceof Error ? e.message : "Match failed.");
+        const step = JSON.parse((e as MessageEvent).data) as ReasoningStep;
+        setSteps((s) => [...s, step]);
+      } catch (parseErr) {
+        console.error("bad reasoning event", parseErr);
       }
-    }
-    poll();
-    return () => {
-      cancelled = true;
-    };
+    });
+
+    es.addEventListener("done", (e) => {
+      try {
+        const payload = JSON.parse((e as MessageEvent).data) as { run: MatchRun };
+        setRun(payload.run);
+      } catch (parseErr) {
+        console.error("bad done event", parseErr);
+      }
+      es.close();
+    });
+
+    es.addEventListener("error", (e) => {
+      // EventSource fires 'error' on network drops AND on non-2xx status.
+      // We only surface a real error if we never received a 'done' event.
+      if ((e as MessageEvent).data) {
+        try {
+          const payload = JSON.parse((e as MessageEvent).data) as {
+            message?: string;
+          };
+          setErr(payload.message ?? "Stream error.");
+        } catch {
+          /* generic event with no payload */
+        }
+      }
+    });
+
+    return () => es.close();
   }, [sessionId, router]);
 
   if (err) {
     return (
       <section className="mx-auto max-w-2xl px-6 sm:px-10 pt-20">
-        <p className="text-[color:var(--accent-ink)]">{err}</p>
+        <p className="tag mb-3">error</p>
+        <h1 className="font-serif text-4xl tracking-tight mb-4">
+          The agent couldn&apos;t finish reasoning.
+        </h1>
+        <p className="text-[color:var(--accent-ink)] mb-6">{err}</p>
+        <button
+          type="button"
+          onClick={() => router.push("/")}
+          className="px-5 py-2.5 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors"
+        >
+          Start over →
+        </button>
       </section>
     );
   }
@@ -67,9 +104,14 @@ function MatchFlow() {
       <section className="mx-auto max-w-2xl px-6 sm:px-10 pt-20">
         <p className="tag mb-3">matching</p>
         <h1 className="font-serif text-4xl tracking-tight mb-6">
-          Reading the attestation pool…
+          {steps.length === 0
+            ? "Reading your profile…"
+            : "Reasoning out loud…"}
         </h1>
-        <p className="why pulse-soft">agent reasoning…</p>
+        <ReasoningList steps={steps} />
+        {!streamOpen && (
+          <p className="why pulse-soft mt-4">opening stream…</p>
+        )}
       </section>
     );
   }
@@ -96,7 +138,7 @@ function MatchFlow() {
       </p>
 
       <div className="mb-16">
-        <ReasoningList steps={top.reasoning} />
+        <ReasoningList steps={steps} />
       </div>
 
       <div className="space-y-6">

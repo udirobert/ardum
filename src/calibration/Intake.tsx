@@ -73,21 +73,15 @@ export default function Intake() {
         notes: notes.trim() || undefined,
         createdAt: new Date().toISOString(),
       };
-      // Save profile first, then ask the agent to match.
+      // Save the profile and hand off to the match page. The page opens an
+      // SSE stream to /api/agent/match/stream — the agent "thinks out loud"
+      // there, step by step, in real time.
       const profRes = await fetch("/api/profile", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ profile }),
       });
       const { sessionId } = await profRes.json();
-
-      const matchRes = await fetch("/api/agent/match", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sessionId, profile }),
-      });
-      const match = await matchRes.json();
-      if (!matchRes.ok) throw new Error(match.error ?? "match failed");
       router.push(`/match?session=${sessionId}`);
     } catch (err) {
       console.error(err);
