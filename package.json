@@ -8,7 +8,17 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx scripts/seed-attestations.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check-secrets": "tsx scripts/check-secrets.ts",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix"
+    ],
+    "*.{js,mjs,cjs}": [
+      "eslint --fix"
+    ]
   },
   "dependencies": {
     "@0gfoundation/0g-storage-ts-sdk": "^1.2.10",
@@ -27,6 +37,8 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"

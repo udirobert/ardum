@@ -11,7 +11,7 @@ export async function POST() {
   const results = [];
   for (const a of SEED_ATTESTATIONS) {
     const r = await uploadAttestation(a);
-    results.push({ rootHash: a.rootHash, ...r });
+    results.push({ ...r, title: a.title });
   }
   return NextResponse.json({ seeded: results });
 }

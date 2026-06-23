@@ -4,15 +4,25 @@
 // In v0 demo mode (no OG_* env vars), we fall back to a local in-memory store
 // seeded from src/lib/seed-attestations.ts. The API surface is identical so
 // route handlers don't branch.
+//
+// When OG_* vars are configured, we use:
+//   upload    → Indexer.upload(MemData, rpc, signer)  — in-memory, Node-safe
+//   download  → Indexer.downloadToBlob(rootHash)       — browser-safe pattern
+// We deliberately avoid Indexer.download() which writes to fs.appendFileSync.
 
 import "server-only";
 
-import { SEED_ATTESTATIONS, indexFromSeed, SEED_ATTESTOR } from "./seed-attestations";
+import { ethers } from "ethers";
+import {
+  SEED_ATTESTATIONS,
+  indexFromSeed,
+  SEED_ATTESTOR,
+} from "./seed-attestations";
 import type { Attestation, AttestationIndex } from "@/attestation/schema";
 import { has0GStorage } from "./env";
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var __ardumAttestations: Map<string, Attestation> | undefined;
 }
 
@@ -44,19 +54,30 @@ export async function uploadAttestation(
     localStore.set(attestation.rootHash, attestation);
     return { rootHash: attestation.rootHash, storedOn: "local" };
   }
-  // Real 0G Storage upload. The SDK accepts a Blob via the browser-safe
-  // pattern (avoiding indexer.download() which uses fs.appendFileSync).
-  const { Indexer, Blob } = await load0G();
+
+  const { Indexer, MemData } = await load0G();
   const env = await import("./env").then((m) => m.readServerEnv());
+
+  const provider = new ethers.JsonRpcProvider(env.OG_RPC_URL);
+  const signer = new ethers.Wallet(env.OG_PRIVATE_KEY, provider);
   const indexer = new Indexer(env.OG_STORAGE_INDEXER);
-  const blob = new Blob(attestation);
-  // Sign + upload via the indexer. Real network call.
-  const [txHash] = await indexer.upload(blob, {
-    // Use the read-only attestor for seed; for new uploads we'd sign with
-    // the connected wallet.
-    privateKey: env.OG_PRIVATE_KEY,
-  });
-  return { rootHash: attestation.rootHash, storedOn: "0g", txHash };
+
+  const bytes = new TextEncoder().encode(JSON.stringify(attestation));
+  const file = new MemData(bytes);
+
+  const [tx, err] = await indexer.upload(file, env.OG_RPC_URL, signer);
+  if (err) throw err;
+
+  // The upload result can be either a single {txHash, rootHash, txSeq} or a
+  // batched {txHashes, rootHashes, txSeqs}. Normalise.
+  const rootHash =
+    "rootHash" in tx
+      ? tx.rootHash
+      : tx.rootHashes?.[0] ?? attestation.rootHash;
+  const txHash =
+    "txHash" in tx ? tx.txHash : tx.txHashes?.[0];
+
+  return { rootHash, storedOn: "0g", txHash };
 }
 
 export async function getAttestation(
@@ -65,20 +86,24 @@ export async function getAttestation(
   if (!has0GStorage()) {
     return localStore.get(rootHash) ?? null;
   }
-  // Real 0G Storage download via the browser-safe path.
+
   const { Indexer } = await load0G();
   const env = await import("./env").then((m) => m.readServerEnv());
   const indexer = new Indexer(env.OG_STORAGE_INDEXER);
-  const data = await indexer.download(rootHash, false);
-  return data as Attestation;
+
+  const [blob, err] = await indexer.downloadToBlob(rootHash);
+  if (err || !blob) return null;
+  const text = await blob.text();
+  return JSON.parse(text) as Attestation;
 }
 
 export async function listAttestations(): Promise<AttestationIndex[]> {
   if (!has0GStorage()) {
     return indexFromSeed();
   }
-  // In production we'd query the indexer for a list; for now we return the
-  // seed index with a marker so the client knows it's the curated set.
+  // In production we'd query the indexer for a list of root hashes we care
+  // about; for v0 we return the seed index with the 0G marker so the client
+  // knows it's the curated set.
   return indexFromSeed();
 }
 
