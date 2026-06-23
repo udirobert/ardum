@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import type { MatchResult } from "./types";
 
@@ -10,27 +10,26 @@ export default function MatchCard({
   attestationCount,
   attestor,
   attestedAt,
+  compact,
 }: {
   result: MatchResult;
   rank: number;
   attestationCount?: number;
   attestor?: string;
   attestedAt?: string;
+  compact?: boolean;
 }) {
   const pct = Math.round(result.score * 100);
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   async function copyShareLink() {
-    // The detail page at /match/[id] is independently shareable — it loads
-    // the attestation by rootHash from 0G Storage. So we can copy the URL
-    // even from the in-memory session view.
     const url = `${window.location.origin}/match/${result.retreatRootHash}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      // Fallback: select + copy via a temporary textarea.
       const ta = document.createElement("textarea");
       ta.value = url;
       ta.style.position = "fixed";
@@ -47,11 +46,53 @@ export default function MatchCard({
     }
   }
 
-  // First wallet to attest this retreat — the trust anchor. Shown only when
-  // we have it; falls back to the rootHash otherwise.
   const attestorLine = attestor
     ? `attested by ${shortAddress(attestor)}`
     : null;
+
+  if (compact && !expanded) {
+    return (
+      <article className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 fade-in-up">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="tag mb-1">match #{rank}</p>
+            <h3 className="font-serif text-xl tracking-tight leading-tight truncate">
+              {result.retreatTitle}
+            </h3>
+            <p className="text-sm text-[color:var(--muted)] mt-0.5 truncate">
+              {result.retreatLocation} &middot; {result.durationDays} days
+              &middot; ${result.priceUsd.toLocaleString()} &middot; cohort of {result.capacity}
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="font-serif text-2xl tabular-nums">{pct}</p>
+            <p className="tag">fit score</p>
+          </div>
+        </div>
+
+        <p className="text-sm italic text-[color:var(--accent-ink)] mt-3 leading-snug max-w-prose">
+          {result.headline}
+        </p>
+
+        <div className="flex gap-3 mt-4">
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="text-xs px-3 py-1.5 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors text-[color:var(--muted)] hover:text-foreground"
+          >
+            See full reasoning &rarr;
+          </button>
+          <button
+            type="button"
+            onClick={copyShareLink}
+            className="text-xs px-3 py-1.5 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors text-[color:var(--muted)] hover:text-foreground"
+          >
+            {copied ? "\u2713 copied" : "Copy share link"}
+          </button>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8 sm:p-10 fade-in-up">
@@ -62,8 +103,8 @@ export default function MatchCard({
             {result.retreatTitle}
           </h3>
           <p className="text-[color:var(--muted)] mt-1">
-            {result.retreatLocation} · {result.durationDays} days · $
-            {result.priceUsd.toLocaleString()} · cohort of {result.capacity}
+            {result.retreatLocation} &middot; {result.durationDays} days &middot; $
+            {result.priceUsd.toLocaleString()} &middot; cohort of {result.capacity}
           </p>
         </div>
         <div className="text-right shrink-0">
@@ -76,34 +117,38 @@ export default function MatchCard({
         {result.headline}
       </p>
 
-      <p className="text-[color:var(--muted)] mb-8 max-w-prose">
-        {result.retreatDescription}
-      </p>
+      {(!compact || expanded) && (
+        <>
+          <p className="text-[color:var(--muted)] mb-8 max-w-prose">
+            {result.retreatDescription}
+          </p>
 
-      <div className="flex flex-wrap gap-2 mb-8">
-        {result.practiceStyle.map((s) => (
-          <span
-            key={s}
-            className="text-xs px-2.5 py-1 rounded-sm border border-[color:var(--hairline)] text-[color:var(--muted)]"
-          >
-            {s}
-          </span>
-        ))}
-      </div>
+          <div className="flex flex-wrap gap-2 mb-8">
+            {result.practiceStyle.map((s) => (
+              <span
+                key={s}
+                className="text-xs px-2.5 py-1 rounded-sm border border-[color:var(--hairline)] text-[color:var(--muted)]"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <Link
           href={`/match/${result.id}`}
           className="px-5 py-2.5 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors"
         >
-          See full reasoning →
+          See full reasoning &rarr;
         </Link>
         <button
           type="button"
           onClick={copyShareLink}
           className="px-5 py-2.5 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors text-[color:var(--muted)] hover:text-foreground"
         >
-          {copied ? "✓ copied" : "Copy share link"}
+          {copied ? "\u2713 copied" : "Copy share link"}
         </button>
         <button
           type="button"
@@ -141,8 +186,8 @@ function AttestationFooter({
       <p className="tag">
         {attestationCount === 1
           ? "1 attestation"
-          : `${attestationCount ?? "—"} attestations`}
-        {attestor ? ` · ${attestor}` : ""}
+          : `${attestationCount ?? "\u2014"} attestations`}
+        {attestor ? ` \u00b7 ${attestor}` : ""}
       </p>
       {attestedAt && (
         <p className="tag">
@@ -156,5 +201,5 @@ function AttestationFooter({
 
 function shortAddress(addr: string): string {
   if (!addr.startsWith("0x") || addr.length < 10) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+  return `${addr.slice(0, 6)}\u2026${addr.slice(-4)}`;
 }

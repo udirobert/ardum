@@ -27,6 +27,30 @@ export const metadata: Metadata = {
   description:
     "Agentic yoga retreat matching built on verified attestations. In-browser " +
     "pose calibration. Reasoning visible at every step.",
+  icons: {
+    icon: [
+      {
+        url: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧘</text></svg>",
+        type: "image/svg+xml",
+      },
+    ],
+  },
+  openGraph: {
+    title: "Ardum — the shape of your practice",
+    description:
+      "Agentic yoga retreat matching built on verified attestations. " +
+      "In-browser pose calibration. Reasoning visible at every step.",
+    siteName: "Ardum",
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Ardum — the shape of your practice",
+    description:
+      "Agentic yoga retreat matching built on verified attestations. " +
+      "In-browser pose calibration. Reasoning visible at every step.",
+  },
 };
 
 export default function RootLayout({

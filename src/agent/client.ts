@@ -311,10 +311,27 @@ export async function* streamMatchAgent(
     };
 
     try {
-      // Stream the LLM response, accumulating tokens.
+      // Stream the LLM response, accumulating tokens while yielding
+      // periodic progress steps so the client sees activity during the
+      // LLM's generation.
+      const env = readServerEnv();
       let accumulated = "";
+      let tokenCount = 0;
       for await (const delta of streamComputeRouter(req)) {
         accumulated += delta;
+        tokenCount++;
+        if (tokenCount % 25 === 0) {
+          yield {
+            event: "reasoning",
+            data: {
+              axis: "generating",
+              given: `streaming from ${env.OG_COMPUTE_MODEL}`,
+              when: `${tokenCount} tokens received`,
+              then: "assembling response…",
+              weight: 0,
+            },
+          };
+        }
       }
 
       const llm = extractJSON(accumulated);
@@ -339,7 +356,6 @@ export async function* streamMatchAgent(
         await sleep(300);
       }
 
-      const env = readServerEnv();
       const run: MatchRun = {
         practitionerId,
         generatedAt: new Date().toISOString(),

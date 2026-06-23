@@ -45,11 +45,11 @@ export async function GET(req: NextRequest) {
           { practitioner, attestations },
           sessionId
         )) {
+          controller.enqueue(encoder.encode(sseEncode(ev.event, ev.data)));
           if (ev.event === "done") {
-            saveMatchRun(sessionId, ev.data.run);
+            try { saveMatchRun(sessionId, ev.data.run); } catch {}
             runSaved = true;
           }
-          controller.enqueue(encoder.encode(sseEncode(ev.event, ev.data)));
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Stream failed.";

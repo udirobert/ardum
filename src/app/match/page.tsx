@@ -32,6 +32,10 @@ function MatchFlow() {
   useEffect(() => {
     stepsRef.current = steps;
   }, [steps]);
+  const runRef = useRef<MatchRun | null>(null);
+  useEffect(() => {
+    runRef.current = run;
+  }, [run]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -63,6 +67,21 @@ function MatchFlow() {
       es.close();
     });
 
+    es.addEventListener("end", (e) => {
+      // Server sent an end event (abnormal termination, no 'done').
+      if ((e as MessageEvent).data) {
+        try {
+          const payload = JSON.parse((e as MessageEvent).data) as {
+            ok?: boolean;
+          };
+          if (!payload.ok) setErr("The agent couldn't finish reasoning.");
+        } catch {
+          /* no payload */
+        }
+      }
+      if (!runRef.current) es.close();
+    });
+
     es.addEventListener("error", (e) => {
       // EventSource fires 'error' on network drops AND on non-2xx status.
       // We only surface a real error if we never received a 'done' event.
@@ -72,6 +91,7 @@ function MatchFlow() {
             message?: string;
           };
           setErr(payload.message ?? "Stream error.");
+          es.close();
         } catch {
           /* generic event with no payload */
         }
@@ -136,8 +156,8 @@ function MatchFlow() {
 
   return (
     <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
-      <div className="flex items-baseline justify-between mb-3">
-        <p className="tag">session {run.practitionerId.slice(0, 8)}…</p>
+      <div className="flex items-baseline justify-between mb-3 fade-in-up">
+        <p className="tag">session {run.practitionerId.slice(0, 8)}&hellip;</p>
         <p className="tag flex items-center gap-2 fade-in-up">
           <span
             aria-hidden
@@ -146,44 +166,51 @@ function MatchFlow() {
           matched
         </p>
       </div>
-      <h1 className="font-serif text-5xl sm:text-6xl leading-[1.02] tracking-tight mb-6">
-        Reasoning first. Recommendation second.
+      <h1 className="font-serif text-5xl sm:text-6xl leading-[1.02] tracking-tight mb-6 fade-in-up">
+        Your match
       </h1>
-      <p className="text-lg text-[color:var(--muted)] max-w-prose mb-12 leading-relaxed">
-        Here&apos;s how the agent thought about your match. Each step is a
-        separate signal — you can disagree with any of them, and the match
-        will shift accordingly.
+      <p className="text-lg text-[color:var(--muted)] max-w-prose mb-12 leading-relaxed fade-in-up">
+        Here&rsquo;s how the agent thought about your practice. Each step is
+        a separate signal &mdash; you can disagree with any of them.
       </p>
 
       <div className="mb-16">
         <ReasoningList steps={steps} />
       </div>
 
+      <div className="h-px bg-[color:var(--hairline)] mb-12 fade-in-up" />
+
       <div className="space-y-6">
-        <p className="tag">recommended</p>
-        <MatchCard
-          result={top}
-          rank={1}
-          attestationCount={top.attestationCount}
-          attestor={top.attestor}
-          attestedAt={top.attestedAt}
-        />
+        <p className="tag fade-in-up-1">recommended</p>
+        <div className="fade-in-up-1">
+          <MatchCard
+            result={top}
+            rank={1}
+            attestationCount={top.attestationCount}
+            attestor={top.attestor}
+            attestedAt={top.attestedAt}
+          />
+        </div>
         {run.results.slice(1, 3).map((r, i) => (
-          <div key={r.id} className="opacity-80">
+          <div key={r.id} className={i === 0 ? "fade-in-up-2" : "fade-in-up-3"}>
             <MatchCard
               result={r}
               rank={i + 2}
               attestationCount={r.attestationCount}
               attestor={r.attestor}
               attestedAt={r.attestedAt}
+              compact
             />
           </div>
         ))}
       </div>
 
-      <p className="tag mt-16 text-center">
-        {run.agentTrace.attestationsConsidered} attestations considered ·
-        provider: {run.agentTrace.provider} · prompt {run.agentTrace.promptVersion}
+      <p className="tag mt-16 text-center fade-in-up-3">
+        {run.agentTrace.attestationsConsidered} attestations considered &middot;
+        {run.agentTrace.provider === "stub" || run.agentTrace.provider === "0g-compute-fallback"
+          ? "scored on declared preferences"
+          : `powered by ${run.agentTrace.model}`}
+        &middot; prompt {run.agentTrace.promptVersion}
       </p>
     </section>
   );
