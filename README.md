@@ -37,9 +37,15 @@ Repos that informed Ardum's agent-consumable retreat language and pose workflow:
   (server-only via route handlers; sidesteps the Node-built-ins issue that
   breaks Vite/browser imports)
 - **0G Compute Router** — agent orchestration & matching reasoning, called
-  from server-side route handlers only
-- **Supabase / Postgres + pgvector** — session cache and
-  lineage-resonance embeddings (optional for v0 demo)
+  from server-side route handlers only. In demo mode a deterministic local
+  matcher produces the same `MatchRun` shape the real call would return.
+- **Reasoning transport** — Server-Sent Events stream reasoning steps in
+  real time; the UI renders them as the agent produces them. Reasoning is
+  structured as Gherkin (Given / When / Then) so the agent's logic is
+  inspectable, not free-form.
+- **In-memory session store** — single-process state for the v0 demo.
+  Replace with Supabase/Postgres for persistence across serverless
+  cold-starts (the data shape is already right).
 
 ## Folder structure
 
