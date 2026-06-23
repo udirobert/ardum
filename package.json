@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx scripts/seed-attestations.ts",
+    "smoke": "tsx scripts/smoke-signature.ts",
     "typecheck": "tsc --noEmit",
     "check-secrets": "tsx scripts/check-secrets.ts",
     "prepare": "husky"
