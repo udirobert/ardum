@@ -150,14 +150,12 @@ export default function MatchCard({
         >
           {copied ? "\u2713 copied" : "Copy share link"}
         </button>
-        <button
-          type="button"
-          disabled
-          title="Direct booking is the next integration."
-          className="px-5 py-2.5 rounded-sm border border-dashed border-[color:var(--hairline)] text-[color:var(--muted)] cursor-not-allowed"
+        <a
+          href={`mailto:?subject=Ardum match: ${encodeURIComponent(result.retreatTitle)}&body=I found a retreat match on Ardum: ${encodeURIComponent(result.retreatTitle)} in ${encodeURIComponent(result.retreatLocation)} (${result.durationDays} days, $${result.priceUsd}). Full reasoning: ${typeof window !== "undefined" ? window.location.origin : "https://ardum.vercel.app"}/match/${encodeURIComponent(result.id)}`}
+          className="px-5 py-2.5 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors text-[color:var(--muted)] hover:text-foreground"
         >
-          Book this retreat (soon)
-        </button>
+          Share via email
+        </a>
       </div>
 
       <AttestationFooter

@@ -22,16 +22,16 @@ export default function Home() {
           An agent that explains every step of its reasoning — out loud,
           in real time — before it recommends anything.
         </p>
-        <div className="mt-10 flex gap-4">
+        <div className="mt-10 flex flex-wrap gap-3">
           <a
             href="#intake"
-            className="px-6 py-3 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors"
+            className="px-6 py-3 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors text-center"
           >
             Start matching →
           </a>
           <a
             href="/retreats"
-            className="px-6 py-3 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] text-[color:var(--muted)] hover:text-foreground transition-colors"
+            className="px-6 py-3 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] text-[color:var(--muted)] hover:text-foreground transition-colors text-center"
           >
             Browse the pool
           </a>

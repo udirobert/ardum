@@ -7,6 +7,7 @@ import ReasoningList from "@/matching/ReasoningList";
 import StreamProgress from "@/matching/StreamProgress";
 import MatchCard from "@/matching/MatchCard";
 import MaskReveal from "@/components/MaskReveal";
+import { saveMatchResult } from "@/lib/client-session";
 import type { MatchRun, ReasoningStep } from "@/matching/types";
 
 export default function MatchPage() {
@@ -39,10 +40,7 @@ function MatchFlow() {
   }, [run]);
 
   useEffect(() => {
-    if (!sessionId) {
-      router.replace("/");
-      return;
-    }
+    if (!sessionId) return;
 
     const url = `/api/agent/match/stream?session=${encodeURIComponent(sessionId)}`;
     const es = new EventSource(url);
@@ -62,6 +60,9 @@ function MatchFlow() {
       try {
         const payload = JSON.parse((e as MessageEvent).data) as { run: MatchRun };
         setRun(payload.run);
+        if (sessionId) {
+          saveMatchResult(sessionId, payload.run, stepsRef.current);
+        }
       } catch (parseErr) {
         console.error("bad done event", parseErr);
       }
@@ -101,6 +102,28 @@ function MatchFlow() {
 
     return () => es.close();
   }, [sessionId, router]);
+
+  if (!sessionId) {
+    return (
+      <section className="mx-auto max-w-2xl px-6 sm:px-10 pt-20">
+        <p className="tag mb-3">no session</p>
+        <h1 className="font-serif text-4xl tracking-tight mb-4">
+          No match session found.
+        </h1>
+        <p className="text-[color:var(--muted)] max-w-prose mb-8 leading-relaxed">
+          Start by telling the agent about your practice — it only takes a
+          few questions.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push("/")}
+          className="px-5 py-2.5 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors"
+        >
+          Start matching →
+        </button>
+      </section>
+    );
+  }
 
   if (err) {
     return (
@@ -159,7 +182,22 @@ function MatchFlow() {
   if (!top) {
     return (
       <section className="mx-auto max-w-2xl px-6 sm:px-10 pt-20">
-        <p>No matches found in the attestation pool.</p>
+        <p className="tag mb-4">no matches</p>
+        <h1 className="font-serif text-4xl tracking-tight mb-4">
+          Nothing quite fit.
+        </h1>
+        <p className="text-[color:var(--muted)] max-w-prose mb-8 leading-relaxed">
+          The agent considered {run.agentTrace.attestationsConsidered} attestations
+          but couldn&apos;t find a strong enough match for your practice profile.
+          Try adjusting your energy, budget, or social preferences.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push("/")}
+          className="px-5 py-2.5 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors"
+        >
+          Recalibrate →
+        </button>
       </section>
     );
   }
