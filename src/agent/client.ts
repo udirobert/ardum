@@ -171,10 +171,18 @@ async function callComputeRouter(
 
 // ─── 0G Compute Router: streaming call ───────────────────────────────────
 
+// Typed delta so the consumer can distinguish actual response content
+// (which feeds JSON extraction) from a thinking model's intermediate
+// reasoning tokens (which keep the heartbeat alive but must not enter
+// the accumulated buffer — they'd corrupt the JSON).
+type StreamDelta =
+  | { kind: "content"; text: string }
+  | { kind: "reasoning"; text: string };
+
 async function* streamComputeRouter(
   req: AgentRequest,
   signal?: AbortSignal
-): AsyncGenerator<string> {
+): AsyncGenerator<StreamDelta> {
   const env = readServerEnv();
   const prompt = buildMatchPrompt(req);
   const url = `${env.OG_COMPUTE_ROUTER_URL.replace(/\/$/, "")}/chat/completions`;
@@ -219,8 +227,10 @@ async function* streamComputeRouter(
       if (payload === "[DONE]") return;
       try {
         const chunk = JSON.parse(payload);
-        const delta = chunk.choices?.[0]?.delta?.content;
-        if (delta) yield delta;
+        const delta = chunk.choices?.[0]?.delta;
+        if (delta?.content) yield { kind: "content", text: delta.content };
+        if (delta?.reasoning_content)
+          yield { kind: "reasoning", text: delta.reasoning_content };
       } catch {
         // Skip malformed chunks — the stream may include keep-alive lines.
       }
@@ -363,7 +373,10 @@ export async function* streamMatchAgent(
 
     // Background-pump the LLM stream into a shared buffer. The outer
     // generator drives the user-facing pacing (pool scan + progress
-    // events) while this pump fills `accumulated`.
+    // events) while this pump fills `accumulated`. Reasoning tokens
+    // (from thinking models) count toward the live heartbeat but are
+    // NOT appended to `accumulated` — that buffer is what we extract
+    // JSON from, and reasoning text would corrupt the parse.
     let accumulated = "";
     let llmDone = false;
     let llmError: unknown = null;
@@ -373,8 +386,8 @@ export async function* streamMatchAgent(
           streamComputeRouter(req, controller.signal),
           controller.signal
         )) {
-          accumulated += delta;
           tokenCount++;
+          if (delta.kind === "content") accumulated += delta.text;
         }
       } catch (err) {
         llmError = err;
