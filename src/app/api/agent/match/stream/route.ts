@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getProfile, saveMatchRun } from "@/lib/session";
-import { listAttestations } from "@/lib/og-storage";
+import { getProfile, saveMatchRun } from "@/lib/session.edge";
+import { listAttestations } from "@/lib/attestations.edge";
 import { streamMatchAgent } from "@/agent/client";
 
 // SSE stream of the matching agent's reasoning. Events:
