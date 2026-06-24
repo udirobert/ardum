@@ -238,6 +238,7 @@ function MatchFlow() {
             attestationCount={top.attestationCount}
             attestor={top.attestor}
             attestedAt={top.attestedAt}
+            agentTrace={run.agentTrace}
           />
         </div>
         {run.results.slice(1, 3).map((r, i) => (
@@ -249,6 +250,7 @@ function MatchFlow() {
               attestor={r.attestor}
               attestedAt={r.attestedAt}
               compact
+              agentTrace={run.agentTrace}
             />
           </div>
         ))}
@@ -256,7 +258,7 @@ function MatchFlow() {
 
       <p className="tag mt-16 text-center drop-in-3">
         {run.agentTrace.attestationsConsidered} attestations considered &middot;
-        {run.agentTrace.provider === "stub" || run.agentTrace.provider === "0g-compute-fallback"
+        {run.agentTrace.provider === "local" || run.agentTrace.provider === "0g-compute-fallback"
           ? "scored on declared preferences"
           : `powered by ${run.agentTrace.model}`}
         &middot; prompt {run.agentTrace.promptVersion}

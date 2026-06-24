@@ -158,14 +158,27 @@ export default function PoseCheck({
 
   return (
     <div className="border border-[color:var(--hairline)] rounded-sm p-6 bg-[color:var(--surface)]">
-      <video
-        ref={videoRef}
-        playsInline
-        muted
-        className={`w-full max-w-md rounded-sm border border-[color:var(--hairline)] ${
-          status === "done" ? "opacity-40" : ""
-        }`}
-      />
+      <div className="relative w-full max-w-md">
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          className={`w-full rounded-sm border border-[color:var(--hairline)] ${
+            status === "done" ? "opacity-40" : ""
+          }`}
+        />
+        {(status === "requesting" || status === "sampling") && (
+          <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-sm bg-[color:var(--background)]/85 backdrop-blur-sm border border-[color:var(--hairline)]">
+            <span
+              aria-hidden
+              className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft"
+            />
+            <span className="tag">
+              {status === "requesting" ? "requesting camera" : "local · not uploaded"}
+            </span>
+          </div>
+        )}
+      </div>
       <div className="mt-4">
         {status === "requesting" && (
           <p className="why pulse-soft">requesting camera permission…</p>

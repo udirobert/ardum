@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   if (!sessionId) {
     return NextResponse.json({ error: "Missing session." }, { status: 400 });
   }
-  const run = getMatchRun(sessionId);
+  const run = await getMatchRun(sessionId);
   if (!run) {
     return NextResponse.json(
       { error: "Run not ready yet." },
@@ -20,6 +20,6 @@ export async function GET(req: NextRequest) {
   }
   return NextResponse.json({
     run,
-    profile: getProfile(sessionId),
+    profile: await getProfile(sessionId),
   });
 }

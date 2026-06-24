@@ -18,12 +18,12 @@ export async function POST(req: Request) {
     );
   }
   const sessionId = body.sessionId ?? newSessionId();
-  saveProfile(sessionId, {
+  await saveProfile(sessionId, {
     ...body.profile,
     createdAt: body.profile.createdAt ?? new Date().toISOString(),
   });
   return NextResponse.json({
     sessionId,
-    profile: getProfile(sessionId),
+    profile: await getProfile(sessionId),
   });
 }

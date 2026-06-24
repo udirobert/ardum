@@ -5,6 +5,12 @@
 // Each reasoning step is structured as Gherkin (Given / When / Then) so
 // the agent's logic is inspectable: what we observed, what rule fired,
 // what we concluded.
+//
+// Axes are registered once in AXES below. scoreRetreat walks the registry
+// and asks each axis to evaluate, skipping axes that don't apply to a
+// given (practitioner, retreat) pair. The same registry feeds the LLM
+// prompt in ./prompts.ts, so the local scorer and the model are always
+// told to apply the same rules.
 
 import type {
   AttestationIndex,
@@ -24,13 +30,30 @@ export type ScoredAttestation = {
   steps: ReasoningStep[];
 };
 
-function axisScore(match: boolean, hasSignal: boolean): number {
-  if (!hasSignal) return 0;
-  return match ? 1 : 0;
-}
+type AxisResult = {
+  given: string;
+  when: string;
+  then: string;
+  // Per-axis 0..1 score. Returned even for display-only axes so the
+  // composite math can use it; display-only axes weight = 0 in the
+  // composite.
+  score: number;
+};
 
-// Map a structured BreathCycle to a coarse "character" (extended/even/shallow)
-// so it can be compared against a practitioner pose baseline.
+type Axis = {
+  name: string;
+  // Contribution to the composite score. 0 means display-only.
+  weight: number;
+  // Plain-language description of the rule, fed to the LLM prompt so the
+  // model is told exactly what the local scorer will compute.
+  describe(): string;
+  // Returns null if the axis doesn't apply to this (practitioner, retreat)
+  // pair. Otherwise returns the Gherkin step + per-axis score.
+  apply(p: PractitionerProfile, a: AttestationIndex): AxisResult | null;
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────
+
 function cycleCharacter(cycle: BreathCycle): {
   character: "extended" | "even" | "shallow";
   avgSeconds: number;
@@ -61,21 +84,15 @@ function cycleMatch(
   };
 }
 
-type BudgetVerdict = {
-  score: number;
-  given: string;
-  when: string;
-  then: string;
+const BUDGET_LIMITS: Record<string, number> = {
+  "under-1k": 1000,
+  "1k-2k": 2000,
+  "2k-3k": 3000,
+  "3k-plus": Infinity,
 };
 
-function budgetVerdict(band: string, priceUsd: number): BudgetVerdict {
-  const limits: Record<string, number> = {
-    "under-1k": 1000,
-    "1k-2k": 2000,
-    "2k-3k": 3000,
-    "3k-plus": Infinity,
-  };
-  const ceiling = limits[band] ?? Infinity;
+function budgetVerdict(band: string, priceUsd: number): AxisResult {
+  const ceiling = BUDGET_LIMITS[band] ?? Infinity;
   const given = `Retreat $${priceUsd.toLocaleString()}. Practitioner band: ${band}.`;
   if (priceUsd <= ceiling) {
     return {
@@ -86,11 +103,12 @@ function budgetVerdict(band: string, priceUsd: number): BudgetVerdict {
     };
   }
   const overshoot = (priceUsd - ceiling) / ceiling;
+  const pct = Math.round(overshoot * 100);
   if (overshoot < 0.2) {
     return {
       score: 0.6,
       given,
-      when: `Price exceeds ${band} ceiling by ${Math.round(overshoot * 100)}%.`,
+      when: `Price exceeds ${band} ceiling by ${pct}%.`,
       then: "Slightly above stated band — still workable.",
     };
   }
@@ -98,17 +116,193 @@ function budgetVerdict(band: string, priceUsd: number): BudgetVerdict {
     return {
       score: 0.3,
       given,
-      when: `Price exceeds ${band} ceiling by ${Math.round(overshoot * 100)}%.`,
+      when: `Price exceeds ${band} ceiling by ${pct}%.`,
       then: "Notably above stated band — a real stretch.",
     };
   }
   return {
     score: 0.05,
     given,
-    when: `Price exceeds ${band} ceiling by ${Math.round(overshoot * 100)}%.`,
+    when: `Price exceeds ${band} ceiling by ${pct}%.`,
     then: "Well outside stated band.",
   };
 }
+
+const FLOW_STYLES = ["vinyasa", "ashtanga", "power vinyasa"];
+const GENTLE_STYLES = ["restorative", "yin", "meditation", "pranayama"];
+
+// ─── Axis definitions ────────────────────────────────────────────────────
+
+const energyAxis: Axis = {
+  name: "Energy alignment",
+  weight: 0.35,
+  describe() {
+    return "Energy alignment (weight 0.35): strong fit when the retreat's `energyFit` includes the practitioner's stated energy. Output axis name 'Energy alignment'.";
+  },
+  apply(p, a) {
+    const match = a.claims.energyFit.includes(p.energy);
+    return {
+      score: match ? 1 : 0,
+      given: `Practitioner energy: ${p.energy}. Retreat fits: ${a.claims.energyFit.join(", ")}.`,
+      when: match
+        ? `Both list '${p.energy}' — direct match.`
+        : `'${p.energy}' is not in the retreat's energy register.`,
+      then: match
+        ? "Strong energy fit; pulls toward this match."
+        : "Energy register doesn't match; retreat will feel mis-pitched.",
+    };
+  },
+};
+
+const socialAxis: Axis = {
+  name: "Social comfort",
+  weight: 0.25,
+  describe() {
+    return "Social comfort (weight 0.25): fit when the retreat's `socialFit` includes the practitioner's stated social comfort. Output axis name 'Social comfort'.";
+  },
+  apply(p, a) {
+    const match = a.claims.socialFit.includes(p.social);
+    return {
+      score: match ? 1 : 0,
+      given: `Practitioner comfort: ${p.social}. Retreat fits: ${a.claims.socialFit.join(", ")}. Cohort: ${a.claims.capacity}.`,
+      when: match
+        ? "Practitioner's comfort overlaps the retreat's social register."
+        : "No overlap in stated social registers.",
+      then: match
+        ? "Cohort shape matches stated comfort — won't feel draining or underwhelming."
+        : "Cohort shape is mismatched; expect social friction.",
+    };
+  },
+};
+
+const budgetAxis: Axis = {
+  name: "Budget",
+  weight: 0.15,
+  describe() {
+    return `Budget (weight 0.15): score 1.0 if price ≤ band ceiling, 0.6 if within 20% over, 0.3 if within 50% over, 0.05 otherwise. Bands: ${Object.entries(BUDGET_LIMITS)
+      .map(([b, c]) => `${b} ≤ $${c === Infinity ? "∞" : c.toLocaleString()}`)
+      .join(", ")}. Output axis name 'Budget'.`;
+  },
+  apply(p, a) {
+    return budgetVerdict(p.budget, a.claims.priceUsd);
+  },
+};
+
+const breathAxis: Axis = {
+  name: "Breath & practice",
+  weight: 0.15,
+  describe() {
+    return "Breath & practice (weight 0.15 when a pose baseline exists, else 0.10): if a pose baseline is present, score 1.0 when retreat's `breathPhase` includes the practitioner's breath phase, 0 otherwise. If no pose baseline, emit a step explaining the axis was skipped. Output axis name 'Breath & practice'.";
+  },
+  apply(p, a) {
+    if (!p.pose) {
+      return {
+        score: 0,
+        given: `No pose baseline provided. Stated energy: ${p.energy}.`,
+        when: "Without a pose sample, the agent reasons from stated energy alone.",
+        then: "Skipped the breath/mobility axes — match is less precise.",
+      };
+    }
+    const match = a.claims.breathPhase.includes(p.pose.breathPhase);
+    return {
+      score: match ? 1 : 0,
+      given: `Baseline breath: ${p.pose.breathPhase}. Retreat breath: ${a.claims.breathPhase.join(", ")}.`,
+      when: match
+        ? `Both list '${p.pose.breathPhase}' — direct match.`
+        : `Baseline '${p.pose.breathPhase}' not in the retreat's breath register.`,
+      then: match
+        ? "Breath phase is in this retreat's wheelhouse."
+        : "Breath phase is out of register — body work may feel off.",
+    };
+  },
+};
+
+const breathCycleAxis: Axis = {
+  name: "Breath cycle",
+  weight: 0,
+  describe() {
+    return "Breath cycle (weight 0 — display only, not part of composite): if the retreat has a structured breath cycle AND the practitioner has a pose baseline, compare the computed cycle character (avg seconds per cycle: >10s = extended, <5s = shallow, else even) to the practitioner's breath phase. Output axis name 'Breath cycle'. Skip if either side is missing.";
+  },
+  apply(p, a) {
+    if (!p.pose || !a.claims.breathCycle) return null;
+    const cm = cycleMatch(p.pose.breathPhase, a.claims.breathCycle);
+    return {
+      score: cm.match ? 1 : 0,
+      given: `Baseline breath phase: ${p.pose.breathPhase}. Retreat breath cycle: ${cm.detail}.`,
+      when: cm.match
+        ? "Computed cycle character matches the practitioner's baseline phase."
+        : "Computed cycle character doesn't match the practitioner's baseline phase.",
+      then: cm.match
+        ? "Actual cycle timing aligns with the practitioner's baseline."
+        : "Actual cycle timing is out of register with the practitioner's baseline.",
+    };
+  },
+};
+
+const mobilityAxis: Axis = {
+  name: "Mobility hint",
+  weight: 0,
+  describe() {
+    return `Mobility hint (weight 0 — display only): if practitioner has a pose baseline, evaluate mobility against retreat's practice style. Flow styles: ${FLOW_STYLES.join(", ")}. Gentle styles: ${GENTLE_STYLES.join(", ")}. Open mobility on a flow retreat = sufficient. Open mobility on a gentle retreat = under-challenging. Tight mobility on a flow retreat = may demand too much. Tight mobility on a gentle retreat = good match. Output axis name 'Mobility hint'. Skip if no pose baseline.`;
+  },
+  apply(p, a) {
+    if (!p.pose) return null;
+    const hipOpen = p.pose.hipMobility !== "tight";
+    const shoulderOpen = p.pose.shoulderMobility !== "tight";
+    const flowStyle = a.claims.practiceStyle.some((s) =>
+      FLOW_STYLES.includes(s)
+    );
+    const gentleStyle = a.claims.practiceStyle.some((s) =>
+      GENTLE_STYLES.includes(s)
+    );
+    let when: string;
+    let then: string;
+    if (hipOpen && shoulderOpen) {
+      when = flowStyle
+        ? "Mobility baseline is open AND retreat runs a flow practice."
+        : "Mobility baseline is open; retreat is gentler than the baseline.";
+      then = flowStyle
+        ? "Mobility is sufficient for this retreat's demands."
+        : "Retreat is gentler than the body is ready for — could feel under-challenging.";
+    } else {
+      when = gentleStyle
+        ? "Lower-mobility baseline AND retreat runs a gentler practice."
+        : "Lower-mobility baseline AND retreat runs a flow practice.";
+      then = gentleStyle
+        ? "Retreat matches the baseline's mobility — won't over-reach."
+        : "Retreat may demand more mobility than the baseline suggests.";
+    }
+    return {
+      score: 0,
+      given: `Shoulder ${p.pose.shoulderMobility}, hip ${p.pose.hipMobility}. Practice style: ${a.claims.practiceStyle.join(", ")}.`,
+      when,
+      then,
+    };
+  },
+};
+
+// Composite weights: fixed subset that contributes to the numeric score.
+// Display-only axes (weight 0) appear in reasoning but don't move the
+// score — they're context, not rank signal.
+const COMPOSITE_WEIGHTS: Record<string, number> = {
+  "Energy alignment": 0.35,
+  "Social comfort": 0.25,
+  Budget: 0.15,
+  "Breath & practice": 0.15,
+};
+
+// Single source of truth for the matching logic. Order is the order the
+// reasoning steps appear in the UI.
+export const AXES: readonly Axis[] = [
+  energyAxis,
+  socialAxis,
+  budgetAxis,
+  breathAxis,
+  breathCycleAxis,
+  mobilityAxis,
+];
+
+// ─── Headline + scoring ──────────────────────────────────────────────────
 
 function headline(
   practitioner: PractitionerProfile,
@@ -133,136 +327,34 @@ export function scoreRetreat(
   a: AttestationIndex
 ): ScoredAttestation {
   const steps: ReasoningStep[] = [];
+  const perAxisScore: Record<string, number> = {};
 
-  // Energy alignment.
-  const energyMatch = a.claims.energyFit.includes(practitioner.energy);
-  steps.push({
-    axis: "Energy alignment",
-    given: `Practitioner energy: ${practitioner.energy}. Retreat fits: ${a.claims.energyFit.join(", ")}.`,
-    when: energyMatch
-      ? `Both list '${practitioner.energy}' — direct match.`
-      : `'${practitioner.energy}' is not in the retreat's energy register.`,
-    then: energyMatch
-      ? "Strong energy fit; pulls toward this match."
-      : "Energy register doesn't match; retreats will feel mis-pitched.",
-    weight: 0.35,
-  });
-  const energyScore = axisScore(energyMatch, true);
-
-  // Social comfort.
-  const socialMatch = a.claims.socialFit.includes(practitioner.social);
-  steps.push({
-    axis: "Social comfort",
-    given: `Practitioner comfort: ${practitioner.social}. Retreat fits: ${a.claims.socialFit.join(", ")}. Cohort: ${a.claims.capacity}.`,
-    when: socialMatch
-      ? "Practitioner's comfort overlaps the retreat's social register."
-      : "No overlap in stated social registers.",
-    then: socialMatch
-      ? "Cohort shape matches stated comfort — won't feel draining or underwhelming."
-      : "Cohort shape is mismatched; expect social friction.",
-    weight: 0.25,
-  });
-  const socialScore = axisScore(socialMatch, true);
-
-  // Budget.
-  const budget = budgetVerdict(practitioner.budget, a.claims.priceUsd);
-  steps.push({
-    axis: "Budget",
-    given: budget.given,
-    when: budget.when,
-    then: budget.then,
-    weight: 0.15,
-  });
-
-  // Practice + breath alignment.
-  let breathScore = 0;
-  if (practitioner.pose) {
-    const breathMatch = a.claims.breathPhase.includes(
-      practitioner.pose.breathPhase
-    );
-    breathScore = axisScore(breathMatch, true);
+  for (const axis of AXES) {
+    const result = axis.apply(practitioner, a);
+    if (!result) continue;
+    perAxisScore[axis.name] = result.score;
+    // When the practitioner has no pose baseline, the breath axis returns
+    // a step with weight 0.10 (a "skipped" explanation) — but we want the
+    // displayed step weight to reflect the actual axis weight in this case.
+    // Use the registry weight when present, otherwise the axis's own claim.
+    const displayedWeight =
+      axis.name === "Breath & practice" && !practitioner.pose
+        ? 0.1
+        : axis.weight;
     steps.push({
-      axis: "Breath & practice",
-      given: `Baseline breath: ${practitioner.pose.breathPhase}. Retreat breath: ${a.claims.breathPhase.join(", ")}.`,
-      when: breathMatch
-        ? `Both list '${practitioner.pose.breathPhase}' — direct match.`
-        : `Baseline '${practitioner.pose.breathPhase}' not in the retreat's breath register.`,
-      then: breathMatch
-        ? "Breath phase is in this retreat's wheelhouse."
-        : "Breath phase is out of register — body work may feel off.",
-      weight: 0.15,
-    });
-  } else {
-    steps.push({
-      axis: "Breath & practice",
-      given: `No pose baseline provided. Stated energy: ${practitioner.energy}.`,
-      when: "Without a pose sample, the agent reasons from stated energy alone.",
-      then: "Skipped the breath/mobility axes — match is less precise.",
-      weight: 0.1,
+      axis: axis.name,
+      given: result.given,
+      when: result.when,
+      then: result.then,
+      weight: displayedWeight,
     });
   }
 
-  // Breath cycle alignment (only when the retreat has a structured cycle
-  // AND the practitioner has a pose baseline). This is a stronger signal
-  // than the breathPhase string match above — actual cycle timing, not
-  // just a label.
-  if (practitioner.pose && a.claims.breathCycle) {
-    const cm = cycleMatch(practitioner.pose.breathPhase, a.claims.breathCycle);
-    steps.push({
-      axis: "Breath cycle",
-      given: `Baseline breath phase: ${practitioner.pose.breathPhase}. Retreat breath cycle: ${cm.detail}.`,
-      when: cm.match
-        ? "Computed cycle character matches the practitioner's baseline phase."
-        : "Computed cycle character doesn't match the practitioner's baseline phase.",
-      then: cm.match
-        ? "Actual cycle timing aligns with the practitioner's baseline."
-        : "Actual cycle timing is out of register with the practitioner's baseline.",
-      weight: 0.1,
-    });
+  // Composite: weighted sum over the score-contributing axes only.
+  let raw = 0;
+  for (const [name, weight] of Object.entries(COMPOSITE_WEIGHTS)) {
+    raw += (perAxisScore[name] ?? 0) * weight;
   }
-
-  // Pose mobility hint (only if pose is present).
-  if (practitioner.pose) {
-    const hipOpen = practitioner.pose.hipMobility !== "tight";
-    const shoulderOpen = practitioner.pose.shoulderMobility !== "tight";
-    const flowStyle = a.claims.practiceStyle.some((p) =>
-      ["vinyasa", "ashtanga", "power vinyasa"].includes(p)
-    );
-    const gentleStyle = a.claims.practiceStyle.some((p) =>
-      ["restorative", "yin", "meditation", "pranayama"].includes(p)
-    );
-    let when: string;
-    let then: string;
-    if (hipOpen && shoulderOpen) {
-      when = flowStyle
-        ? "Mobility baseline is open AND retreat runs a flow practice."
-        : "Mobility baseline is open; retreat is gentler than the baseline.";
-      then = flowStyle
-        ? "Mobility is sufficient for this retreat's demands."
-        : "Retreat is gentler than the body is ready for — could feel under-challenging.";
-    } else {
-      when = gentleStyle
-        ? "Lower-mobility baseline AND retreat runs a gentler practice."
-        : "Lower-mobility baseline AND retreat runs a flow practice.";
-      then = gentleStyle
-        ? "Retreat matches the baseline's mobility — won't over-reach."
-        : "Retreat may demand more mobility than the baseline suggests.";
-    }
-    steps.push({
-      axis: "Mobility hint",
-      given: `Shoulder ${practitioner.pose.shoulderMobility}, hip ${practitioner.pose.hipMobility}. Practice style: ${a.claims.practiceStyle.join(", ")}.`,
-      when,
-      then,
-      weight: 0.1,
-    });
-  }
-
-  // Composite: weighted sum.
-  const raw =
-    energyScore * 0.35 +
-    socialScore * 0.25 +
-    budget.score * 0.15 +
-    breathScore * 0.15;
   const score = Math.max(0, Math.min(1, raw));
 
   const result: MatchResult = {
@@ -276,7 +368,12 @@ export function scoreRetreat(
     capacity: a.claims.capacity,
     practiceStyle: a.claims.practiceStyle,
     score,
-    headline: headline(practitioner, a, energyMatch, socialMatch),
+    headline: headline(
+      practitioner,
+      a,
+      Boolean(perAxisScore["Energy alignment"]),
+      Boolean(perAxisScore["Social comfort"])
+    ),
     reasoning: steps,
     attestationCount: 1,
     attestor: a.attestor,
@@ -295,7 +392,9 @@ export function scoreAll(
     .sort((a, b) => b.result.score - a.result.score);
 }
 
-// Stream-friendly header steps.
+// Stream-friendly header steps. Kept here (not in prompts.ts) so the
+// contextStep and consideringStep are guaranteed to match what the
+// scorer's AXES use.
 
 // A first step that establishes the context — what the agent is reasoning
 // against. Always emitted at the start of a stream.

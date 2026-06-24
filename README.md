@@ -47,16 +47,23 @@ Repos that informed Ardum's agent-consumable retreat language and pose workflow:
   real time; the UI renders them as the agent produces them. Reasoning is
   structured as Gherkin (Given / When / Then) so the agent's logic is
   inspectable, not free-form.
-- **In-memory session store** — single-process state for the v0 demo.
-  Replace with Supabase/Postgres for persistence across serverless
-  cold-starts (the data shape is already right).
+- **Session store** — async dispatcher at `src/lib/session.ts`. The
+  in-memory adapter (`session.memory.ts`) is the default; setting
+  `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` switches the same API
+  to the Supabase adapter (`session.supabase.ts`) which persists across
+  serverless cold-starts. Apply `scripts/migrate-supabase.sql` once to
+  create the `sessions` table.
+- **Single source of truth for matching** — `src/agent/score.ts` exports
+  an `AXES` registry. The local scorer walks it, the LLM prompt in
+  `src/agent/prompts.ts` reads it. Adding or changing a rule happens in
+  one place.
 
 ## Folder structure
 
 ```
 src/
   app/                # App Router routes + API handlers
-    api/agent/match/  # server-only 0G Compute Router proxy
+    api/agent/match/  # server-only 0G Compute Router proxy (sync + SSE)
     api/attestations/ # server-only 0G Storage upload/retrieve
     match/            # reasoning-reveal + match card
     attest/           # wallet-gated attestation upload
@@ -64,8 +71,11 @@ src/
   matching/           # match result types + reasoning UI
   attestation/        # attestation schema + wallet button
   agent/              # 0G Compute client + matching prompts (server-only)
-  lib/                # env, session, supabase, seed data
-scripts/              # one-off seed scripts (Bali retreat attestations)
+  lib/                # env, session dispatcher + adapters, supabase, seed data
+    session.ts          # async dispatcher (memory or supabase)
+    session.memory.ts   # in-memory adapter (demo mode)
+    session.supabase.ts # Supabase adapter (production)
+scripts/              # seed + supabase migration
 ```
 
 ## Develop
@@ -90,13 +100,27 @@ layers you want to enable. Each one is independent:
 | ----------------------------------- | ------------------------------------------------------------- |
 | `OG_RPC_URL` + `OG_STORAGE_INDEXER` + `OG_PRIVATE_KEY` | Real `POST /api/attestations` writes to 0G Storage; the seed script uploads the Bali retreats for real. |
 | `OG_COMPUTE_ROUTER_URL` + `OG_COMPUTE_API_KEY` [+ `OG_COMPUTE_MODEL`] | The matching agent calls the 0G Compute Router (OpenAI-compatible `/v1/chat/completions`) with graceful fallback: if the LLM call fails, the deterministic local scorer runs instead and the `agentTrace.provider` field records `"0g-compute-fallback"`. |
-| `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`           | Sessions and match runs persist across restarts and across Vercel serverless cold-starts. |
+| `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`           | Sessions and match runs persist across restarts and across Vercel serverless cold-starts. Apply `scripts/migrate-supabase.sql` once to create the `sessions` table; nothing else to configure. |
 
 The adapter at `src/lib/og-storage.ts` lazy-imports the SDK only when
 needed, and the agent at `src/agent/client.ts` falls back gracefully
 to the deterministic scorer when a configured layer fails — the
 `agentTrace.provider` field records which path ran so you can
 diagnose silently.
+
+## Reliability
+
+- **Bounded 0G Compute calls.** The SSE stream aborts the upstream
+  fetch after 30 s (`COMPUTE_TIMEOUT_MS`) and on client disconnect
+  (`req.signal`), then runs the local scorer so the user always gets a
+  match.
+- **Transparent fallback.** When the local scorer runs because the
+  LLM was unavailable, the `MatchCard` footer shows
+  `agent · local scorer (0G Compute unavailable) · prompt match.v0.2`.
+- **Auditable reasoning.** Reasoning steps are emitted as Gherkin
+  (Given / When / Then). The same `AXES` registry that powers the
+  local scorer is fed into the LLM prompt, so the model's reasoning
+  and the deterministic fallback describe the same rules.
 
 ## Deploy
 

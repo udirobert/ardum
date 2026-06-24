@@ -11,6 +11,7 @@ export default function MatchCard({
   attestor,
   attestedAt,
   compact,
+  agentTrace,
 }: {
   result: MatchResult;
   rank: number;
@@ -18,6 +19,7 @@ export default function MatchCard({
   attestor?: string;
   attestedAt?: string;
   compact?: boolean;
+  agentTrace?: MatchRunAgentTrace;
 }) {
   const pct = Math.round(result.score * 100);
   const [copied, setCopied] = useState(false);
@@ -90,6 +92,12 @@ export default function MatchCard({
             {copied ? "\u2713 copied" : "Copy share link"}
           </button>
         </div>
+
+        {agentTrace && (
+          <p className="tag mt-4 opacity-70">
+            <AgentTraceLine trace={agentTrace} />
+          </p>
+        )}
       </article>
     );
   }
@@ -164,6 +172,12 @@ export default function MatchCard({
         attestedAt={attestedAt}
         rootHash={result.retreatRootHash}
       />
+
+      {agentTrace && (
+        <p className="tag mt-4 opacity-70">
+          <AgentTraceLine trace={agentTrace} />
+        </p>
+      )}
     </article>
   );
 }
@@ -200,4 +214,28 @@ function AttestationFooter({
 function shortAddress(addr: string): string {
   if (!addr.startsWith("0x") || addr.length < 10) return addr;
   return `${addr.slice(0, 6)}\u2026${addr.slice(-4)}`;
+}
+
+// Local re-export of the agent trace shape — kept loose to avoid a circular
+// import with the types module. The provider union matches matching/types.ts.
+type MatchRunAgentTrace = {
+  provider: "0g-compute" | "local" | "0g-compute-fallback";
+  model?: string;
+  promptVersion: string;
+};
+
+function AgentTraceLine({ trace }: { trace: MatchRunAgentTrace }) {
+  const isLocal = trace.provider === "local" || trace.provider === "0g-compute-fallback";
+  const subject = isLocal
+    ? "local scorer"
+    : `${trace.model ?? trace.provider}`;
+  const note =
+    trace.provider === "0g-compute-fallback"
+      ? " (0G Compute unavailable)"
+      : "";
+  return (
+    <>
+      agent &middot; {subject}{note} &middot; prompt {trace.promptVersion}
+    </>
+  );
 }

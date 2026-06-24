@@ -34,19 +34,20 @@ export async function POST(req: NextRequest) {
   const sessionId = body.sessionId ?? newSessionId();
   // Persist the profile before running the match — the match page will need
   // it to render the header.
-  saveProfile(sessionId, {
+  await saveProfile(sessionId, {
     ...body.profile,
     createdAt: body.profile.createdAt ?? new Date().toISOString(),
   });
 
   const attestations = await listAttestations();
+  const practitioner = (await getProfile(sessionId))!;
   const agentReq: AgentRequest = {
-    practitioner: getProfile(sessionId)!,
+    practitioner,
     attestations,
   };
 
   const { run } = await runMatchAgent(agentReq, sessionId);
-  saveMatchRun(sessionId, run);
+  await saveMatchRun(sessionId, run);
 
   return NextResponse.json({ sessionId, run });
 }

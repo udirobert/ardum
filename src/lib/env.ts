@@ -1,6 +1,6 @@
-// Centralised env access. Server-only vars are read with `serverEnv`; the
-// client only ever sees `publicEnv`. Anything missing throws at first use so
-// the failure mode is loud, not silent.
+// Centralised env access. Vars are read permissively (empty string when
+// missing) and surfaced through `has*()` predicates so route handlers
+// pick the right code path. The demo runs without any of these set.
 
 type PublicEnv = {
   NEXT_PUBLIC_APP_NAME: string;
@@ -25,16 +25,6 @@ const publicEnv: PublicEnv = {
 };
 
 function readServerEnv(): ServerEnv {
-  const required = (key: keyof ServerEnv) => {
-    const v = process.env[key];
-    if (!v) {
-      throw new Error(
-        `Missing server env var: ${key}. The demo runs without it (the stub ` +
-          `agent + local attestation store kick in) but production needs it.`
-      );
-    }
-    return v;
-  };
   return {
     OG_RPC_URL: process.env.OG_RPC_URL ?? "",
     OG_STORAGE_INDEXER: process.env.OG_STORAGE_INDEXER ?? "",

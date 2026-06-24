@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
   if (!sessionId) {
     return NextResponse.json({ error: "Missing session." }, { status: 400 });
   }
-  const practitioner = getProfile(sessionId);
+  const practitioner = await getProfile(sessionId);
   if (!practitioner) {
     return NextResponse.json(
       { error: "Profile not found — complete calibration first." },
@@ -43,11 +43,14 @@ export async function GET(req: NextRequest) {
       try {
         for await (const ev of streamMatchAgent(
           { practitioner, attestations },
-          sessionId
+          sessionId,
+          // Abort the upstream 0G Compute fetch when the client disconnects,
+          // so we don't keep paying for tokens nobody's reading.
+          req.signal
         )) {
           controller.enqueue(encoder.encode(sseEncode(ev.event, ev.data)));
           if (ev.event === "done") {
-            try { saveMatchRun(sessionId, ev.data.run); } catch {}
+            try { await saveMatchRun(sessionId, ev.data.run); } catch {}
             runSaved = true;
           }
         }

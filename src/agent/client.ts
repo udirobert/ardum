@@ -28,8 +28,27 @@ export type StreamEvent =
   | { event: "done"; data: { run: MatchRun } }
   | { event: "error"; data: { message: string } };
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+// Maximum time the 0G Compute Router is allowed to take end-to-end before
+// we abort and fall back to the local scorer. Keeps the SSE stream bounded
+// so a hung upstream can never freeze the user's match page.
+const COMPUTE_TIMEOUT_MS = 30_000;
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error("aborted"));
+      return;
+    }
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(t);
+        reject(new Error("aborted"));
+      },
+      { once: true }
+    );
+  });
 }
 
 // ─── LLM response types ──────────────────────────────────────────────────
@@ -102,7 +121,10 @@ function extractJSON(text: string): LLMResponse {
 
 // ─── 0G Compute Router: non-streaming call ───────────────────────────────
 
-async function callComputeRouter(req: AgentRequest): Promise<LLMResponse> {
+async function callComputeRouter(
+  req: AgentRequest,
+  signal?: AbortSignal
+): Promise<LLMResponse> {
   const env = readServerEnv();
   const prompt = buildMatchPrompt(req);
   const url = `${env.OG_COMPUTE_ROUTER_URL.replace(/\/$/, "")}/chat/completions`;
@@ -117,6 +139,7 @@ async function callComputeRouter(req: AgentRequest): Promise<LLMResponse> {
       model: env.OG_COMPUTE_MODEL,
       messages: [{ role: "user", content: prompt }],
     }),
+    signal,
   });
 
   if (!res.ok) {
@@ -137,7 +160,8 @@ async function callComputeRouter(req: AgentRequest): Promise<LLMResponse> {
 // ─── 0G Compute Router: streaming call ───────────────────────────────────
 
 async function* streamComputeRouter(
-  req: AgentRequest
+  req: AgentRequest,
+  signal?: AbortSignal
 ): AsyncGenerator<string> {
   const env = readServerEnv();
   const prompt = buildMatchPrompt(req);
@@ -154,6 +178,7 @@ async function* streamComputeRouter(
       messages: [{ role: "user", content: prompt }],
       stream: true,
     }),
+    signal,
   });
 
   if (!res.ok || !res.body) {
@@ -191,13 +216,43 @@ async function* streamComputeRouter(
   }
 }
 
+// Race an async iterable against an AbortSignal. Lets the outer timeout
+// cancel mid-stream iterations cleanly instead of waiting for the LLM
+// to finish on its own.
+async function* withAbort<T>(
+  source: AsyncIterable<T>,
+  signal?: AbortSignal
+): AsyncGenerator<T> {
+  if (signal?.aborted) throw new Error("aborted");
+  // Wrap each next() in a race so cancellation is responsive between
+  // token yields. Async iterators don't compose with AbortSignal natively.
+  const it = source[Symbol.asyncIterator]();
+  const abort = new Promise<never>((_, reject) => {
+    if (!signal) return;
+    signal.addEventListener(
+      "abort",
+      () => reject(new Error("aborted")),
+      { once: true }
+    );
+  });
+  try {
+    while (true) {
+      const next = await Promise.race([it.next(), abort]);
+      if (next.done) return;
+      yield next.value;
+    }
+  } finally {
+    if (it.return) await it.return(undefined);
+  }
+}
+
 // ─── Deterministic fallback ──────────────────────────────────────────────
 
 function deterministicRun(
   req: AgentRequest,
   practitionerId: string,
-  provider = "stub",
-  model = "deterministic-local"
+  provider: "local" | "0g-compute-fallback" = "local",
+  model?: string
 ): MatchRun {
   const ranked = scoreAll(req.practitioner, req.attestations);
   return {
@@ -217,14 +272,15 @@ function deterministicRun(
 
 export async function runMatchAgent(
   req: AgentRequest,
-  practitionerId: string
+  practitionerId: string,
+  signal?: AbortSignal
 ): Promise<AgentResponse> {
   if (!has0GCompute()) {
     return { run: deterministicRun(req, practitionerId) };
   }
 
   try {
-    const llm = await callComputeRouter(req);
+    const llm = await callComputeRouter(req, signal);
     const results = mapLLMResults(llm, req.attestations);
     if (results.length === 0) {
       throw new Error("LLM returned no valid results.");
@@ -243,17 +299,13 @@ export async function runMatchAgent(
     };
     return { run };
   } catch (err) {
+    if ((err as Error)?.message === "aborted") throw err;
     console.error(
       "[ardum] 0G Compute Router failed, falling back to local scorer:",
       err
     );
     return {
-      run: deterministicRun(
-        req,
-        practitionerId,
-        "0g-compute-fallback",
-        "deterministic-local"
-      ),
+      run: deterministicRun(req, practitionerId, "0g-compute-fallback"),
     };
   }
 }
@@ -262,10 +314,24 @@ export async function runMatchAgent(
 // so the streaming UX feels like a real LLM token stream; the real 0G
 // Compute path streams tokens from the router, then emits structured
 // reasoning steps once the full JSON response is parsed.
+//
+// A bounded timeout + the caller's AbortSignal cancel the upstream fetch
+// on disconnect or stall, after which we fall back to the local scorer so
+// the user always gets a match.
 export async function* streamMatchAgent(
   req: AgentRequest,
-  practitionerId: string
+  practitionerId: string,
+  signal?: AbortSignal
 ): AsyncGenerator<StreamEvent> {
+  // Compose the caller's signal with a timeout.
+  const controller = new AbortController();
+  const onCallerAbort = () => controller.abort();
+  signal?.addEventListener("abort", onCallerAbort, { once: true });
+  const timeout = setTimeout(
+    () => controller.abort(),
+    COMPUTE_TIMEOUT_MS
+  );
+
   try {
     if (!has0GCompute()) {
       // Demo path — paced stub.
@@ -276,7 +342,7 @@ export async function* streamMatchAgent(
           attestationCount: req.attestations.length,
         }),
       };
-      await sleep(450);
+      await sleep(450, controller.signal);
 
       const scored = scoreAll(req.practitioner, req.attestations);
 
@@ -285,13 +351,13 @@ export async function* streamMatchAgent(
           event: "reasoning",
           data: consideringStep(result.retreatTitle),
         };
-        await sleep(220);
+        await sleep(220, controller.signal);
       }
 
       const top = scored[0];
       for (const step of top.steps) {
         yield { event: "reasoning", data: step };
-        await sleep(550);
+        await sleep(550, controller.signal);
       }
 
       yield {
@@ -317,7 +383,10 @@ export async function* streamMatchAgent(
       const env = readServerEnv();
       let accumulated = "";
       let tokenCount = 0;
-      for await (const delta of streamComputeRouter(req)) {
+      for await (const delta of withAbort(
+        streamComputeRouter(req, controller.signal),
+        controller.signal
+      )) {
         accumulated += delta;
         tokenCount++;
         if (tokenCount % 25 === 0) {
@@ -346,14 +415,14 @@ export async function* streamMatchAgent(
           event: "reasoning",
           data: consideringStep(result.retreatTitle),
         };
-        await sleep(150);
+        await sleep(150, controller.signal);
       }
 
       // Stream the detailed reasoning for the top match.
       const top = results[0];
       for (const step of top.reasoning) {
         yield { event: "reasoning", data: step };
-        await sleep(300);
+        await sleep(300, controller.signal);
       }
 
       const run: MatchRun = {
@@ -369,11 +438,18 @@ export async function* streamMatchAgent(
       };
       yield { event: "done", data: { run } };
     } catch (innerErr) {
-      // Fall back to deterministic scorer so the user still gets a match.
-      console.error(
-        "[ardum] 0G Compute Router failed, falling back to local scorer:",
-        innerErr
-      );
+      if ((innerErr as Error)?.message === "aborted") {
+        // Caller disconnected (or we hit the timeout). Fall through to
+        // local scorer so the still-connected user has something to see.
+        console.warn(
+          "[ardum] 0G Compute Router aborted, falling back to local scorer."
+        );
+      } else {
+        console.error(
+          "[ardum] 0G Compute Router failed, falling back to local scorer:",
+          innerErr
+        );
+      }
       const scored = scoreAll(req.practitioner, req.attestations);
 
       for (const { result } of scored) {
@@ -381,24 +457,19 @@ export async function* streamMatchAgent(
           event: "reasoning",
           data: consideringStep(result.retreatTitle),
         };
-        await sleep(150);
+        await sleep(150, controller.signal);
       }
 
       const top = scored[0];
       for (const step of top.steps) {
         yield { event: "reasoning", data: step };
-        await sleep(300);
+        await sleep(300, controller.signal);
       }
 
       yield {
         event: "done",
         data: {
-          run: deterministicRun(
-            req,
-            practitionerId,
-            "0g-compute-fallback",
-            "deterministic-local"
-          ),
+          run: deterministicRun(req, practitionerId, "0g-compute-fallback"),
         },
       };
     }
@@ -409,5 +480,8 @@ export async function* streamMatchAgent(
         message: err instanceof Error ? err.message : "Stream failed.",
       },
     };
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", onCallerAbort);
   }
 }

@@ -50,8 +50,8 @@ export type MatchRun = {
   generatedAt: string;
   // The model/prompt used — useful for the judges and for iteration.
   agentTrace: {
-    provider: string;
-    model: string;
+    provider: "0g-compute" | "local" | "0g-compute-fallback";
+    model?: string;
     promptVersion: string;
     attestationsConsidered: number;
   };

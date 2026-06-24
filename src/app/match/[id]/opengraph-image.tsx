@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import { listAttestations } from "@/lib/og-storage";
 import { publicEnv } from "@/lib/env";
-import { getMatchRun } from "@/lib/session";
+import { findMatchRunForRetreat } from "@/lib/session";
 
 // Open Graph image for /match/[id] — shared match links show a preview
 // card in chat, Slack, Twitter, etc. The image pulls the retreat title,
@@ -26,20 +26,12 @@ export default async function Image({
 
   // Try to find a fit score for this retreat from any saved match run.
   let score: number | null = null;
-  const sessions = (globalThis as { __ardumSessions?: Map<string, { matchRun?: import("@/matching/types").MatchRun }> })
-    .__ardumSessions;
-  if (sessions) {
-    for (const s of sessions.values()) {
-      const r = s.matchRun;
-      if (!r) continue;
-      const hit = r.results.find(
-        (m) => m.id === id || m.retreatRootHash === id
-      );
-      if (hit) {
-        score = hit.score;
-        break;
-      }
-    }
+  const matchingRun = await findMatchRunForRetreat(id);
+  if (matchingRun) {
+    const hit = matchingRun.results.find(
+      (m) => m.id === id || m.retreatRootHash === id
+    );
+    if (hit) score = hit.score;
   }
 
   const title = a?.title ?? "Retreat match";

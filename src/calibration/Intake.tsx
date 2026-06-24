@@ -114,10 +114,13 @@ export default function Intake() {
   });
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      // Ignore key events when the user is typing in a text field.
+      // Global shortcuts (number-key pick, Enter, Backspace) only operate
+      // on the discrete-question steps. The final step has a free-form
+      // notes textarea and an explicit "begin matching" button, so we
+      // intentionally leave the keys to native behavior there.
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
-      if (isFinalRef.current) return;
+      if (pageIndexRef.current >= INTAKE_STEPS.length) return;
       const step = stepRef.current;
       if (e.key >= "1" && e.key <= "4") {
         const idx = Number(e.key) - 1;
