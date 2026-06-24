@@ -69,7 +69,7 @@ export default async function Image({
             display: "flex",
             alignItems: "baseline",
             justifyContent: "space-between",
-            color: "#6b6258",
+            color: "#524a42",
             fontSize: 22,
             letterSpacing: "0.05em",
           }}
@@ -82,7 +82,7 @@ export default async function Image({
 
         {/* Middle: title + meta */}
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ color: "#6b6258", fontSize: 22, marginBottom: 16 }}>
+          <div style={{ color: "#524a42", fontSize: 22, marginBottom: 16 }}>
             {location}
           </div>
           <div
@@ -120,7 +120,7 @@ export default async function Image({
             alignItems: "flex-end",
             justifyContent: "space-between",
             paddingTop: 24,
-            borderTop: "1px solid #d6ccbb",
+            borderTop: "1px solid #c2b6a2",
           }}
         >
           <div
@@ -128,7 +128,7 @@ export default async function Image({
               fontFamily: "ui-serif, Georgia, serif",
               fontSize: 28,
               fontStyle: "italic",
-              color: "#6b6258",
+              color: "#524a42",
               maxWidth: 720,
               lineHeight: 1.3,
             }}
@@ -147,7 +147,7 @@ export default async function Image({
               >
                 {Math.round(score * 100)}
               </div>
-              <div style={{ color: "#6b6258", fontSize: 22, marginTop: 4 }}>
+              <div style={{ color: "#524a42", fontSize: 22, marginTop: 4 }}>
                 fit score
               </div>
             </div>

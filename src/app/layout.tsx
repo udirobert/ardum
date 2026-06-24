@@ -24,6 +24,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://ardum.vercel.app"),
   title: "Ardum — the shape of your practice",
   description:
     "Agentic yoga retreat matching built on verified attestations. In-browser " +
