@@ -9,12 +9,14 @@ export default function Home() {
 
       {/* Hero */}
       <section className="relative z-10 mx-auto w-full max-w-4xl px-6 sm:px-10 pt-20 sm:pt-28 pb-16 min-h-[70vh] flex flex-col justify-center">
-        <p className="tag mb-4 text-shadow-soft">agentic retreat matching</p>
-        <h1 className="font-serif text-5xl sm:text-7xl leading-[1.02] tracking-tight mb-8 max-w-3xl">
-          A retreat matched to{" "}
-          <span className="italic text-[color:var(--accent)]">your practice</span>,
-          not a filter.
-        </h1>
+        <div className="t-stagger is-shown">
+          <span className="t-stagger-line tag mb-4 text-shadow-soft">agentic retreat matching</span>
+          <strong className="t-stagger-line t-stagger-line--2 font-serif text-5xl sm:text-7xl leading-[1.02] tracking-tight mb-8 max-w-3xl block">
+            A retreat matched to{" "}
+            <span className="italic text-[color:var(--accent)]">your practice</span>,
+            not a filter.
+          </strong>
+        </div>
         <p className="text-lg text-[color:var(--muted)] max-w-xl leading-relaxed text-shadow-soft">
           Three honest questions. An optional five-second posture sample.
           An agent that explains every step of its reasoning — out loud,

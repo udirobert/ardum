@@ -61,6 +61,7 @@ export default function UploadForm() {
   const [signingStep, setSigningStep] = useState<string | null>(null);
   const [result, setResult] = useState<{ rootHash: string; storedOn: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [breathOpen, setBreathOpen] = useState(false);
 
   // Step 1 — The retreat
   const [title, setTitle] = useState("");
@@ -396,13 +397,21 @@ export default function UploadForm() {
             <WalletButton onConnect={setAttestor} />
           </div>
 
-          <details className="mb-8 border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] surface-card">
-            <summary className="cursor-pointer px-5 py-3 select-none">
+          <div className="t-acc mb-8 border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] surface-card" data-open={breathOpen ? "true" : "false"}>
+            <button
+              type="button"
+              className="t-acc-head cursor-pointer w-full px-5 py-3 select-none flex items-center justify-between gap-3"
+              aria-expanded={breathOpen}
+              onClick={() => setBreathOpen(!breathOpen)}
+            >
               <span className="tag">
                 Optional · add a breath cycle (advanced)
               </span>
-            </summary>
-            <div className="px-5 pb-5 pt-2 space-y-4">
+              <span className="t-acc-chevron shrink-0">
+                <svg viewBox="0 0 16 16" width="12" height="12"><path d="M4 6.5L8 10.5L12 6.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </span>
+            </button>
+            <div className="t-acc-panel"><div className="t-acc-panel-inner px-5 pb-5 pt-2 space-y-4">
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -472,8 +481,8 @@ export default function UploadForm() {
                   </Field>
                 </div>
               )}
-            </div>
-          </details>
+            </div></div>
+          </div>
 
           {error && (
             <p className="text-[color:var(--accent-ink)] text-sm mb-4">

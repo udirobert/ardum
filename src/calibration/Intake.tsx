@@ -22,21 +22,15 @@ type IntakeAnswers = Partial<
 
 export default function Intake() {
   const router = useRouter();
-  const [stepIndex, setStepIndex] = useState(0);
+  const [pageIndex, setPageIndex] = useState(0);
   const [answers, setAnswers] = useState<IntakeAnswers>({});
   const [pose, setPose] = useState<PoseBaseline | undefined>(undefined);
   const [runPose, setRunPose] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
-  const [displayIndex, setDisplayIndex] = useState(0);
 
-  const currentStep = INTAKE_STEPS[displayIndex];
-  const isFinal = displayIndex === INTAKE_STEPS.length;
-  const stepAnim =
-    slideDir === "left" ? "slide-in-right" :
-    slideDir === "right" ? "slide-in-left" :
-    "fade-in-up";
+  const currentStep = INTAKE_STEPS[pageIndex];
+  const isFinal = pageIndex === INTAKE_STEPS.length;
   const canAdvance =
     isFinal ||
     (currentStep.id === "energy" && answers.energy) ||
@@ -45,10 +39,10 @@ export default function Intake() {
 
   const progress = useMemo(
     () => ({
-      current: Math.min(stepIndex + 1, INTAKE_STEPS.length),
+      current: Math.min(pageIndex + 1, INTAKE_STEPS.length),
       total: INTAKE_STEPS.length + 1, // +1 for the pose/begin step
     }),
-    [stepIndex]
+    [pageIndex]
   );
 
   function pick(value: string) {
@@ -60,20 +54,14 @@ export default function Intake() {
       setAnswers((a) => ({ ...a, social: value as SocialComfort }));
     }
   }  function next() {
-    if (stepIndex < INTAKE_STEPS.length) {
-      setSlideDir("left");
-      const nextIdx = stepIndex + 1;
-      setStepIndex(nextIdx);
-      setDisplayIndex(nextIdx);
+    if (pageIndex < INTAKE_STEPS.length) {
+      setPageIndex(pageIndex + 1);
     }
   }
 
   function back() {
-    if (stepIndex > 0) {
-      setSlideDir("right");
-      const prevIdx = stepIndex - 1;
-      setStepIndex(prevIdx);
-      setDisplayIndex(prevIdx);
+    if (pageIndex > 0) {
+      setPageIndex(pageIndex - 1);
     }
   }
 
@@ -105,20 +93,12 @@ export default function Intake() {
     }
   }
 
-  // Clear the slide direction after the entrance animation finishes.
-  useEffect(() => {
-    if (slideDir) {
-      const t = setTimeout(() => setSlideDir(null), 460);
-      return () => clearTimeout(t);
-    }
-  }, [slideDir]);
-
   // Keyboard: 1-4 picks an option, Enter advances, Backspace goes back.
   // We attach the listener ONCE and keep the latest values in refs so the
   // handler always sees fresh state without re-subscribing every render.
   const stepRef = useRef(currentStep);
   const canAdvanceRef = useRef(canAdvance);
-  const stepIndexRef = useRef(stepIndex);
+  const pageIndexRef = useRef(pageIndex);
   const isFinalRef = useRef(isFinal);
   const pickRef = useRef(pick);
   const nextRef = useRef(next);
@@ -126,7 +106,7 @@ export default function Intake() {
   useEffect(() => {
     stepRef.current = currentStep;
     canAdvanceRef.current = canAdvance;
-    stepIndexRef.current = stepIndex;
+    pageIndexRef.current = pageIndex;
     isFinalRef.current = isFinal;
     pickRef.current = pick;
     nextRef.current = next;
@@ -145,7 +125,7 @@ export default function Intake() {
         if (opt) pickRef.current(opt.value);
       } else if (e.key === "Enter" && canAdvanceRef.current) {
         nextRef.current();
-      } else if (e.key === "Backspace" && stepIndexRef.current > 0) {
+      } else if (e.key === "Backspace" && pageIndexRef.current > 0) {
         backRef.current();
       }
     }
@@ -157,71 +137,71 @@ export default function Intake() {
     <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 sm:pt-20 pb-24">
       <ProgressBar current={progress.current} total={progress.total} />
 
-      {!isFinal && (
-        <div className={stepAnim} key={currentStep.id}>
-          <p className="tag mb-6">
-            step {progress.current} of {progress.total}
-          </p>
-          <h1 className="font-serif text-4xl sm:text-5xl leading-[1.05] tracking-tight mb-3">
-            {currentStep.prompt}
-          </h1>
-          <p className="text-[color:var(--muted)] text-lg mb-10">
-            {currentStep.sub}
-          </p>
-          <p className="why mb-10 max-w-prose">{currentStep.why}</p>
+      <div className="t-page-slide relative min-h-[60vh]" data-page={pageIndex + 1}>
+        {INTAKE_STEPS.map((step, i) => (
+          <div key={step.id} className="t-page" data-page-id={i + 1}>
+            <p className="tag mb-6">
+              step {i + 1} of {INTAKE_STEPS.length + 1}
+            </p>
+            <h1 className="font-serif text-4xl sm:text-5xl leading-[1.05] tracking-tight mb-3">
+              {step.prompt}
+            </h1>
+            <p className="text-[color:var(--muted)] text-lg mb-10">
+              {step.sub}
+            </p>
+            <p className="why mb-10 max-w-prose">{step.why}</p>
 
-          <ul className="flex flex-col gap-2">
-            {currentStep.options.map((opt, i) => {
-              const selected = answers[currentStep.id] === opt.value;
-              return (
-                <li key={opt.value}>
-                  <button
-                    type="button"
-                    onClick={() => pick(opt.value)}
-                    className={`w-full text-left px-5 py-4 rounded-sm border transition-colors hover-lift ${
-                      selected
-                        ? "border-[color:var(--accent)] bg-[color:var(--surface)]"
-                        : "border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] hover:bg-[color:var(--surface)]"
-                    }`}
-                  >
-                    <span className="font-serif text-xl mr-4 text-[color:var(--muted)]">
-                      {i + 1}
-                    </span>
-                    <span className="text-lg">{opt.label}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+            <ul className="flex flex-col gap-2">
+              {step.options.map((opt, j) => {
+                const selected = answers[step.id] === opt.value;
+                return (
+                  <li key={opt.value}>
+                    <button
+                      type="button"
+                      onClick={() => pick(opt.value)}
+                      className={`w-full text-left px-5 py-4 rounded-sm border transition-colors hover-lift ${
+                        selected
+                          ? "border-[color:var(--accent)] bg-[color:var(--surface)]"
+                          : "border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] hover:bg-[color:var(--surface)]"
+                      }`}
+                    >
+                      <span className="font-serif text-xl mr-4 text-[color:var(--muted)]">
+                        {j + 1}
+                      </span>
+                      <span className="text-lg">{opt.label}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
 
-          <div className="flex items-center justify-between mt-12">
-            <button
-              type="button"
-              onClick={back}
-              disabled={stepIndex === 0}
-              className="text-[color:var(--muted)] disabled:opacity-30 hover:text-foreground transition-colors"
-            >
-              ← back
-            </button>
-            <button
-              type="button"
-              onClick={next}
-              disabled={!canAdvance}
-              className="px-6 py-3 rounded-sm bg-foreground text-background disabled:opacity-30 hover:bg-[color:var(--accent-ink)] transition-colors"
-            >
-              continue →
-            </button>
+            <div className="flex items-center justify-between mt-12">
+              <button
+                type="button"
+                onClick={back}
+                disabled={i === 0}
+                className="text-[color:var(--muted)] disabled:opacity-30 hover:text-foreground transition-colors"
+              >
+                ← back
+              </button>
+              <button
+                type="button"
+                onClick={next}
+                disabled={!answers[step.id]}
+                className="px-6 py-3 rounded-sm bg-foreground text-background disabled:opacity-30 hover:bg-[color:var(--accent-ink)] transition-colors"
+              >
+                continue →
+              </button>
+            </div>
+            <p className="tag mt-6">
+              press 1–4 to choose · enter to continue
+            </p>
           </div>
-          <p className="tag mt-6">
-            press 1–4 to choose · enter to continue
-          </p>
-        </div>
-      )}
+        ))}
 
-      {isFinal && (
-        <div className={stepAnim}>
+        <div className="t-page" data-page-id={INTAKE_STEPS.length + 1}>
           <p className="tag mb-6">
-            step {progress.current} of {progress.total}
+            step {INTAKE_STEPS.length + 1} of {INTAKE_STEPS.length + 1}
           </p>
           <h1 className="font-serif text-4xl sm:text-5xl leading-[1.05] tracking-tight mb-3">
             One last thing — optional.
@@ -274,7 +254,7 @@ export default function Intake() {
             </button>
           </div>
         </div>
-      )}
+      </div>
     </section>
   );
 }

@@ -206,6 +206,137 @@ body::before {
   }
 }
 
+/* ── transitions.dev motion tokens ── */
+
+:root {
+  --page-slide-dur: 300ms;
+  --page-fade-dur: 250ms;
+  --page-slide-distance: 12px;
+  --page-blur: 3px;
+  --page-stagger: 0ms;
+  --page-exit-enabled: 1;
+  --page-slide-ease: var(--ease-ardum);
+  --page-fade-ease: var(--ease-ardum);
+
+  --icon-swap-dur: 250ms;
+  --icon-swap-blur: 2px;
+  --icon-swap-start-scale: 0.25;
+  --icon-swap-ease: ease-in-out;
+
+  --acc-expand: 250ms;
+  --acc-collapse: 250ms;
+  --acc-chevron: 250ms;
+  --acc-ease: var(--ease-ardum);
+
+  --stagger-dur: 500ms;
+  --stagger-distance: 12px;
+  --stagger-stagger: 80ms;
+  --stagger-blur: 3px;
+  --stagger-ease: var(--ease-ardum);
+}
+
+/* ── Page side-by-side (intake steps) ── */
+
+.t-page-slide {
+  position: relative;
+}
+.t-page-slide .t-page[data-page-id="1"] {
+  --t-page-from-x: calc(var(--page-slide-distance) * -1);
+}
+.t-page-slide .t-page[data-page-id="2"] {
+  --t-page-from-x: var(--page-slide-distance);
+}
+.t-page-slide .t-page {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(calc(var(--t-page-from-x, 0px) * var(--page-exit-enabled)));
+  filter: blur(calc(var(--page-blur) * var(--page-exit-enabled)));
+  transition:
+    opacity   var(--page-fade-dur)  var(--page-fade-ease),
+    transform var(--page-slide-dur) var(--page-slide-ease),
+    filter    var(--page-slide-dur) var(--page-slide-ease);
+  will-change: opacity, transform, filter;
+}
+.t-page-slide[data-page="1"] .t-page[data-page-id="1"],
+.t-page-slide[data-page="2"] .t-page[data-page-id="2"],
+.t-page-slide[data-page="3"] .t-page[data-page-id="3"],
+.t-page-slide[data-page="4"] .t-page[data-page-id="4"] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+  filter: blur(0);
+  transition-delay: var(--page-stagger);
+}
+
+/* ── Accordion (collapsible panels) ── */
+
+.t-acc-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--acc-collapse) var(--acc-ease);
+}
+.t-acc[data-open="true"] .t-acc-panel {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--acc-expand) var(--acc-ease);
+}
+.t-acc-panel-inner {
+  overflow: hidden;
+  opacity: 0;
+  filter: blur(2px);
+  transition:
+    opacity var(--acc-collapse) var(--acc-ease),
+    filter var(--acc-collapse) var(--acc-ease);
+}
+.t-acc[data-open="true"] .t-acc-panel-inner {
+  opacity: 1;
+  filter: blur(0);
+  transition:
+    opacity var(--acc-expand) var(--acc-ease),
+    filter var(--acc-expand) var(--acc-ease);
+}
+.t-acc-chevron {
+  display: inline-flex;
+  transform: scaleY(1);
+  transform-origin: center;
+  transition: transform var(--acc-chevron) var(--acc-ease);
+}
+.t-acc-chevron path { vector-effect: non-scaling-stroke; }
+.t-acc[data-open="true"] .t-acc-chevron {
+  transform: scaleY(-1);
+}
+
+/* ── Staggered text reveal ── */
+
+.t-stagger-line {
+  display: block;
+  opacity: 0;
+  transform: translateY(var(--stagger-distance));
+  filter: blur(var(--stagger-blur));
+  transition:
+    opacity   var(--stagger-dur) var(--stagger-ease),
+    transform var(--stagger-dur) var(--stagger-ease),
+    filter    var(--stagger-dur) var(--stagger-ease);
+  will-change: transform, opacity, filter;
+}
+.t-stagger-line--2 { transition-delay: var(--stagger-stagger); }
+.t-stagger.is-shown .t-stagger-line {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+.t-stagger.is-hiding .t-stagger-line {
+  opacity: 0;
+  transform: translateY(0);
+  filter: blur(0);
+  transition:
+    opacity 200ms ease,
+    transform 0s linear,
+    filter 0s linear;
+  transition-delay: 0s;
+}
+
 /* Respect reduced motion — disable all animations. */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -216,6 +347,9 @@ body::before {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  .t-page-slide .t-page { transition: none !important; }
+  .t-acc-panel, .t-acc-panel-inner, .t-acc-chevron { transition: none !important; }
+  .t-stagger-line { transition: none !important; }
 }
 
 /* Slide transitions for the intake conversation. */
