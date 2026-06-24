@@ -6,8 +6,8 @@
 :root {
   --background: #f6f1e7;
   --foreground: #1a1714;
-  --muted: #6b6258;
-  --hairline: #d6ccbb;
+  --muted: #524a42;
+  --hairline: #c2b6a2;
   --surface: #fbf8f1;
   --surface-strong: #efe7d6;
   --accent: #a85a3a;
@@ -81,6 +81,17 @@ body::before {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
   border-radius: 2px;
+}
+
+/* Text shadow for readability over the hero photo. */
+.text-shadow-soft {
+  text-shadow: 0 1px 4px rgba(26, 23, 20, 0.08);
+}
+
+/* Surface card with a subtle shadow so it lifts off the cream background. */
+.surface-card {
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(26, 23, 20, 0.04);
 }
 
 /* A small monospace tag used for rootHash, session IDs, etc. */

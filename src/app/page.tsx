@@ -12,7 +12,7 @@ export default function Home() {
           <h1 className="font-serif text-5xl sm:text-6xl leading-[1.02] tracking-tight mb-6">
             The shape of your practice.
           </h1>
-          <p className="text-lg text-[color:var(--muted)] max-w-prose leading-relaxed">
+          <p className="text-lg text-[color:var(--muted)] max-w-prose leading-relaxed text-shadow-soft">
             Ardum matches you to a yoga retreat using verified attestations —
             not marketing copy. A few honest questions, an optional
             five-second posture sample, then an agent that explains every

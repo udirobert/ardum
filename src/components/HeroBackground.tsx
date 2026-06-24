@@ -43,12 +43,12 @@ export default function HeroBackground() {
 
   return (
     <div ref={containerRef} className="absolute inset-0 -z-10 overflow-hidden" aria-hidden>
-      {/* Warm cream gradient overlay — visible photo underneath */}
+      {/* Warm cream gradient overlay — enough opacity for text readability */}
       <div
         className="absolute inset-0 z-10"
         style={{
           background:
-            "linear-gradient(180deg, rgba(246,241,231,0.60) 0%, rgba(246,241,231,0.35) 50%, rgba(246,241,231,0.75) 100%)",
+            "linear-gradient(180deg, rgba(246,241,231,0.65) 0%, rgba(246,241,231,0.50) 45%, rgba(246,241,231,0.55) 55%, rgba(246,241,231,0.80) 100%)",
         }}
       />
       {/* Terracotta tint */}

@@ -129,7 +129,7 @@ export default function PoseCheck({
 
   if (!enabled && !baseline) {
     return (
-      <div className="border border-[color:var(--hairline)] rounded-sm p-6 bg-[color:var(--surface)]">
+      <div className="border border-[color:var(--hairline)] rounded-sm p-6 bg-[color:var(--surface)] surface-card">
         <p className="why mb-4 max-w-prose">
           Run a short posture sample and the agent can match against your
           actual mobility and breath phase — not just your stated energy.

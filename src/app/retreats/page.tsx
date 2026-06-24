@@ -41,7 +41,7 @@ export default async function RetreatsPage() {
               >
                 <Link
                   href={`/match/${a.rootHash}`}
-                  className="block h-full border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 hover:border-[color:var(--accent-soft)] transition-colors hover-lift"
+                  className="block h-full border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 hover:border-[color:var(--accent-soft)] transition-colors hover-lift surface-card"
                 >
                   {photo && (
                     <ProgressiveBlurImage

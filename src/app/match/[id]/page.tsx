@@ -130,7 +130,7 @@ export default async function MatchDetail({
 
       {attestation && (
         <RevealSection delay={300}>
-          <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8">
+          <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8 surface-card">
             <p className="tag mb-3">attestation</p>
             <p className="text-sm mb-3">
               <span className="text-[color:var(--muted)]">attestor: </span>
@@ -149,7 +149,7 @@ export default async function MatchDetail({
 
       {attestation?.claims.breathCycle && (
         <RevealSection delay={450}>
-          <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8 mt-6">
+          <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8 mt-6 surface-card">
             <p className="tag mb-3">breath cycle</p>
             <p className="text-sm mb-4 text-[color:var(--muted)]">
               Nafas-shaped — {attestation.claims.breathCycle.ratio} ratio,

@@ -189,7 +189,7 @@ export default function UploadForm() {
 
   if (result) {
     return (
-      <section className="border border-[color:var(--accent-soft)] bg-[color:var(--surface)] rounded-sm p-8 fade-in-up max-w-2xl">
+      <section className="border border-[color:var(--accent-soft)] bg-[color:var(--surface)] rounded-sm p-8 fade-in-up max-w-2xl surface-card">
         <p className="tag mb-1">written · {result.storedOn}</p>
         <h2 className="font-serif text-3xl tracking-tight mb-3">{title}</h2>
         <p className="why mb-3">
@@ -396,7 +396,7 @@ export default function UploadForm() {
             <WalletButton onConnect={setAttestor} />
           </div>
 
-          <details className="mb-8 border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)]">
+          <details className="mb-8 border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] surface-card">
             <summary className="cursor-pointer px-5 py-3 select-none">
               <span className="tag">
                 Optional · add a breath cycle (advanced)
