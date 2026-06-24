@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 
 import { INTAKE_STEPS } from "./intakeSteps";
@@ -12,6 +12,27 @@ import type {
   PractitionerProfile,
 } from "./schema";
 import PoseCheck from "./PoseCheck";
+import {
+  clearFingerprint,
+  getFingerprint,
+  isRecallable,
+  recallAgeLabel,
+  setFingerprint,
+  type Fingerprint,
+} from "@/lib/fingerprint";
+
+// External store for the local fingerprint. useSyncExternalStore is
+// React 19's idiom for reading browser-only state without triggering the
+// "setState in effect" anti-pattern. The server snapshot is always null
+// (no localStorage on the server); the client snapshot is the real value
+// and React hydrates it after the first client render.
+const subscribeNoop = () => () => {};
+const getFingerprintSnapshot = (): Fingerprint | null => {
+  if (typeof window === "undefined") return null;
+  const fp = getFingerprint();
+  return isRecallable(fp) ? fp : null;
+};
+const getFingerprintServerSnapshot = (): Fingerprint | null => null;
 
 // The intake is a conversation: one question per screen, "why" copy visible,
 // progress as a quiet detail. Not a quiz.
@@ -28,6 +49,17 @@ export default function Intake() {
   const [runPose, setRunPose] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // The recall banner is shown if a stored fingerprint falls inside the
+  // 1-30 day window. Read via useSyncExternalStore so localStorage access
+  // is registered as external state, not an effect-time side effect.
+  const fingerprint = useSyncExternalStore(
+    subscribeNoop,
+    getFingerprintSnapshot,
+    getFingerprintServerSnapshot
+  );
+  const [recallDismissed, setRecallDismissed] = useState(false);
+
+  const recallVisible = fingerprint && !recallDismissed;
 
   const currentStep = INTAKE_STEPS[pageIndex];
   const isFinal = pageIndex === INTAKE_STEPS.length;
@@ -77,6 +109,11 @@ export default function Intake() {
         notes: notes.trim() || undefined,
         createdAt: new Date().toISOString(),
       };
+      // Persist a fingerprint for cross-session recall. Pose is included
+      // only if a baseline was captured this session. `notes` is excluded
+      // — that's the most likely place for personal detail and we want
+      // the user to opt back in for that explicitly.
+      setFingerprint(profile, pose);
       // Save the profile and hand off to the match page. The page opens an
       // SSE stream to /api/agent/match/stream — the agent "thinks out loud"
       // there, step by step, in real time.
@@ -91,6 +128,30 @@ export default function Intake() {
       console.error(err);
       setSubmitting(false);
     }
+  }
+
+  // Recall actions -------------------------------------------------------
+
+  function useRecallAnswers() {
+    if (!fingerprint) return;
+    setAnswers({
+      energy: fingerprint.profile.energy,
+      budget: fingerprint.profile.budget,
+      social: fingerprint.profile.social,
+    });
+    if (fingerprint.pose) setPose(fingerprint.pose);
+    setRecallDismissed(true);
+    // Skip straight to the final step (pose + notes + begin).
+    setPageIndex(INTAKE_STEPS.length);
+  }
+
+  function startFresh() {
+    setRecallDismissed(true);
+  }
+
+  function clearAndStart() {
+    clearFingerprint();
+    setRecallDismissed(true);
   }
 
   // Keyboard: 1-4 picks an option, Enter advances, Backspace goes back.
@@ -139,6 +200,15 @@ export default function Intake() {
   return (
     <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 sm:pt-20 pb-24">
       <ProgressBar current={progress.current} total={progress.total} />
+
+      {recallVisible && fingerprint && (
+        <RecallBanner
+          fingerprint={fingerprint}
+          onUse={useRecallAnswers}
+          onStartOver={startFresh}
+          onClear={clearAndStart}
+        />
+      )}
 
       <div className="t-page-slide relative min-h-[60vh]" data-page={pageIndex + 1}>
         {INTAKE_STEPS.map((step, i) => (
@@ -276,5 +346,60 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
         />
       ))}
     </div>
+  );
+}
+
+// The welcome-back banner. Three explicit actions so the user is never
+// surprised by an auto-applied profile.
+function RecallBanner({
+  fingerprint,
+  onUse,
+  onStartOver,
+  onClear,
+}: {
+  fingerprint: Fingerprint;
+  onUse: () => void;
+  onStartOver: () => void;
+  onClear: () => void;
+}) {
+  const age = recallAgeLabel(fingerprint) ?? "a few days ago";
+  const { energy, budget, social } = fingerprint.profile;
+  return (
+    <aside className="mb-10 border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 fade-in-up surface-card">
+      <p className="tag mb-2">welcome back</p>
+      <h2 className="font-serif text-xl tracking-tight mb-2">
+        You were here {age}.
+      </h2>
+      <p className="why max-w-prose mb-4">
+        {age === "yesterday" ? "Yesterday you said" : "Last time you said"}{" "}
+        your energy was <em>{energy}</em>, your budget band{" "}
+        <em>{budget}</em>, and your social comfort{" "}
+        <em>{social}</em>. Still true? Nothing leaves your browser — this
+        memory lives only in this tab.
+      </p>
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={onUse}
+          className="px-4 py-2 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors text-sm"
+        >
+          Use these answers
+        </button>
+        <button
+          type="button"
+          onClick={onStartOver}
+          className="px-4 py-2 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors text-sm"
+        >
+          Let me change something
+        </button>
+        <button
+          type="button"
+          onClick={onClear}
+          className="px-4 py-2 rounded-sm border border-dashed border-[color:var(--hairline)] text-[color:var(--muted)] hover:text-foreground transition-colors text-sm"
+        >
+          Clear my history
+        </button>
+      </div>
+    </aside>
   );
 }

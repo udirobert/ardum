@@ -57,6 +57,25 @@ Repos that informed Ardum's agent-consumable retreat language and pose workflow:
   an `AXES` registry. The local scorer walks it, the LLM prompt in
   `src/agent/prompts.ts` reads it. Adding or changing a rule happens in
   one place.
+- **Counterfactual reasoning** — after a match, the agent can re-score
+  the same attestation pool with a different composite weight balance
+  and surface the alternate top match. Three presets
+  (energy / social / budget heavy) live in
+  `src/app/api/agent/match/counterfactual/route.ts`. The UI in
+  `src/matching/Counterfactual.tsx` shows the shifted ranking with the
+  same Given/When/Then reasoning under each lens.
+- **Two perspectives on the match** — every match page also runs the
+  Restorative and Movement lenses (see `LENSES` in `score.ts`) and
+  shows them side-by-side. When they agree, the balanced top is robust;
+  when they disagree, the user sees both camps and the gap between
+  them. No extra LLM calls — both are computed deterministically
+  from the same `AXES` registry.
+- **Local cross-session memory** — a fingerprint in `localStorage`
+  (energy, budget, social, optional pose baseline) lets the Intake
+  greet a returning user. Gated to a 1-30 day window, opt-in (the
+  user always confirms before the old answers are reused), and
+  one-tap clearable from the match page footer. Nothing leaves the
+  browser; the matching run is still session-scoped server-side.
 
 ## Folder structure
 
@@ -64,6 +83,8 @@ Repos that informed Ardum's agent-consumable retreat language and pose workflow:
 src/
   app/                # App Router routes + API handlers
     api/agent/match/  # server-only 0G Compute Router proxy (sync + SSE)
+      counterfactual/ # re-score with a different weight balance
+      perspectives/   # Restorative + Movement lens comparison
     api/attestations/ # server-only 0G Storage upload/retrieve
     match/            # reasoning-reveal + match card
     attest/           # wallet-gated attestation upload
@@ -71,10 +92,11 @@ src/
   matching/           # match result types + reasoning UI
   attestation/        # attestation schema + wallet button
   agent/              # 0G Compute client + matching prompts (server-only)
-  lib/                # env, session dispatcher + adapters, supabase, seed data
+  lib/                # env, session dispatcher + adapters, fingerprint, supabase, seed data
     session.ts          # async dispatcher (memory or supabase)
     session.memory.ts   # in-memory adapter (demo mode)
     session.supabase.ts # Supabase adapter (production)
+    fingerprint.ts      # local cross-session memory (browser-only)
 scripts/              # seed + supabase migration
 ```
 

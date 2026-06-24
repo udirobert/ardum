@@ -5,7 +5,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  RESTORATIVE_LENS,
+  MOVEMENT_LENS,
   scoreAll,
+  scoreAllWithOverrides,
   scoreRetreat,
 } from "@/agent/score";
 import type { AttestationIndex } from "@/attestation/schema";
@@ -248,5 +251,109 @@ describe("scoreAll — pose baseline improves signal", () => {
     ).result;
 
     expect(withExtendedPose.score).toBeGreaterThan(withoutPose.score);
+  });
+});
+
+// Counterfactual overrides ---------------------------------------------
+
+describe("scoreAllWithOverrides", () => {
+  it("returns retreats sorted by the overridden composite", () => {
+    const p = profile({ energy: "low", social: "solo", budget: "under-1k" });
+    const ranked = scoreAllWithOverrides(p, attestations(), {
+      "Energy alignment": 0.9,
+    });
+    for (let i = 1; i < ranked.length; i++) {
+      expect(ranked[i - 1].result.score).toBeGreaterThanOrEqual(
+        ranked[i].result.score
+      );
+    }
+  });
+
+  it("every score is in [0, 1] after override", () => {
+    const p = profile({ energy: "sharp", social: "communal", budget: "2k-3k" });
+    const ranked = scoreAllWithOverrides(p, attestations(), {
+      "Social comfort": 0.7,
+    });
+    for (const { result } of ranked) {
+      expect(result.score).toBeGreaterThanOrEqual(0);
+      expect(result.score).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("changes at least one retreat's score compared to the default weights", () => {
+    // Verify the override is actually taking effect: at least one retreat
+    // must score differently with overridden weights than with defaults.
+    // We don't assert which one — the test is about the override path,
+    // not the specific ranking.
+    const p = profile({
+      energy: "sharp",
+      social: "communal",
+      budget: "2k-3k",
+    });
+    const defaultRanked = scoreAll(p, attestations());
+    const energyHeavy = scoreAllWithOverrides(p, attestations(), {
+      "Energy alignment": 0.9,
+    });
+    let anyDifferent = false;
+    for (let i = 0; i < defaultRanked.length; i++) {
+      if (
+        Math.abs(
+          defaultRanked[i].result.score - energyHeavy[i].result.score
+        ) > 0.001
+      ) {
+        anyDifferent = true;
+        break;
+      }
+    }
+    expect(anyDifferent).toBe(true);
+  });
+
+  it("changes the runner-up under at least one lens on the seed pool", () => {
+    // The deterministic scorer is robust on the seed pool — the top match
+    // often stays the same under a rebalance. The disagreement shows up
+    // one or two positions down. Brute force over profiles and lenses;
+    // assert the runner-up (or any retreat) shifts at least once.
+    const profiles = [
+      profile({ energy: "low", social: "solo", budget: "under-1k" }),
+      profile({ energy: "sharp", social: "communal", budget: "2k-3k" }),
+      profile({ energy: "settled", social: "small-circle", budget: "1k-2k" }),
+      profile({ energy: "in-movement", social: "open-circle", budget: "3k-plus" }),
+    ];
+    const lenses = [RESTORATIVE_LENS, MOVEMENT_LENS];
+    let shiftFound = false;
+    outer: for (const p of profiles) {
+      const defaultRanked = scoreAll(p, attestations());
+      for (const lens of lenses) {
+        const altRanked = scoreAllWithOverrides(
+          p,
+          attestations(),
+          lens.overrides
+        );
+        // Compare the runner-up at every position.
+        for (let i = 0; i < defaultRanked.length; i++) {
+          if (defaultRanked[i].result.id !== altRanked[i].result.id) {
+            shiftFound = true;
+            break outer;
+          }
+        }
+      }
+    }
+    expect(shiftFound).toBe(true);
+  });
+
+  it("RESTORATIVE_LENS and MOVEMENT_LENS both produce a valid ranking", () => {
+    const p = profile({
+      energy: "low",
+      social: "solo",
+      budget: "1k-2k",
+    });
+    for (const lens of [RESTORATIVE_LENS, MOVEMENT_LENS]) {
+      const ranked = scoreAllWithOverrides(p, attestations(), lens.overrides);
+      expect(ranked.length).toBe(10);
+      for (const { result } of ranked) {
+        expect(result.score).toBeGreaterThanOrEqual(0);
+        expect(result.score).toBeLessThanOrEqual(1);
+      }
+    }
   });
 });

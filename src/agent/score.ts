@@ -284,7 +284,13 @@ const mobilityAxis: Axis = {
 // Composite weights: fixed subset that contributes to the numeric score.
 // Display-only axes (weight 0) appear in reasoning but don't move the
 // score — they're context, not rank signal.
-const COMPOSITE_WEIGHTS: Record<string, number> = {
+//
+// Keys are typed as a union so callers can override weights with full
+// type safety. Adding a new scoreable axis requires extending both this
+// union and the type in `CompositeOverrides`.
+type CompositeAxis = "Energy alignment" | "Social comfort" | "Budget" | "Breath & practice";
+
+const COMPOSITE_WEIGHTS: Record<CompositeAxis, number> = {
   "Energy alignment": 0.35,
   "Social comfort": 0.25,
   Budget: 0.15,
@@ -324,7 +330,8 @@ function headline(
 
 export function scoreRetreat(
   practitioner: PractitionerProfile,
-  a: AttestationIndex
+  a: AttestationIndex,
+  overrides?: CompositeOverrides
 ): ScoredAttestation {
   const steps: ReasoningStep[] = [];
   const perAxisScore: Record<string, number> = {};
@@ -351,8 +358,11 @@ export function scoreRetreat(
   }
 
   // Composite: weighted sum over the score-contributing axes only.
+  // Overrides let a caller rebalance which axis dominates — used by the
+  // counterfactual ("what if I'd weighted budget more?") flow.
+  const weights = { ...COMPOSITE_WEIGHTS, ...(overrides ?? {}) };
   let raw = 0;
-  for (const [name, weight] of Object.entries(COMPOSITE_WEIGHTS)) {
+  for (const [name, weight] of Object.entries(weights)) {
     raw += (perAxisScore[name] ?? 0) * weight;
   }
   const score = Math.max(0, Math.min(1, raw));
@@ -390,6 +400,83 @@ export function scoreAll(
   return attestations
     .map((a) => scoreRetreat(practitioner, a))
     .sort((a, b) => b.result.score - a.result.score);
+}
+
+// ─── Counterfactual: re-score with a different weight balance ────────────
+
+// Per-axis weight overrides applied on top of COMPOSITE_WEIGHTS. Use this
+// to ask "what would have happened if I'd weighted X more heavily?" without
+// touching the registry.
+export type CompositeOverrides = Partial<Record<CompositeAxis, number>>;
+
+// A named counterfactual perspective. The agent runs the same AXES but
+// with a different composite weight balance, so the user can see how the
+// ranking shifts when one axis dominates.
+export type Perspective = {
+  name: string;
+  weight: number;
+  overrides: CompositeOverrides;
+  plain: string;
+};
+
+// Default perspective: what the main match uses (identity on weights).
+export const DEFAULT_PERSPECTIVE: Perspective = {
+  name: "Balanced",
+  weight: 1,
+  overrides: {},
+  plain: "weighted across energy, social, budget, and breath",
+};
+
+// Two named lenses, used by the multi-perspective flow. Weights are
+// rebased so the total stays near 0.90 (matching the default), just with
+// one axis dominant.
+export const RESTORATIVE_LENS: Perspective = {
+  name: "Restorative",
+  weight: 0.5,
+  overrides: {
+    "Energy alignment": 0.5,
+    "Social comfort": 0.2,
+    Budget: 0.1,
+    "Breath & practice": 0.1,
+  },
+  plain: "weighted toward energy and breath",
+};
+
+export const MOVEMENT_LENS: Perspective = {
+  name: "Movement",
+  weight: 0.5,
+  overrides: {
+    "Energy alignment": 0.2,
+    "Social comfort": 0.4,
+    Budget: 0.2,
+    "Breath & practice": 0.1,
+  },
+  plain: "weighted toward social comfort and budget",
+};
+
+export const LENSES: readonly Perspective[] = [
+  RESTORATIVE_LENS,
+  MOVEMENT_LENS,
+];
+
+export function scoreAllWithOverrides(
+  practitioner: PractitionerProfile,
+  attestations: AttestationIndex[],
+  overrides: CompositeOverrides
+): ScoredAttestation[] {
+  return attestations
+    .map((a) => scoreRetreat(practitioner, a, overrides))
+    .sort((a, b) => b.result.score - a.result.score);
+}
+
+// Resolves a perspective against an attestation pool. Used by the
+// counterfactual and multi-perspective endpoints.
+export function scoreWithPerspective(
+  practitioner: PractitionerProfile,
+  attestations: AttestationIndex[],
+  perspective: Perspective
+): ScoredAttestation[] {
+  return scoreAllWithOverrides(practitioner, attestations, perspective.overrides);
 }
 
 // Stream-friendly header steps. Kept here (not in prompts.ts) so the

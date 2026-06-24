@@ -6,8 +6,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ReasoningList from "@/matching/ReasoningList";
 import StreamProgress from "@/matching/StreamProgress";
 import MatchCard from "@/matching/MatchCard";
+import Counterfactual from "@/matching/Counterfactual";
+import LensComparison from "@/matching/LensComparison";
+import ClearHistoryLink from "@/matching/ClearHistoryLink";
 import MaskReveal from "@/components/MaskReveal";
 import { saveMatchResult } from "@/lib/client-session";
+import { clearFingerprint } from "@/lib/fingerprint";
 import type { MatchRun, ReasoningStep } from "@/matching/types";
 
 export default function MatchPage() {
@@ -256,6 +260,20 @@ function MatchFlow() {
         ))}
       </div>
 
+      <div className="drop-in-3">
+        <Counterfactual
+          sessionId={run.practitionerId}
+          currentTopId={top.id}
+        />
+      </div>
+
+      <div className="drop-in-3">
+        <LensComparison
+          sessionId={run.practitionerId}
+          currentTopId={top.id}
+        />
+      </div>
+
       <p className="tag mt-16 text-center drop-in-3">
         {run.agentTrace.attestationsConsidered} attestations considered &middot;
         {run.agentTrace.provider === "local" || run.agentTrace.provider === "0g-compute-fallback"
@@ -263,6 +281,10 @@ function MatchFlow() {
           : `powered by ${run.agentTrace.model}`}
         &middot; prompt {run.agentTrace.promptVersion}
       </p>
+
+      <div className="mt-6 text-center drop-in-3">
+        <ClearHistoryLink onClear={clearFingerprint} />
+      </div>
       </MaskReveal>
     </section>
   );
