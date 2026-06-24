@@ -84,15 +84,22 @@ export default async function MatchDetail({
       {attestation && (
         <RevealSection delay={300}>
           <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8 surface-card">
-            <p className="tag mb-3">attestation</p>
-            <p className="text-sm mb-3">
-              <span className="text-[color:var(--muted)]">attestor: </span>
-              <span className="tag break-all">{attestation.attestor}</span>
+            <p className="tag mb-4 flex items-center gap-2">
+              <span
+                aria-hidden
+                className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)]"
+              />
+              attestation · stored on{" "}
+              <span className="text-foreground">0G Storage</span>
             </p>
-            <p className="text-sm">
-              <span className="text-[color:var(--muted)]">created: </span>
-              {new Date(attestation.createdAt).toLocaleDateString()}
-            </p>
+            <dl className="grid sm:grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-[color:var(--muted)]">attestor</dt>
+              <dd className="tag break-all">{attestation.attestor}</dd>
+              <dt className="text-[color:var(--muted)]">created</dt>
+              <dd>{new Date(attestation.createdAt).toLocaleDateString()}</dd>
+              <dt className="text-[color:var(--muted)]">rootHash</dt>
+              <dd className="tag break-all opacity-80">{id}</dd>
+            </dl>
             {attestation.claims.notes && (
               <p className="why mt-4 max-w-prose">{attestation.claims.notes}</p>
             )}

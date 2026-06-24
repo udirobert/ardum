@@ -22,6 +22,32 @@ export default function MatchPage() {
   );
 }
 
+// Quiet provenance line shown directly under the match header. Says
+// the part out loud: this recommendation was reasoned by 0G Compute over
+// attestations stored on 0G Storage. Without 0G, the user would never
+// have reached this view — the stream errors instead of falling back.
+function ZeroGProvenance({ trace }: { trace: MatchRun["agentTrace"] }) {
+  return (
+    <div className="mb-12 drop-in inline-flex flex-wrap items-center gap-x-3 gap-y-1 border border-[color:var(--hairline)] rounded-sm px-3 py-2 bg-[color:var(--surface)]">
+      <span
+        aria-hidden
+        className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)]"
+      />
+      <span className="tag">
+        <span className="text-foreground">0G Compute Router</span>
+        {trace.model ? ` · ${trace.model}` : ""}
+      </span>
+      <span aria-hidden className="text-[color:var(--hairline)]">|</span>
+      <span className="tag">
+        <span className="text-foreground">0G Storage</span>
+        {" · "}
+        {trace.attestationsConsidered} attestation
+        {trace.attestationsConsidered === 1 ? "" : "s"} considered
+      </span>
+    </div>
+  );
+}
+
 function MatchFlow() {
   const sp = useSearchParams();
   const router = useRouter();
@@ -130,20 +156,49 @@ function MatchFlow() {
   }
 
   if (err) {
+    const isZeroGIssue = /0G Compute/i.test(err);
     return (
       <section className="mx-auto max-w-2xl px-6 sm:px-10 pt-20">
-        <p className="tag mb-3">error</p>
+        <p className="tag mb-3">
+          {isZeroGIssue ? "0g compute unavailable" : "error"}
+        </p>
         <h1 className="font-serif text-4xl tracking-tight mb-4">
-          The agent couldn&apos;t finish reasoning.
+          {isZeroGIssue
+            ? "The reasoning engine didn’t respond."
+            : "The agent couldn’t finish reasoning."}
         </h1>
-        <p className="text-[color:var(--accent-ink)] mb-6">{err}</p>
-        <button
-          type="button"
-          onClick={() => router.push("/")}
-          className="px-5 py-2.5 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors"
-        >
-          Start over →
-        </button>
+        <p className="text-[color:var(--accent-ink)] mb-3 max-w-prose leading-relaxed">
+          {err}
+        </p>
+        {isZeroGIssue && (
+          <p className="why mb-8 max-w-prose">
+            Ardum reasons on 0G Compute or it doesn’t recommend — there’s
+            no silent fallback. Try again, or refresh your calibration.
+          </p>
+        )}
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setErr(null);
+              setSteps([]);
+              setRun(null);
+              setStreamOpen(false);
+              // Re-mount the effect by tweaking the URL hash.
+              router.replace(`/match?session=${encodeURIComponent(sessionId)}&retry=${Date.now()}`);
+            }}
+            className="px-5 py-2.5 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors"
+          >
+            Try again →
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="px-5 py-2.5 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors text-[color:var(--muted)] hover:text-foreground"
+          >
+            Recalibrate
+          </button>
+        </div>
       </section>
     );
   }
@@ -152,7 +207,13 @@ function MatchFlow() {
     return (
       <section className="mx-auto max-w-2xl px-6 sm:px-10 pt-20">
         <div className="flex items-baseline justify-between mb-3">
-          <p className="tag">matching</p>
+          <p className="tag flex items-center gap-2">
+            <span
+              aria-hidden
+              className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft"
+            />
+            streaming from 0G Compute Router
+          </p>
           {steps.length > 0 && (
             <p className="tag tabular-nums fade-in-up">
               {steps.length} {steps.length === 1 ? "step" : "steps"} so far
@@ -176,7 +237,7 @@ function MatchFlow() {
           <ReasoningList steps={steps} isStreaming />
         </div>
         {!streamOpen && (
-          <p className="why pulse-soft mt-4">opening stream…</p>
+          <p className="why pulse-soft mt-4">opening stream to 0G Compute…</p>
         )}
       </section>
     );
@@ -222,10 +283,11 @@ function MatchFlow() {
       <h1 className="font-serif text-5xl sm:text-6xl leading-[1.02] tracking-tight mb-6 drop-in">
         Your match
       </h1>
-      <p className="text-lg text-[color:var(--muted)] max-w-prose mb-12 leading-relaxed drop-in">
+      <p className="text-lg text-[color:var(--muted)] max-w-prose mb-6 leading-relaxed drop-in">
         Here&rsquo;s how the agent thought about your practice. Each step is
         a separate signal &mdash; you can disagree with any of them.
       </p>
+      <ZeroGProvenance trace={run.agentTrace} />
 
       <div className="mb-16">
         <ReasoningList steps={steps} />
@@ -276,11 +338,12 @@ function MatchFlow() {
       </div>
 
       <p className="tag mt-16 text-center drop-in-3">
-        {run.agentTrace.attestationsConsidered} attestations considered &middot;
-        {run.agentTrace.provider === "local" || run.agentTrace.provider === "0g-compute-fallback"
-          ? "scored on declared preferences"
-          : `powered by ${run.agentTrace.model}`}
-        &middot; prompt {run.agentTrace.promptVersion}
+        {run.agentTrace.attestationsConsidered} attestations on{" "}
+        <span className="text-foreground">0G Storage</span> &middot;
+        reasoned by{" "}
+        <span className="text-foreground">0G Compute Router</span>
+        {run.agentTrace.model ? ` · ${run.agentTrace.model}` : ""} &middot;
+        prompt {run.agentTrace.promptVersion}
       </p>
 
       <div className="mt-6 text-center drop-in-3">

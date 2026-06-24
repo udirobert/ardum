@@ -5,7 +5,7 @@ import type { AttestationIndex } from "@/attestation/schema";
 import type { PractitionerProfile } from "@/calibration/schema";
 import type { MatchRun } from "@/matching/types";
 
-export type AgentProvider = "0g-compute" | "local" | "0g-compute-fallback";
+export type AgentProvider = "0g-compute";
 
 export type AgentRequest = {
   practitioner: PractitionerProfile;

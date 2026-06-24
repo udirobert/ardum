@@ -49,8 +49,11 @@ export type MatchRun = {
   practitionerId: string;
   generatedAt: string;
   // The model/prompt used — useful for the judges and for iteration.
+  // The main match path is 0G Compute or it doesn't recommend; the
+  // provider field is left as a literal so consumers can branch later
+  // (e.g. if we add a second compute provider) without a type change.
   agentTrace: {
-    provider: "0g-compute" | "local" | "0g-compute-fallback";
+    provider: "0g-compute";
     model?: string;
     promptVersion: string;
     attestationsConsidered: number;

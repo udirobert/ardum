@@ -18,16 +18,30 @@ export default async function RetreatsPage() {
 
   return (
     <section className="mx-auto w-full max-w-4xl px-6 sm:px-10 pt-12 pb-24">
-      <p className="tag mb-4">attestation pool</p>
+      <p className="tag mb-4">attestation pool · 0G Storage</p>
       <h1 className="font-serif text-5xl sm:text-6xl leading-[1.02] tracking-tight mb-6">
         What we&apos;re matching against.
       </h1>
-      <p className="text-lg text-[color:var(--muted)] max-w-prose mb-12 leading-relaxed">
-        Every retreat below is a verified attestation. The matching agent
-        reasons against this pool — nothing else. {attestations.length}{" "}
-        {attestations.length === 1 ? "attestation" : "attestations"} loaded
-        from 0G Storage (or the seed when no 0G credentials are configured).
+      <p className="text-lg text-[color:var(--muted)] max-w-prose mb-6 leading-relaxed">
+        Every retreat below is a wallet-signed attestation stored on{" "}
+        <span className="text-foreground">0G Storage</span>. The matching
+        agent reasons against this pool — nothing else. {attestations.length}{" "}
+        {attestations.length === 1 ? "attestation" : "attestations"} loaded.
       </p>
+      <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 border border-[color:var(--hairline)] rounded-sm px-3 py-2 bg-[color:var(--surface)] mb-12">
+        <span
+          aria-hidden
+          className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)]"
+        />
+        <span className="tag">
+          stored on <span className="text-foreground">0G Storage</span>
+        </span>
+        <span aria-hidden className="text-[color:var(--hairline)]">|</span>
+        <span className="tag">
+          reasoned by{" "}
+          <span className="text-foreground">0G Compute Router</span>
+        </span>
+      </div>
 
       <SectionDivider />
 
@@ -92,12 +106,20 @@ export default async function RetreatsPage() {
                         </span>
                       ))}
                     </div>
-                    <p className="tag pt-3 border-t border-[color:var(--hairline)] mt-2 flex justify-between">
-                      <span>1 attestation</span>
-                      <span className="opacity-70">
-                        {new Date(a.createdAt).toLocaleDateString()}
-                      </span>
-                    </p>
+                    <div className="pt-3 border-t border-[color:var(--hairline)] mt-2">
+                      <p className="tag flex items-baseline justify-between">
+                        <span>
+                          1 attestation ·{" "}
+                          <span className="text-foreground">0G Storage</span>
+                        </span>
+                        <span className="opacity-70">
+                          {new Date(a.createdAt).toLocaleDateString()}
+                        </span>
+                      </p>
+                      <p className="tag opacity-60 truncate mt-1">
+                        {a.rootHash}
+                      </p>
+                    </div>
                   </Link>
                 </li>
               </MaskReveal>

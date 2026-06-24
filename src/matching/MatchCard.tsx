@@ -198,19 +198,26 @@ function AttestationFooter({
   rootHash: string;
 }) {
   return (
-    <div className="pt-5 border-t border-[color:var(--hairline)] flex flex-wrap items-baseline gap-x-4 gap-y-1">
-      <p className="tag">
-        {attestationCount === 1
-          ? "1 attestation"
-          : `${attestationCount ?? "\u2014"} attestations`}
-        {attestor ? ` \u00b7 ${attestor}` : ""}
-      </p>
-      {attestedAt && (
+    <div className="pt-5 border-t border-[color:var(--hairline)]">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <p className="tag">
-          first attested {new Date(attestedAt).toLocaleDateString()}
+          <span className="text-foreground">0G Storage</span>
+          {" \u00b7 "}
+          {attestationCount === 1
+            ? "1 attestation"
+            : `${attestationCount ?? "\u2014"} attestations`}
+          {attestor ? ` \u00b7 ${attestor}` : ""}
         </p>
-      )}
-      <p className="tag break-all ml-auto opacity-70">{rootHash}</p>
+        {attestedAt && (
+          <p className="tag">
+            first attested {new Date(attestedAt).toLocaleDateString()}
+          </p>
+        )}
+      </div>
+      <p className="tag break-all opacity-70 mt-1.5">
+        <span className="text-[color:var(--muted)]">rootHash </span>
+        {rootHash}
+      </p>
     </div>
   );
 }
@@ -270,25 +277,22 @@ function FitScore({ pct, size }: { pct: number; size: "sm" | "lg" }) {
 }
 
 // Local re-export of the agent trace shape — kept loose to avoid a circular
-// import with the types module. The provider union matches matching/types.ts.
+// import with the types module. The provider field is "0g-compute" only;
+// the main match path doesn't have a silent fallback.
 type MatchRunAgentTrace = {
-  provider: "0g-compute" | "local" | "0g-compute-fallback";
+  provider: "0g-compute";
   model?: string;
   promptVersion: string;
 };
 
 function AgentTraceLine({ trace }: { trace: MatchRunAgentTrace }) {
-  const isLocal = trace.provider === "local" || trace.provider === "0g-compute-fallback";
-  const subject = isLocal
-    ? "local scorer"
-    : `${trace.model ?? trace.provider}`;
-  const note =
-    trace.provider === "0g-compute-fallback"
-      ? " (0G Compute unavailable)"
-      : "";
   return (
     <>
-      agent &middot; {subject}{note} &middot; prompt {trace.promptVersion}
+      reasoned by{" "}
+      <span className="text-foreground">0G Compute Router</span>
+      {trace.model ? <> &middot; {trace.model}</> : null}
+      {" · prompt "}
+      {trace.promptVersion}
     </>
   );
 }
