@@ -39,10 +39,11 @@ export type ComputeProgress = {
 };
 
 // Maximum time the 0G Compute Router is allowed to take end-to-end before
-// we abort the request. Keeps the SSE stream bounded so a hung upstream
-// can never freeze the user's match page; the client surfaces a clear
-// timeout error instead of silently swapping to a different reasoning engine.
-const COMPUTE_TIMEOUT_MS = 30_000;
+// we abort the request. Sized to leave headroom under the platform's
+// function ceiling — Vercel Hobby Edge caps stream functions at 25s,
+// so we bail at 22s and emit a clean error event instead of getting
+// killed mid-byte by the platform.
+const COMPUTE_TIMEOUT_MS = 22_000;
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {

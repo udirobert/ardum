@@ -13,6 +13,13 @@ import { streamMatchAgent } from "@/agent/client";
 // (sessionId is generated client-side); we wait briefly for the profile to
 // land before erroring, so the POST /api/profile call can race the GET.
 
+// Edge runtime — gives us 25s on Vercel Hobby instead of the 10s ceiling
+// on Node serverless. The stream needs the time: 0G Compute responses
+// commonly run 5–30s, and we want the full LLM trace to land. The route
+// only depends on Edge-safe APIs (fetch, ReadableStream, async iterators)
+// and uses the in-memory attestation cache rather than the Node-only 0G
+// Storage SDK, which stays in /api/attestations.
+export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 function sseEncode(event: string, data: unknown): string {
