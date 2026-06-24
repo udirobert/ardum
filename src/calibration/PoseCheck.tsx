@@ -12,15 +12,19 @@ type Status = "idle" | "requesting" | "sampling" | "done" | "error";
 export default function PoseCheck({
   enabled,
   baseline,
+  skipped,
   onEnable,
   onComplete,
   onSkip,
+  onUndoSkip,
 }: {
   enabled: boolean;
   baseline?: PoseBaseline;
+  skipped: boolean;
   onEnable: () => void;
   onComplete: (b: PoseBaseline) => void;
   onSkip: () => void;
+  onUndoSkip: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -126,6 +130,33 @@ export default function PoseCheck({
       streamRef.current = null;
     }
   }, [status, enabled]);
+
+  // Explicit "skipped" confirmation so the user sees their choice landed.
+  // Before this, clicking Skip set runPose=false (already false) and the
+  // UI didn't change — the button looked broken.
+  if (skipped && !baseline) {
+    return (
+      <div className="border border-dashed border-[color:var(--hairline)] rounded-sm p-5 bg-[color:var(--surface)] flex flex-wrap items-baseline gap-x-4 gap-y-1 fade-in-up">
+        <p className="tag flex items-center gap-2">
+          <span
+            aria-hidden
+            className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent-soft)]"
+          />
+          pose check skipped
+        </p>
+        <p className="text-sm text-[color:var(--muted)]">
+          The agent will match on your stated energy only.
+        </p>
+        <button
+          type="button"
+          onClick={onUndoSkip}
+          className="ml-auto text-sm underline underline-offset-4 decoration-[color:var(--hairline)] hover:decoration-[color:var(--accent)] text-[color:var(--muted)] hover:text-foreground transition-colors"
+        >
+          Add a sample instead
+        </button>
+      </div>
+    );
+  }
 
   if (!enabled && !baseline) {
     return (

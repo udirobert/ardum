@@ -54,6 +54,7 @@ export default function Intake() {
   const [answers, setAnswers] = useState<IntakeAnswers>({});
   const [pose, setPose] = useState<PoseBaseline | undefined>(undefined);
   const [runPose, setRunPose] = useState(false);
+  const [skippedPose, setSkippedPose] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -322,12 +323,21 @@ export default function Intake() {
 
           <PoseCheck
             enabled={runPose}
-            onEnable={() => setRunPose(true)}
+            skipped={skippedPose}
+            onEnable={() => {
+              setRunPose(true);
+              setSkippedPose(false);
+            }}
             onComplete={(baseline) => {
               setPose(baseline);
               setRunPose(false);
+              setSkippedPose(false);
             }}
-            onSkip={() => setRunPose(false)}
+            onSkip={() => {
+              setRunPose(false);
+              setSkippedPose(true);
+            }}
+            onUndoSkip={() => setSkippedPose(false)}
             baseline={pose}
           />
 

@@ -78,7 +78,7 @@ function ZeroGProvenance({ trace }: { trace: MatchRun["agentTrace"] }) {
       <span className="tag">
         <span className="text-foreground">0G Storage</span>
         {" · "}
-        {trace.attestationsConsidered} attestation
+        {trace.attestationsConsidered} retreat
         {trace.attestationsConsidered === 1 ? "" : "s"} considered
       </span>
     </div>
@@ -375,7 +375,7 @@ function MatchFlow() {
       </div>
 
       <p className="tag mt-16 text-center drop-in-3">
-        {run.agentTrace.attestationsConsidered} attestations on{" "}
+        {run.agentTrace.attestationsConsidered} retreats verified on{" "}
         <span className="text-foreground">0G Storage</span> &middot;
         reasoned by{" "}
         <span className="text-foreground">0G Compute Router</span>

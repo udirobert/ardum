@@ -343,6 +343,11 @@ export async function* streamMatchAgent(
     COMPUTE_TIMEOUT_MS
   );
 
+  // Hoisted so the catch block can build a precise diagnostic message
+  // (token count + elapsed) for whichever failure mode we hit.
+  const startMs = Date.now();
+  let tokenCount = 0;
+
   try {
     const env = readServerEnv();
 
@@ -360,10 +365,8 @@ export async function* streamMatchAgent(
     // generator drives the user-facing pacing (pool scan + progress
     // events) while this pump fills `accumulated`.
     let accumulated = "";
-    let tokenCount = 0;
     let llmDone = false;
     let llmError: unknown = null;
-    const startMs = Date.now();
     const pump = (async () => {
       try {
         for await (const delta of withAbort(
@@ -481,12 +484,39 @@ export async function* streamMatchAgent(
     yield { event: "done", data: { run } };
   } catch (err) {
     const aborted = (err as Error)?.message === "aborted";
-    const message = aborted
-      ? "0G Compute Router timed out or the request was cancelled."
-      : err instanceof Error
-        ? `0G Compute Router failed: ${err.message}`
-        : "0G Compute Router failed.";
-    console.error("[ardum] stream failed:", err);
+    const env = readServerEnv();
+    const elapsedMs = Date.now() - startMs;
+    let message: string;
+    if (aborted) {
+      if (tokenCount === 0) {
+        // Stream never produced anything before the deadline. Most likely
+        // the model didn't honor `stream:true`, the API key is wrong, or
+        // the model name doesn't resolve in the router catalog.
+        message =
+          `0G Compute Router (${env.OG_COMPUTE_MODEL}) returned no tokens before ` +
+          `the ${Math.round(COMPUTE_TIMEOUT_MS / 1000)}s timeout. Likely causes: ` +
+          `the model doesn't support streaming, the model name doesn't ` +
+          `resolve in the router catalog, or the API key lacks access.`;
+      } else {
+        // Generation started but didn't complete in time. The model is
+        // simply too slow for the platform's function ceiling.
+        message =
+          `0G Compute Router (${env.OG_COMPUTE_MODEL}) was still generating ` +
+          `at the ${Math.round(COMPUTE_TIMEOUT_MS / 1000)}s deadline ` +
+          `(received ${tokenCount.toLocaleString()} tokens in ` +
+          `${(elapsedMs / 1000).toFixed(1)}s). Try a faster model or trim ` +
+          `the prompt's max_tokens.`;
+      }
+    } else if (err instanceof Error) {
+      message = `0G Compute Router failed: ${err.message}`;
+    } else {
+      message = "0G Compute Router failed.";
+    }
+    console.error(
+      "[ardum] stream failed:",
+      err,
+      `tokens=${tokenCount} elapsedMs=${elapsedMs}`
+    );
     yield { event: "error", data: { message } };
   } finally {
     clearTimeout(timeout);

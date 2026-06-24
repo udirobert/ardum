@@ -495,8 +495,8 @@ export function contextStep(args: {
     : "";
   return {
     axis: "Reading your profile",
-    given: `Energy ${practitioner.energy}, budget ${practitioner.budget}, social ${practitioner.social}${poseLine}. Considering ${attestationCount} attestation${attestationCount === 1 ? "" : "s"}.`,
-    when: "Practitioner's stated axes set the constraints.",
+    given: `Energy ${practitioner.energy}, budget ${practitioner.budget}, social ${practitioner.social}${poseLine}. Considering ${attestationCount} retreat${attestationCount === 1 ? "" : "s"} from the verified pool.`,
+    when: "Your stated answers set the constraints.",
     then:
       "Everything downstream is reasoning about fit, not ranking by price or popularity.",
     weight: 0,
