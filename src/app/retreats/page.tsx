@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { listAttestations } from "@/lib/og-storage";
-import { RETREAT_PHOTOS, unsplashUrl, FALLBACK_GRADIENT } from "@/lib/retreat-photos";
+import { RETREAT_PHOTOS, FALLBACK_GRADIENT } from "@/lib/retreat-photos";
 import SectionDivider from "@/components/SectionDivider";
 import ProgressiveBlurImage from "@/components/ProgressiveBlurImage";
 import MaskReveal from "@/components/MaskReveal";
@@ -43,7 +43,7 @@ export default async function RetreatsPage() {
                 >
                   {photo && (
                     <ProgressiveBlurImage
-                      src={unsplashUrl(photo.id, 600)}
+                      src={photo.src}
                       alt={photo.alt}
                       width={600}
                       height={400}

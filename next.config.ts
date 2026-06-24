@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
         port: "",
         pathname: "/photo-*",
       },
+      {
+        protocol: "https",
+        hostname: "picsum.photos",
+        port: "",
+        pathname: "/seed/**",
+      },
     ],
   },
   // Pin the workspace root to this app's directory so Next.js ignores the

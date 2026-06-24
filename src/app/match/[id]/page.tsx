@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 
 import { getAttestation } from "@/lib/og-storage";
-import { RETREAT_PHOTOS, unsplashUrl, FALLBACK_GRADIENT } from "@/lib/retreat-photos";
+import { RETREAT_PHOTOS, FALLBACK_GRADIENT } from "@/lib/retreat-photos";
 import ReasoningList from "@/matching/ReasoningList";
 import BreathCycleDiagram from "@/matching/BreathCycleDiagram";
 import ProgressiveBlurImage from "@/components/ProgressiveBlurImage";
@@ -67,7 +67,7 @@ export default async function MatchDetail({
       {photo && (
         <div className="mt-8 mb-10 -mx-6 sm:-mx-10">
           <ProgressiveBlurImage
-            src={unsplashUrl(photo.id, 1200)}
+            src={photo.src}
             alt={photo.alt}
             width={1200}
             height={675}

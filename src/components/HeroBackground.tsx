@@ -1,14 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { unsplashUrl } from "@/lib/retreat-photos";
 
 // A subtle full-viewport atmospheric background for the home page. The
 // gradient overlays ensure text readability and brand consistency —
 // the photograph sits under warm cream and terracotta-tinted layers so
 // it blends into the palette instead of fighting it.
 
-const HERO_PHOTO = "ca3d4FYDf84"; // Bali rice terraces
+const HERO_IMAGE =
+  "https://images.unsplash.com/photo-1557093793-d149a38a1be8?w=1920&q=80&auto=format&fit=crop";
 
 export default function HeroBackground() {
   return (
@@ -31,7 +31,7 @@ export default function HeroBackground() {
       />
       {/* The photo */}
       <Image
-        src={unsplashUrl(HERO_PHOTO, 1920)}
+        src={HERO_IMAGE}
         alt=""
         fill
         className="object-cover"
