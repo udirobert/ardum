@@ -137,8 +137,17 @@ function MatchFlow() {
             ? "Reading your profile…"
             : "Reasoning out loud…"}
         </h1>
-        <StreamProgress steps={steps.length} />
-        <ReasoningList steps={steps} isStreaming />
+        <div className="relative">
+          <div
+            className="absolute -inset-20 rounded-full breathing-glow pointer-events-none"
+            style={{
+              background:
+                "radial-gradient(ellipse 50% 40% at 50% 20%, rgba(168,90,58,0.12) 0%, transparent 70%)",
+            }}
+          />
+          <StreamProgress steps={steps.length} />
+          <ReasoningList steps={steps} isStreaming />
+        </div>
         {!streamOpen && (
           <p className="why pulse-soft mt-4">opening stream…</p>
         )}
@@ -158,9 +167,9 @@ function MatchFlow() {
   return (
     <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
       <MaskReveal>
-        <div className="flex items-baseline justify-between mb-3 fade-in-up">
+        <div className="flex items-baseline justify-between mb-3 drop-in">
         <p className="tag">session {run.practitionerId.slice(0, 8)}&hellip;</p>
-        <p className="tag flex items-center gap-2 fade-in-up">
+        <p className="tag flex items-center gap-2 drop-in">
           <span
             aria-hidden
             className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)]"
@@ -168,10 +177,10 @@ function MatchFlow() {
           matched
         </p>
       </div>
-      <h1 className="font-serif text-5xl sm:text-6xl leading-[1.02] tracking-tight mb-6 fade-in-up">
+      <h1 className="font-serif text-5xl sm:text-6xl leading-[1.02] tracking-tight mb-6 drop-in">
         Your match
       </h1>
-      <p className="text-lg text-[color:var(--muted)] max-w-prose mb-12 leading-relaxed fade-in-up">
+      <p className="text-lg text-[color:var(--muted)] max-w-prose mb-12 leading-relaxed drop-in">
         Here&rsquo;s how the agent thought about your practice. Each step is
         a separate signal &mdash; you can disagree with any of them.
       </p>
@@ -180,11 +189,11 @@ function MatchFlow() {
         <ReasoningList steps={steps} />
       </div>
 
-      <div className="h-px bg-[color:var(--hairline)] mb-12 fade-in-up" />
+      <div className="h-px bg-[color:var(--hairline)] mb-12 drop-in" />
 
       <div className="space-y-6">
-        <p className="tag fade-in-up-1">recommended</p>
-        <div className="fade-in-up-1">
+        <p className="tag drop-in-1">recommended</p>
+        <div className="drop-in-1">
           <MatchCard
             result={top}
             rank={1}
@@ -194,7 +203,7 @@ function MatchFlow() {
           />
         </div>
         {run.results.slice(1, 3).map((r, i) => (
-          <div key={r.id} className={i === 0 ? "fade-in-up-2" : "fade-in-up-3"}>
+          <div key={r.id} className={i === 0 ? "drop-in-2" : "drop-in-3"}>
             <MatchCard
               result={r}
               rank={i + 2}
@@ -207,7 +216,7 @@ function MatchFlow() {
         ))}
       </div>
 
-      <p className="tag mt-16 text-center fade-in-up-3">
+      <p className="tag mt-16 text-center drop-in-3">
         {run.agentTrace.attestationsConsidered} attestations considered &middot;
         {run.agentTrace.provider === "stub" || run.agentTrace.provider === "0g-compute-fallback"
           ? "scored on declared preferences"

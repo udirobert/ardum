@@ -160,30 +160,6 @@ body::before {
   box-shadow: 0 4px 20px rgba(26, 23, 20, 0.06);
 }
 
-/* Venetian-blind section reveal — content reveals through horizontal strips. */
-@keyframes blind-reveal {
-  0% {
-    clip-path: polygon(
-      0% 0%, 100% 0%, 100% 0%, 0% 0%,
-      0% 25%, 100% 25%, 100% 25%, 0% 25%,
-      0% 50%, 100% 50%, 100% 50%, 0% 50%,
-      0% 75%, 100% 75%, 100% 75%, 0% 75%
-    );
-  }
-  100% {
-    clip-path: polygon(
-      0% 0%, 100% 0%, 100% 25%, 0% 25%,
-      0% 25%, 100% 25%, 100% 50%, 0% 50%,
-      0% 50%, 100% 50%, 100% 75%, 0% 75%,
-      0% 75%, 100% 75%, 100% 100%, 0% 100%
-    );
-  }
-}
-
-.mask-reveal {
-  animation: blind-reveal 640ms var(--ease-ardum) both;
-}
-
 /* Progressive blur reveal — images and content sharpen on scroll. */
 @keyframes blur-in {
   from { filter: blur(12px); transform: scale(1.02); }
@@ -226,4 +202,73 @@ body::before {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Slide transitions for the intake conversation. */
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.slide-in-right {
+  animation: slide-in-right 420ms var(--ease-ardum) both;
+}
+
+.slide-in-left {
+  animation: slide-in-left 420ms var(--ease-ardum) both;
+}
+
+/* Drop-in entrance for match results — overshoot bounce at the end. */
+@keyframes drop-in {
+  from { opacity: 0; transform: translateY(-60px); }
+  70% { transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.drop-in {
+  animation: drop-in 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.drop-in-1 { animation: drop-in 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both; animation-delay: 100ms; }
+.drop-in-2 { animation: drop-in 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both; animation-delay: 300ms; }
+.drop-in-3 { animation: drop-in 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both; animation-delay: 550ms; }
+
+/* Breathing glow — a soft radial gradient that pulses with the reasoning stream. */
+@keyframes breathing-glow {
+  0%, 100% { opacity: 0.15; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(1.02); }
+}
+
+.breathing-glow {
+  animation: breathing-glow 2.4s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+/* Venetian-blind section reveal — slower with more pronounced strips. */
+@keyframes blind-reveal {
+  0% {
+    clip-path: polygon(
+      0% 0%, 100% 0%, 100% 0%, 0% 0%,
+      0% 25%, 100% 25%, 100% 25%, 0% 25%,
+      0% 50%, 100% 50%, 100% 50%, 0% 50%,
+      0% 75%, 100% 75%, 100% 75%, 0% 75%
+    );
+  }
+  100% {
+    clip-path: polygon(
+      0% 0%, 100% 0%, 100% 25%, 0% 25%,
+      0% 25%, 100% 25%, 100% 50%, 0% 50%,
+      0% 50%, 100% 50%, 100% 75%, 0% 75%,
+      0% 75%, 100% 75%, 100% 100%, 0% 100%
+    );
+  }
+}
+
+.mask-reveal {
+  animation: blind-reveal 1200ms var(--ease-ardum) both;
 }

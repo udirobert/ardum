@@ -28,9 +28,15 @@ export default function Intake() {
   const [runPose, setRunPose] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
+  const [displayIndex, setDisplayIndex] = useState(0);
 
-  const currentStep = INTAKE_STEPS[stepIndex];
-  const isFinal = stepIndex === INTAKE_STEPS.length;
+  const currentStep = INTAKE_STEPS[displayIndex];
+  const isFinal = displayIndex === INTAKE_STEPS.length;
+  const stepAnim =
+    slideDir === "left" ? "slide-in-right" :
+    slideDir === "right" ? "slide-in-left" :
+    "fade-in-up";
   const canAdvance =
     isFinal ||
     (currentStep.id === "energy" && answers.energy) ||
@@ -54,11 +60,21 @@ export default function Intake() {
       setAnswers((a) => ({ ...a, social: value as SocialComfort }));
     }
   }  function next() {
-    if (stepIndex < INTAKE_STEPS.length) setStepIndex((i) => i + 1);
+    if (stepIndex < INTAKE_STEPS.length) {
+      setSlideDir("left");
+      const nextIdx = stepIndex + 1;
+      setStepIndex(nextIdx);
+      setDisplayIndex(nextIdx);
+    }
   }
 
   function back() {
-    if (stepIndex > 0) setStepIndex((i) => i - 1);
+    if (stepIndex > 0) {
+      setSlideDir("right");
+      const prevIdx = stepIndex - 1;
+      setStepIndex(prevIdx);
+      setDisplayIndex(prevIdx);
+    }
   }
 
   async function beginMatching() {
@@ -88,6 +104,14 @@ export default function Intake() {
       setSubmitting(false);
     }
   }
+
+  // Clear the slide direction after the entrance animation finishes.
+  useEffect(() => {
+    if (slideDir) {
+      const t = setTimeout(() => setSlideDir(null), 460);
+      return () => clearTimeout(t);
+    }
+  }, [slideDir]);
 
   // Keyboard: 1-4 picks an option, Enter advances, Backspace goes back.
   // We attach the listener ONCE and keep the latest values in refs so the
@@ -134,7 +158,7 @@ export default function Intake() {
       <ProgressBar current={progress.current} total={progress.total} />
 
       {!isFinal && (
-        <div className="fade-in-up" key={currentStep.id}>
+        <div className={stepAnim} key={currentStep.id}>
           <p className="tag mb-6">
             step {progress.current} of {progress.total}
           </p>
@@ -195,7 +219,7 @@ export default function Intake() {
       )}
 
       {isFinal && (
-        <div className="fade-in-up">
+        <div className={stepAnim}>
           <p className="tag mb-6">
             step {progress.current} of {progress.total}
           </p>

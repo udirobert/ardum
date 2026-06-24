@@ -31,12 +31,14 @@ export default async function RetreatsPage() {
 
       <SectionDivider />
 
-      <MaskReveal>
-        <ul className="grid sm:grid-cols-2 gap-4">
-          {attestations.map((a, i) => {
-            const photo = RETREAT_PHOTOS[a.rootHash];
-            return (
-              <li key={a.rootHash} className={`fade-in-up-${(i % 5) + 1}`}>
+      <ul className="grid sm:grid-cols-2 gap-4">
+        {attestations.map((a, i) => {
+          const photo = RETREAT_PHOTOS[a.rootHash];
+          return (
+            <MaskReveal key={a.rootHash}>
+              <li
+                className={`${i === 0 ? "fade-in-up-1" : (i % 2 === 0 ? "fade-in-up-2" : "fade-in-up-3")}`}
+              >
                 <Link
                   href={`/match/${a.rootHash}`}
                   className="block h-full border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 hover:border-[color:var(--accent-soft)] transition-colors hover-lift"
@@ -80,10 +82,10 @@ export default async function RetreatsPage() {
                   </p>
                 </Link>
               </li>
-            );
-          })}
-        </ul>
-      </MaskReveal>
+            </MaskReveal>
+          );
+        })}
+      </ul>
 
       <p className="why mt-12 max-w-prose">
         These are the seed retreats. New ones land via{" "}
