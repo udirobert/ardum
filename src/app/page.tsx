@@ -5,10 +5,10 @@ import HeroBackground from "@/components/HeroBackground";
 export default function Home() {
   return (
     <div className="relative">
-      <HeroBackground />
-
       {/* Hero */}
-      <section className="relative z-10 mx-auto w-full max-w-4xl px-6 sm:px-10 pt-20 sm:pt-28 pb-16 min-h-[70vh] flex flex-col justify-center">
+      <section className="relative min-h-[78vh] overflow-hidden">
+        <HeroBackground />
+        <div className="relative z-10 mx-auto w-full max-w-4xl px-6 sm:px-10 pt-20 sm:pt-28 pb-16 min-h-[70vh] flex flex-col justify-center">
         <div className="t-stagger is-shown">
           <span className="t-stagger-line tag mb-4 text-shadow-soft">agentic retreat matching</span>
           <strong className="t-stagger-line t-stagger-line--2 font-serif text-5xl sm:text-7xl leading-[1.02] tracking-tight mb-8 max-w-3xl block">
@@ -35,6 +35,7 @@ export default function Home() {
           >
             Browse the pool
           </a>
+        </div>
         </div>
       </section>
 

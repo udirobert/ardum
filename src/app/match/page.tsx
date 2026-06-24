@@ -264,6 +264,7 @@ function MatchFlow() {
         <Counterfactual
           sessionId={run.practitionerId}
           currentTopId={top.id}
+          currentTopScore={top.score}
         />
       </div>
 

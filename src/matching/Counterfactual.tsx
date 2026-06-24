@@ -13,19 +13,24 @@ const PRESETS = [
 
 type PresetKey = (typeof PRESETS)[number]["key"];
 
+type RankedSummary = { id: string; retreatTitle: string; score: number };
+
 type Counterfactual = {
   preset: string;
   plain: string;
   top: MatchResult;
   steps: ReasoningStep[];
+  ranked: RankedSummary[];
 };
 
 export default function Counterfactual({
   sessionId,
   currentTopId,
+  currentTopScore,
 }: {
   sessionId: string;
   currentTopId: string;
+  currentTopScore: number;
 }) {
   const [active, setActive] = useState<PresetKey | null>(null);
   const [result, setResult] = useState<Counterfactual | null>(null);
@@ -57,6 +62,18 @@ export default function Counterfactual({
 
   const shifted = result && result.top.id !== currentTopId;
   const unchanged = result && result.top.id === currentTopId;
+  // Locate the balanced top within this lens's ranking so we can show
+  // exactly how much its score moved and where it now sits.
+  const balancedUnderLens = result?.ranked.find((r) => r.id === currentTopId);
+  const balancedRank = balancedUnderLens
+    ? result!.ranked.findIndex((r) => r.id === currentTopId) + 1
+    : null;
+  const newTopPct = result ? Math.round(result.top.score * 100) : null;
+  const balancedNewPct = balancedUnderLens
+    ? Math.round(balancedUnderLens.score * 100)
+    : null;
+  const balancedOldPct = Math.round(currentTopScore * 100);
+  const delta = balancedNewPct !== null ? balancedNewPct - balancedOldPct : null;
 
   return (
     <section className="mt-16">
@@ -95,36 +112,66 @@ export default function Counterfactual({
       {result && (
         <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 fade-in-up surface-card">
           {unchanged ? (
-            <p className="why max-w-prose">
-              With <em>{result.plain}</em>, your top match stays the same
-              &mdash; the ranking was already strong enough that this
-              lens still picks <strong className="font-serif">{result.top.retreatTitle}</strong>.
-            </p>
+            <>
+              <p className="why max-w-prose mb-5">
+                With <em>{result.plain}</em>, your top match holds.
+                {delta !== null && (
+                  <>
+                    {" "}Its score moved from{" "}
+                    <span className="tag tabular-nums">{balancedOldPct}</span>
+                    {" "}to{" "}
+                    <span className="tag tabular-nums">{balancedNewPct}</span>
+                    {" "}— a {delta >= 0 ? "lift" : "give"} of{" "}
+                    <span className="tag tabular-nums">
+                      {delta > 0 ? "+" : ""}{delta}
+                    </span>
+                    , so the ranking was robust enough to absorb the shift.
+                  </>
+                )}
+              </p>
+              <div className="flex items-baseline justify-between gap-4">
+                <h3 className="font-serif text-xl tracking-tight leading-tight">
+                  {result.top.retreatTitle}
+                </h3>
+                <span className="font-serif text-2xl tabular-nums">
+                  {newTopPct}
+                  <span className="text-sm text-[color:var(--muted)] tabular-nums">/100</span>
+                </span>
+              </div>
+            </>
           ) : (
             <>
-              <p className="tag mb-2">
-                top match with {result.plain}
-              </p>
+              <p className="tag mb-2">new top under {result.plain}</p>
               <div className="flex items-baseline justify-between gap-4 mb-3">
                 <h3 className="font-serif text-xl tracking-tight leading-tight">
                   {result.top.retreatTitle}
                 </h3>
                 <span className="font-serif text-2xl tabular-nums">
-                  {Math.round(result.top.score * 100)}
+                  {newTopPct}
+                  <span className="text-sm text-[color:var(--muted)] tabular-nums">/100</span>
                 </span>
               </div>
               <p className="text-sm text-[color:var(--muted)] mb-3">
-                {result.top.retreatLocation} &middot; {result.top.durationDays} days
-                &middot; ${result.top.priceUsd.toLocaleString()} &middot; cohort of{" "}
+                {result.top.retreatLocation}
+                {" · "}
+                {result.top.durationDays}&nbsp;days
+                {" · $"}
+                {result.top.priceUsd.toLocaleString()}
+                {" · cohort of "}
                 {result.top.capacity}
               </p>
               <p className="text-sm italic text-[color:var(--accent-ink)] max-w-prose leading-snug">
                 {result.top.headline}
               </p>
-              {shifted && (
-                <p className="why mt-4 max-w-prose">
-                  The original ranking had a different retreat at #1. The
-                  axes that shifted are visible in the reasoning below.
+              {shifted && balancedUnderLens && balancedRank !== null && (
+                <p className="why mt-5 max-w-prose">
+                  Your balanced top —{" "}
+                  <strong className="font-serif">{balancedUnderLens.retreatTitle}</strong>{" "}
+                  — slips to #{balancedRank} under this lens, scoring{" "}
+                  <span className="tag tabular-nums">{balancedNewPct}</span>{" "}
+                  (was{" "}
+                  <span className="tag tabular-nums">{balancedOldPct}</span>).
+                  The trade-off is visible in the reasoning below.
                 </p>
               )}
             </>

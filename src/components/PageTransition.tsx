@@ -26,15 +26,13 @@ export default function PageTransition({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Try View Transitions API first (Chromium).
-    const vt = (
-      document as unknown as {
-        startViewTransition?: (cb: () => void) => { finished: Promise<void> };
-      }
-    ).startViewTransition;
-
-    if (vt) {
-      vt(() => setDisplay(children));
+    // Try View Transitions API first (Chromium). Bound to document
+    // because startViewTransition relies on `this` being the document.
+    const doc = document as unknown as {
+      startViewTransition?: (cb: () => void) => { finished: Promise<void> };
+    };
+    if (typeof doc.startViewTransition === "function") {
+      doc.startViewTransition(() => setDisplay(children));
       return;
     }
 

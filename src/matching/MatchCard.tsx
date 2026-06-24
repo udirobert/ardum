@@ -62,14 +62,16 @@ export default function MatchCard({
               {result.retreatTitle}
             </h3>
             <p className="text-sm text-[color:var(--muted)] mt-0.5 truncate">
-              {result.retreatLocation} &middot; {result.durationDays} days
-              &middot; ${result.priceUsd.toLocaleString()} &middot; cohort of {result.capacity}
+              {result.retreatLocation}
+              {" · "}
+              {result.durationDays}&nbsp;days
+              {" · $"}
+              {result.priceUsd.toLocaleString()}
+              {" · cohort of "}
+              {result.capacity}
             </p>
           </div>
-          <div className="text-right shrink-0">
-            <p className="font-serif text-2xl tabular-nums">{pct}</p>
-            <p className="tag">fit score</p>
-          </div>
+          <FitScore pct={pct} size="sm" />
         </div>
 
         <p className="text-sm italic text-[color:var(--accent-ink)] mt-3 leading-snug max-w-prose">
@@ -111,14 +113,16 @@ export default function MatchCard({
             {result.retreatTitle}
           </h3>
           <p className="text-[color:var(--muted)] mt-1">
-            {result.retreatLocation} &middot; {result.durationDays} days &middot; $
-            {result.priceUsd.toLocaleString()} &middot; cohort of {result.capacity}
+            {result.retreatLocation}
+            {" · "}
+            {result.durationDays}&nbsp;days
+            {" · $"}
+            {result.priceUsd.toLocaleString()}
+            {" · cohort of "}
+            {result.capacity}
           </p>
         </div>
-        <div className="text-right shrink-0">
-          <p className="font-serif text-4xl tabular-nums">{pct}</p>
-          <p className="tag">fit score</p>
-        </div>
+        <FitScore pct={pct} size="lg" />
       </header>
 
       <p className="font-serif text-xl italic mb-6 leading-snug max-w-prose">
@@ -214,6 +218,55 @@ function AttestationFooter({
 function shortAddress(addr: string): string {
   if (!addr.startsWith("0x") || addr.length < 10) return addr;
   return `${addr.slice(0, 6)}\u2026${addr.slice(-4)}`;
+}
+
+// Fit score with a quiet 0-100 indicator. The number is the headline;
+// the bar gives it gravity (it's at the high end / middle / low end of
+// the scale) without turning into a dashboard meter. Big variant used on
+// the recommended card; small on compact cards.
+function FitScore({ pct, size }: { pct: number; size: "sm" | "lg" }) {
+  const safe = Math.max(0, Math.min(100, pct));
+  const big = size === "lg";
+  return (
+    <div
+      className="text-right shrink-0"
+      aria-label={`fit score ${safe} out of 100`}
+    >
+      <p
+        className={
+          big
+            ? "font-serif text-5xl sm:text-6xl tabular-nums leading-none"
+            : "font-serif text-3xl tabular-nums leading-none"
+        }
+      >
+        {safe}
+        <span
+          className={
+            big
+              ? "text-base text-[color:var(--muted)] tabular-nums font-sans"
+              : "text-xs text-[color:var(--muted)] tabular-nums font-sans"
+          }
+        >
+          /100
+        </span>
+      </p>
+      <div
+        aria-hidden
+        className={
+          big
+            ? "mt-2 ml-auto h-[2px] w-24 rounded-sm overflow-hidden"
+            : "mt-1.5 ml-auto h-[2px] w-16 rounded-sm overflow-hidden"
+        }
+        style={{ background: "var(--hairline)" }}
+      >
+        <div
+          className="h-full"
+          style={{ width: `${safe}%`, background: "var(--accent)" }}
+        />
+      </div>
+      <p className="tag mt-1">fit score</p>
+    </div>
+  );
 }
 
 // Local re-export of the agent trace shape — kept loose to avoid a circular

@@ -30,22 +30,43 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const balancedTopId = req.nextUrl.searchParams.get("balanced") ?? null;
+
   const attestations = await listAttestations();
-  const lenses = LENSES.map((lens) => {
-    const ranked = scoreAllWithOverrides(
+  // Pre-score under each lens once so we can cross-look both each lens's
+  // top in the other lens, and the balanced top under each lens — the
+  // numbers that make the disagreement *felt*.
+  const rankings = LENSES.map((lens) => ({
+    lens,
+    ranked: scoreAllWithOverrides(
       practitioner,
       attestations,
       lens.overrides
+    ),
+  }));
+
+  const lenses = rankings.map((entry, i) => {
+    const other = rankings[(i + 1) % rankings.length];
+    const top = entry.ranked[0];
+    const topUnderOther = other.ranked.find(
+      (r) => r.result.id === top.result.id
     );
-    const top = ranked[0];
+    const balancedUnderThis = balancedTopId
+      ? entry.ranked.find((r) => r.result.id === balancedTopId)
+      : undefined;
     return {
       lens: {
-        name: lens.name,
-        plain: lens.plain,
-        weight: lens.weight,
+        name: entry.lens.name,
+        plain: entry.lens.plain,
+        weight: entry.lens.weight,
       },
       top: top.result,
       steps: top.steps,
+      // What the *other* lens scored this lens's top — the felt gap.
+      topScoreUnderOtherLens: topUnderOther?.result.score ?? null,
+      otherLensName: other.lens.name,
+      // What this lens scored the balanced top — surfaces robustness.
+      balancedScoreUnderThisLens: balancedUnderThis?.result.score ?? null,
     };
   });
 
@@ -63,6 +84,9 @@ export type LensesResponse = {
     lens: { name: string; plain: string; weight: number };
     top: MatchResult;
     steps: ReasoningStep[];
+    topScoreUnderOtherLens: number | null;
+    otherLensName: string;
+    balancedScoreUnderThisLens: number | null;
   }>;
   agreement: boolean;
 };

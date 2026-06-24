@@ -10,7 +10,7 @@
 
 import type { PoseBaseline, PractitionerProfile } from "@/calibration/schema";
 
-const STORAGE_KEY = "ardum:fingerprint:v1";
+export const STORAGE_KEY = "ardum:fingerprint:v1";
 
 // Show the recall prompt for sessions in this window. <1 day feels like
 // the same session; >30 days is stale enough to start fresh.

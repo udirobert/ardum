@@ -92,10 +92,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Compact ranked list so the UI can locate the balanced top's new
+  // score under this lens (the "feel" of the shift) without a second
+  // request.
+  const summary = ranked.slice(0, 8).map((r) => ({
+    id: r.result.id,
+    retreatTitle: r.result.retreatTitle,
+    score: r.result.score,
+  }));
+
   return NextResponse.json({
     preset: preset.name,
     plain: preset.plain,
     top: top.result,
     steps: top.steps,
+    ranked: summary,
   });
 }

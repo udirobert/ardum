@@ -24,7 +24,7 @@ export default function LensComparison({
     async function load() {
       try {
         const res = await fetch(
-          `/api/agent/match/perspectives?session=${encodeURIComponent(sessionId)}`
+          `/api/agent/match/perspectives?session=${encodeURIComponent(sessionId)}&balanced=${encodeURIComponent(currentTopId)}`
         );
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -42,7 +42,7 @@ export default function LensComparison({
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [sessionId, currentTopId]);
 
   if (err) {
     return (
@@ -74,15 +74,21 @@ export default function LensComparison({
       </p>
 
       <div className="grid sm:grid-cols-2 gap-4">
-        {data.lenses.map(({ lens, top }) => {
+        {data.lenses.map((entry) => {
+          const { lens, top } = entry;
           const sameAsMain = top.id === currentTopId;
+          const ownPct = Math.round(top.score * 100);
+          const crossPct =
+            entry.topScoreUnderOtherLens !== null
+              ? Math.round(entry.topScoreUnderOtherLens * 100)
+              : null;
           return (
             <article
               key={lens.name}
               className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 fade-in-up surface-card"
             >
               <p className="tag mb-2">{lens.name} lens</p>
-              <p className="text-sm text-[color:var(--muted)] mb-3">
+              <p className="text-sm text-[color:var(--muted)] mb-4">
                 {lens.plain}
               </p>
               <div className="flex items-baseline justify-between gap-3 mb-2">
@@ -90,20 +96,30 @@ export default function LensComparison({
                   {top.retreatTitle}
                 </h3>
                 <span className="font-serif text-xl tabular-nums">
-                  {Math.round(top.score * 100)}
+                  {ownPct}
+                  <span className="text-xs text-[color:var(--muted)] tabular-nums">/100</span>
                 </span>
               </div>
               <p className="text-xs text-[color:var(--muted)] mb-3">
-                {top.retreatLocation} &middot; {top.durationDays} days &middot; $
+                {top.retreatLocation}
+                {" · "}
+                {top.durationDays}&nbsp;days
+                {" · $"}
                 {top.priceUsd.toLocaleString()}
               </p>
-              <p className="text-sm italic text-[color:var(--accent-ink)] leading-snug">
+              <p className="text-sm italic text-[color:var(--accent-ink)] leading-snug mb-4">
                 {top.headline}
               </p>
-              {sameAsMain && (
-                <p className="tag mt-3 opacity-70">
-                  agrees with the balanced ranking
-                </p>
+              {crossPct !== null && (
+                <div className="border-t border-[color:var(--hairline)] pt-3">
+                  <p className="text-xs text-[color:var(--muted)] leading-snug">
+                    The {entry.otherLensName} lens scored this retreat{" "}
+                    <span className="tag tabular-nums">{crossPct}</span>
+                    {sameAsMain
+                      ? " — both lenses landed here."
+                      : ` — a ${ownPct - crossPct}-point gap is where the lenses pull apart.`}
+                  </p>
+                </div>
               )}
             </article>
           );
@@ -112,8 +128,8 @@ export default function LensComparison({
 
       <p className="why mt-6 max-w-prose">
         {data.agreement
-          ? "Both lenses converged on the same retreat. The match is robust — even with a different weight balance, the ranking holds."
-          : "The lenses disagreed. The retreat above is what each lens would have recommended in isolation — the balanced match above sits between them."}
+          ? "Both lenses converged on the same retreat. Even with the balance shifted, the ranking holds — that's a confident match."
+          : "The lenses disagreed. Each side-card is what one lens would have recommended in isolation; your balanced top sits between them. The cross-scores show how each retreat reads under the lens that didn't pick it."}
       </p>
     </section>
   );

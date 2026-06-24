@@ -43,22 +43,6 @@ export default function HeroBackground() {
 
   return (
     <div ref={containerRef} className="absolute inset-0 -z-10 overflow-hidden" aria-hidden>
-      {/* Warm cream gradient overlay — enough opacity for text readability */}
-      <div
-        className="absolute inset-0 z-10"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(246,241,231,0.65) 0%, rgba(246,241,231,0.50) 45%, rgba(246,241,231,0.55) 55%, rgba(246,241,231,0.80) 100%)",
-        }}
-      />
-      {/* Terracotta tint */}
-      <div
-        className="absolute inset-0 z-10 mix-blend-soft-light opacity-20"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(168,90,58,0.15) 0%, transparent 70%)",
-        }}
-      />
       {/* The photo — extra tall to allow parallax movement */}
       <div
         ref={imageRef}
@@ -75,6 +59,25 @@ export default function HeroBackground() {
           style={{ objectPosition: "center 30%" }}
         />
       </div>
+      {/* Warm cream wash — fades from transparent at the top (so the photo
+          reads) to nearly-opaque at the bottom (so the section underneath
+          starts on a clean cream baseline). */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(246,241,231,0.20) 0%, rgba(246,241,231,0.35) 50%, rgba(246,241,231,0.95) 100%)",
+        }}
+      />
+      {/* Terracotta atmosphere — soft-light radial so warmer tones glow
+          without colour-shifting the surface. */}
+      <div
+        className="absolute inset-0 mix-blend-soft-light opacity-30"
+        style={{
+          background:
+            "radial-gradient(ellipse 80% 60% at 50% 30%, rgba(168,90,58,0.30) 0%, transparent 70%)",
+        }}
+      />
     </div>
   );
 }

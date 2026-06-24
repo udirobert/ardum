@@ -18,19 +18,26 @@ import {
   isRecallable,
   recallAgeLabel,
   setFingerprint,
+  STORAGE_KEY as FINGERPRINT_KEY,
   type Fingerprint,
 } from "@/lib/fingerprint";
 
 // External store for the local fingerprint. useSyncExternalStore is
 // React 19's idiom for reading browser-only state without triggering the
-// "setState in effect" anti-pattern. The server snapshot is always null
-// (no localStorage on the server); the client snapshot is the real value
-// and React hydrates it after the first client render.
+// "setState in effect" anti-pattern. The snapshot is memoized so two calls
+// in the same tick return the same reference — otherwise React's
+// referential equality check fails and we loop.
 const subscribeNoop = () => () => {};
+let cachedRaw: string | null | undefined = undefined;
+let cachedFingerprint: Fingerprint | null = null;
 const getFingerprintSnapshot = (): Fingerprint | null => {
   if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(FINGERPRINT_KEY);
+  if (raw === cachedRaw) return cachedFingerprint;
+  cachedRaw = raw;
   const fp = getFingerprint();
-  return isRecallable(fp) ? fp : null;
+  cachedFingerprint = isRecallable(fp) ? fp : null;
+  return cachedFingerprint;
 };
 const getFingerprintServerSnapshot = (): Fingerprint | null => null;
 
@@ -49,6 +56,7 @@ export default function Intake() {
   const [runPose, setRunPose] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   // The recall banner is shown if a stored fingerprint falls inside the
   // 1-30 day window. Read via useSyncExternalStore so localStorage access
   // is registered as external state, not an effect-time side effect.
@@ -100,6 +108,7 @@ export default function Intake() {
   async function beginMatching() {
     if (!answers.energy || !answers.budget || !answers.social) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const profile: PractitionerProfile = {
         energy: answers.energy,
@@ -122,10 +131,27 @@ export default function Intake() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ profile }),
       });
-      const { sessionId } = await profRes.json();
+      if (!profRes.ok) {
+        const body = await profRes.text();
+        let message = `The session store didn't accept the profile (HTTP ${profRes.status}).`;
+        try {
+          const parsed = JSON.parse(body) as { error?: string };
+          if (parsed.error) message = parsed.error;
+        } catch {
+          /* body wasn't JSON — fall back to the generic message */
+        }
+        throw new Error(message);
+      }
+      const { sessionId } = (await profRes.json()) as { sessionId?: string };
+      if (!sessionId) throw new Error("The session store returned no sessionId.");
       router.push(`/match?session=${sessionId}`);
     } catch (err) {
       console.error(err);
+      setSubmitError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong starting the match."
+      );
       setSubmitting(false);
     }
   }
@@ -309,6 +335,15 @@ export default function Intake() {
             />
           </label>
 
+          {submitError && (
+            <p
+              role="alert"
+              className="mt-8 text-sm text-[color:var(--accent-ink)] fade-in-up max-w-prose"
+            >
+              {submitError}
+            </p>
+          )}
+
           <div className="flex items-center justify-between mt-12">
             <button
               type="button"
@@ -323,7 +358,7 @@ export default function Intake() {
               disabled={submitting}
               className="px-6 py-3 rounded-sm bg-[color:var(--accent)] text-background disabled:opacity-50 hover:bg-[color:var(--accent-ink)] transition-colors"
             >
-              {submitting ? "reasoning…" : "begin matching →"}
+              {submitting ? "reasoning…" : submitError ? "try again →" : "begin matching →"}
             </button>
           </div>
         </div>

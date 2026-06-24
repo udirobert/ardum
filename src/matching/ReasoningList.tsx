@@ -72,20 +72,19 @@ export default function ReasoningList({
 function SingleStep({ step }: { step: ReasoningStep }) {
   return (
     <li className="fade-in-up">
-      <header className="flex items-baseline gap-3 mb-3">
-        <span className="tag">reasoning &middot; {step.axis}</span>
+      <header className="flex items-baseline gap-3 mb-4">
+        <span className="font-serif text-base sm:text-lg text-foreground">
+          {step.axis}
+        </span>
         <span
+          aria-hidden
           className="h-px flex-1"
           style={{
             background:
               "linear-gradient(90deg, var(--hairline) 0%, transparent 100%)",
           }}
         />
-        {step.weight > 0 && (
-          <span className="tag tabular-nums">
-            weight {step.weight.toFixed(2)}
-          </span>
-        )}
+        {step.weight > 0 && <WeightChip weight={step.weight} />}
       </header>
       <dl className="grid sm:grid-cols-[auto_1fr] gap-x-4 gap-y-2 max-w-prose">
         <GherkinRow label="Given" body={step.given} />
@@ -106,8 +105,11 @@ function ConsideringGroup({
   return (
     <li className="fade-in-up">
       <header className="flex items-baseline gap-3 mb-4">
-        <span className="tag">reasoning &middot; {label}</span>
+        <span className="font-serif text-base sm:text-lg text-foreground">
+          {label}
+        </span>
         <span
+          aria-hidden
           className="h-px flex-1"
           style={{
             background:
@@ -121,6 +123,27 @@ function ConsideringGroup({
         ))}
       </div>
     </li>
+  );
+}
+
+// A small visual weight bar — replaces the "weight 0.35" tag with a
+// felt indicator. The dot fills with accent in proportion to weight (0-1).
+function WeightChip({ weight }: { weight: number }) {
+  const pct = Math.max(0, Math.min(1, weight));
+  return (
+    <span className="inline-flex items-center gap-2 shrink-0" aria-label={`weight ${weight.toFixed(2)}`}>
+      <span
+        aria-hidden
+        className="block h-1 w-12 rounded-sm overflow-hidden"
+        style={{ background: "var(--hairline)" }}
+      >
+        <span
+          className="block h-full"
+          style={{ width: `${pct * 100}%`, background: "var(--accent)" }}
+        />
+      </span>
+      <span className="tag tabular-nums">{weight.toFixed(2)}</span>
+    </span>
   );
 }
 

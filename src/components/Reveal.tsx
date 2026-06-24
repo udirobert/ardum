@@ -6,7 +6,8 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 // Wraps content and fades it in when it scrolls into the viewport.
 // Accepts a `delay` prop (in ms) that maps to a staggered entrance.
-// Skipped entirely when the user prefers reduced motion.
+// Content is visible by default — SSR, prerenders, screenshots, and
+// no-JS readers see it. Animation plays only after the observer fires.
 
 const DELAY_CLASSES = [
   "",
@@ -26,7 +27,7 @@ export default function Reveal({
   delay?: number;
   className?: string;
 }) {
-  const [ref, revealed] = useReveal();
+  const [ref, revealed] = useReveal({ rootMargin: "0px 0px -10% 0px" });
   const reduced = useReducedMotion();
 
   if (reduced) return <div className={className}>{children}</div>;
@@ -34,7 +35,7 @@ export default function Reveal({
   const delayClass = DELAY_CLASSES[delay / 100] ?? "";
   const cls = revealed
     ? `${className} ${delayClass || "fade-in-up"}`.trim()
-    : `${className} opacity-0`.trim();
+    : className;
 
   return <div ref={ref} className={cls}>{children}</div>;
 }
