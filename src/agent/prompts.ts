@@ -18,6 +18,7 @@ export function buildMatchPrompt({
     .map((a, i) => {
       const claims = a.claims;
       return `### ${i + 1}. ${a.title}
+retreatRootHash: ${a.rootHash}
 Location: ${claims.location}  ·  ${claims.durationDays} days  ·  $${claims.priceUsd}  ·  cohort of ${claims.capacity}
 Practice: ${claims.practiceStyle.join(", ")}
 Energy fit: ${claims.energyFit.join(", ")}
@@ -101,6 +102,9 @@ Return a JSON object (no prose, no markdown fence) matching this shape:
 Rules:
 - Exactly 3 results. The first has full reasoning; the other two omit the
   reasoning field entirely.
+- For each result, copy the retreatRootHash VERBATIM from the matching
+  retreat block above (e.g. "bali-ubud-stillness-0001"). Never use the
+  list number ("1", "2", "3") — those are headings, not identifiers.
 - Rank by composite fit, not by price or popularity.
 - For the #1 match: one reasoning step per axis you considered (skip
   axes with no signal). Up to 6 steps total. Be terse — the UI renders

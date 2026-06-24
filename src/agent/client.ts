@@ -79,10 +79,12 @@ type LLMResponse = {
   results: LLMResult[];
 };
 
-// Output cap — sized to fit a top-3 response with detailed reasoning
-// only for #1. At qwen3-vl-30b's ~110 tps this generates in ~6s, well
-// inside the 22s compute window we abort at.
-const MAX_RESPONSE_TOKENS = 800;
+// Output cap. The prompt asks for reasoning only on #1, but qwen3-vl-30b
+// usually ignores that and writes reasoning for all 3 anyway. At
+// ~110 tps a full-reasoned top-3 lands in ~12–14s, inside the 22s
+// compute window. 1500 leaves headroom for verbose retreat names and
+// the longer rootHash strings.
+const MAX_RESPONSE_TOKENS = 1500;
 
 // ─── LLM → MatchResult mapping ───────────────────────────────────────────
 
