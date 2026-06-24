@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import type { LensesResponse } from "@/app/api/agent/match/perspectives/route";
+import { useReveal } from "@/hooks/useReveal";
 
 // Two named lenses — Restorative and Movement — applied to the same
 // attestation pool. Shows the top match from each, side by side, plus
-// a one-line note about agreement or disagreement.
+// a felt cross-score gap.
 //
-// Loads on mount. Single fetch; deterministic server-side. No LLM calls.
+// Lazy: the perspectives fetch is deferred until the section scrolls
+// into view, since it lives below the fold on the match page and the
+// counterfactual interaction often happens first.
 
 export default function LensComparison({
   sessionId,
@@ -18,8 +21,10 @@ export default function LensComparison({
 }) {
   const [data, setData] = useState<LensesResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [ref, inView] = useReveal({ rootMargin: "200px 0px" });
 
   useEffect(() => {
+    if (!inView) return;
     let cancelled = false;
     async function load() {
       try {
@@ -42,11 +47,11 @@ export default function LensComparison({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, currentTopId]);
+  }, [sessionId, currentTopId, inView]);
 
   if (err) {
     return (
-      <section className="mt-16">
+      <section ref={ref} className="mt-16">
         <p className="tag mb-2">two perspectives</p>
         <p className="text-[color:var(--accent-ink)] text-sm">{err}</p>
       </section>
@@ -54,7 +59,7 @@ export default function LensComparison({
   }
   if (!data) {
     return (
-      <section className="mt-16">
+      <section ref={ref} className="mt-16">
         <p className="tag mb-2">two perspectives</p>
         <p className="why pulse-soft">running both lenses…</p>
       </section>
@@ -62,7 +67,7 @@ export default function LensComparison({
   }
 
   return (
-    <section className="mt-16">
+    <section ref={ref} className="mt-16">
       <p className="tag mb-2">two perspectives</p>
       <h2 className="font-serif text-2xl sm:text-3xl tracking-tight mb-3">
         What the two lenses would have surfaced.

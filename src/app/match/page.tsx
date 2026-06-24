@@ -26,6 +26,43 @@ export default function MatchPage() {
 // the part out loud: this recommendation was reasoned by 0G Compute over
 // attestations stored on 0G Storage. Without 0G, the user would never
 // have reached this view — the stream errors instead of falling back.
+// Persistent header chip shown during streaming. Tracks the LLM's live
+// state (tokens received, seconds elapsed) so the user has a felt sense
+// of activity that's distinct from the reasoning list. Replaces the
+// in-list "generating · streaming from <model>" steps that used to make
+// LLM heartbeat indistinguishable from real reasoning.
+function ComputeChip({
+  progress,
+  streamOpen,
+}: {
+  progress: { tokens: number; elapsedMs: number; model: string } | null;
+  streamOpen: boolean;
+}) {
+  const tokens = progress?.tokens ?? 0;
+  const elapsed = progress?.elapsedMs ?? 0;
+  const seconds = (elapsed / 1000).toFixed(1);
+  const model = progress?.model;
+  const stage = !streamOpen
+    ? "opening stream…"
+    : tokens === 0
+      ? "connected · awaiting tokens…"
+      : `${tokens.toLocaleString()} tokens · ${seconds}s`;
+  return (
+    <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 border border-[color:var(--hairline)] rounded-sm px-3 py-2 bg-[color:var(--surface)] surface-card">
+      <span
+        aria-hidden
+        className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft"
+      />
+      <span className="tag">
+        <span className="text-foreground">0G Compute Router</span>
+        {model ? ` · ${model}` : ""}
+      </span>
+      <span aria-hidden className="text-[color:var(--hairline)]">|</span>
+      <span className="tag tabular-nums">{stage}</span>
+    </div>
+  );
+}
+
 function ZeroGProvenance({ trace }: { trace: MatchRun["agentTrace"] }) {
   return (
     <div className="mb-12 drop-in inline-flex flex-wrap items-center gap-x-3 gap-y-1 border border-[color:var(--hairline)] rounded-sm px-3 py-2 bg-[color:var(--surface)]">
@@ -57,6 +94,11 @@ function MatchFlow() {
   const [run, setRun] = useState<MatchRun | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [streamOpen, setStreamOpen] = useState(false);
+  const [progress, setProgress] = useState<{
+    tokens: number;
+    elapsedMs: number;
+    model: string;
+  } | null>(null);
 
   // Keep latest state visible inside the EventSource handlers without
   // re-subscribing on every render.
@@ -83,6 +125,19 @@ function MatchFlow() {
         setSteps((s) => [...s, step]);
       } catch (parseErr) {
         console.error("bad reasoning event", parseErr);
+      }
+    });
+
+    es.addEventListener("compute-progress", (e) => {
+      try {
+        const payload = JSON.parse((e as MessageEvent).data) as {
+          tokens: number;
+          elapsedMs: number;
+          model: string;
+        };
+        setProgress(payload);
+      } catch (parseErr) {
+        console.error("bad compute-progress event", parseErr);
       }
     });
 
@@ -206,21 +261,8 @@ function MatchFlow() {
   if (!run) {
     return (
       <section className="mx-auto max-w-2xl px-6 sm:px-10 pt-20">
-        <div className="flex items-baseline justify-between mb-3">
-          <p className="tag flex items-center gap-2">
-            <span
-              aria-hidden
-              className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft"
-            />
-            streaming from 0G Compute Router
-          </p>
-          {steps.length > 0 && (
-            <p className="tag tabular-nums fade-in-up">
-              {steps.length} {steps.length === 1 ? "step" : "steps"} so far
-            </p>
-          )}
-        </div>
-        <h1 className="font-serif text-4xl tracking-tight mb-6">
+        <ComputeChip progress={progress} streamOpen={streamOpen} />
+        <h1 className="font-serif text-4xl tracking-tight mb-6 mt-3">
           {steps.length === 0
             ? "Reading your profile…"
             : "Reasoning out loud…"}
@@ -236,9 +278,6 @@ function MatchFlow() {
           <StreamProgress steps={steps.length} />
           <ReasoningList steps={steps} isStreaming />
         </div>
-        {!streamOpen && (
-          <p className="why pulse-soft mt-4">opening stream to 0G Compute…</p>
-        )}
       </section>
     );
   }
@@ -304,7 +343,6 @@ function MatchFlow() {
             attestationCount={top.attestationCount}
             attestor={top.attestor}
             attestedAt={top.attestedAt}
-            agentTrace={run.agentTrace}
           />
         </div>
         {run.results.slice(1, 3).map((r, i) => (
@@ -316,7 +354,6 @@ function MatchFlow() {
               attestor={r.attestor}
               attestedAt={r.attestedAt}
               compact
-              agentTrace={run.agentTrace}
             />
           </div>
         ))}

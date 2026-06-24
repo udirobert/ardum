@@ -3,17 +3,15 @@ import { getProfile, saveMatchRun } from "@/lib/session";
 import { listAttestations } from "@/lib/og-storage";
 import { streamMatchAgent } from "@/agent/client";
 
-// SSE stream of the matching agent's reasoning. Each event has the shape:
-//   event: reasoning
-//   data:  { axis, given, when, then, weight }
-//   event: done
-//   data:  { run: MatchRun }
-//   event: error
-//   data:  { message }
+// SSE stream of the matching agent's reasoning. Events:
+//   event: reasoning         — Gherkin step (Given/When/Then) for the audit list
+//   event: compute-progress  — live { tokens, elapsedMs, model } for the header chip
+//   event: done              — final MatchRun
+//   event: error             — terminal failure with a human-readable message
 //
-// Client opens this with EventSource after Intake POSTs to /api/profile.
-// The agent "thinks out loud" — each reasoning step arrives as the agent
-// produces it.
+// Client opens this with EventSource. Intake navigates here optimistically
+// (sessionId is generated client-side); we wait briefly for the profile to
+// land before erroring, so the POST /api/profile call can race the GET.
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +19,25 @@ function sseEncode(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
+// Wait briefly for a profile to land in the session store. The Intake
+// page navigates here optimistically while the POST /api/profile is
+// still in flight, so we race the GET against the write.
+async function waitForProfile(sessionId: string, timeoutMs = 4000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const profile = await getProfile(sessionId);
+    if (profile) return profile;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get("session");
   if (!sessionId) {
     return NextResponse.json({ error: "Missing session." }, { status: 400 });
   }
-  const practitioner = await getProfile(sessionId);
+  const practitioner = await waitForProfile(sessionId);
   if (!practitioner) {
     return NextResponse.json(
       { error: "Profile not found — complete calibration first." },

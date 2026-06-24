@@ -24,8 +24,19 @@ import { consideringStep, contextStep } from "./score";
 
 export type StreamEvent =
   | { event: "reasoning"; data: ReasoningStep }
+  | { event: "compute-progress"; data: ComputeProgress }
   | { event: "done"; data: { run: MatchRun } }
   | { event: "error"; data: { message: string } };
+
+// Lightweight 'is this still alive?' signal for the streaming UI. Token
+// count + elapsed are felt as motion in the header chip while the LLM
+// generates; they don't enter the reasoning list, so the auditable steps
+// stay clean.
+export type ComputeProgress = {
+  tokens: number;
+  elapsedMs: number;
+  model: string;
+};
 
 // Maximum time the 0G Compute Router is allowed to take end-to-end before
 // we abort the request. Keeps the SSE stream bounded so a hung upstream
@@ -344,44 +355,108 @@ export async function* streamMatchAgent(
       }),
     };
 
-    // Stream the LLM response, accumulating tokens while yielding
-    // periodic progress steps so the client sees activity during the
-    // LLM's generation.
+    // Background-pump the LLM stream into a shared buffer. The outer
+    // generator drives the user-facing pacing (pool scan + progress
+    // events) while this pump fills `accumulated`.
     let accumulated = "";
     let tokenCount = 0;
-    for await (const delta of withAbort(
-      streamComputeRouter(req, controller.signal),
-      controller.signal
-    )) {
-      accumulated += delta;
-      tokenCount++;
-      if (tokenCount % 25 === 0) {
+    let llmDone = false;
+    let llmError: unknown = null;
+    const startMs = Date.now();
+    const pump = (async () => {
+      try {
+        for await (const delta of withAbort(
+          streamComputeRouter(req, controller.signal),
+          controller.signal
+        )) {
+          accumulated += delta;
+          tokenCount++;
+        }
+      } catch (err) {
+        llmError = err;
+      } finally {
+        llmDone = true;
+      }
+    })();
+
+    // Walk the attestation pool in pool order while the LLM generates,
+    // so the user feels the agent considering each retreat instead of
+    // staring at a generic loading state. Cadence is paced to roughly
+    // fill the typical generation window; if the LLM finishes early,
+    // remaining bullets stream out quickly afterwards.
+    const considering = req.attestations;
+    let consideringIdx = 0;
+    let lastProgressTokens = -1;
+    const POOL_TICK_MS = 350;
+    const PROGRESS_TICK_MS = 180;
+    let lastPoolTick = Date.now();
+    let lastProgressTick = Date.now();
+
+    while (!llmDone) {
+      // Yield to the event loop in small slices so we can interleave
+      // both pool ticks and progress ticks without big delays.
+      await sleep(60, controller.signal);
+      const now = Date.now();
+
+      if (
+        tokenCount !== lastProgressTokens &&
+        now - lastProgressTick >= PROGRESS_TICK_MS
+      ) {
         yield {
-          event: "reasoning",
+          event: "compute-progress",
           data: {
-            axis: "0G Compute · generating",
-            given: `streaming from ${env.OG_COMPUTE_MODEL}`,
-            when: `${tokenCount} tokens received`,
-            then: "assembling response…",
-            weight: 0,
+            tokens: tokenCount,
+            elapsedMs: now - startMs,
+            model: env.OG_COMPUTE_MODEL,
           },
         };
+        lastProgressTokens = tokenCount;
+        lastProgressTick = now;
       }
+
+      if (
+        consideringIdx < considering.length &&
+        now - lastPoolTick >= POOL_TICK_MS
+      ) {
+        yield {
+          event: "reasoning",
+          data: consideringStep(considering[consideringIdx].title),
+        };
+        consideringIdx++;
+        lastPoolTick = now;
+      }
+    }
+
+    await pump;
+    if (llmError) {
+      throw llmError instanceof Error ? llmError : new Error(String(llmError));
+    }
+
+    // Emit a final progress beat so the chip lands on the true total.
+    yield {
+      event: "compute-progress",
+      data: {
+        tokens: tokenCount,
+        elapsedMs: Date.now() - startMs,
+        model: env.OG_COMPUTE_MODEL,
+      },
+    };
+
+    // Flush any remaining considering bullets quickly (LLM finished
+    // before we walked the whole pool).
+    while (consideringIdx < considering.length) {
+      yield {
+        event: "reasoning",
+        data: consideringStep(considering[consideringIdx].title),
+      };
+      consideringIdx++;
+      await sleep(80, controller.signal);
     }
 
     const llm = extractJSON(accumulated);
     const results = mapLLMResults(llm, req.attestations);
     if (results.length === 0) {
       throw new Error("0G Compute returned no usable results.");
-    }
-
-    // Emit "considering" headers for each retreat, ordered by rank.
-    for (const result of results) {
-      yield {
-        event: "reasoning",
-        data: consideringStep(result.retreatTitle),
-      };
-      await sleep(150, controller.signal);
     }
 
     // Stream the detailed reasoning for the top match.

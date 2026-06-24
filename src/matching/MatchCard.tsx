@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { MatchResult } from "./types";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 export default function MatchCard({
   result,
@@ -11,7 +12,6 @@ export default function MatchCard({
   attestor,
   attestedAt,
   compact,
-  agentTrace,
 }: {
   result: MatchResult;
   rank: number;
@@ -19,7 +19,6 @@ export default function MatchCard({
   attestor?: string;
   attestedAt?: string;
   compact?: boolean;
-  agentTrace?: MatchRunAgentTrace;
 }) {
   const pct = Math.round(result.score * 100);
   const [copied, setCopied] = useState(false);
@@ -94,12 +93,6 @@ export default function MatchCard({
             {copied ? "\u2713 copied" : "Copy share link"}
           </button>
         </div>
-
-        {agentTrace && (
-          <p className="tag mt-4 opacity-70">
-            <AgentTraceLine trace={agentTrace} />
-          </p>
-        )}
       </article>
     );
   }
@@ -176,12 +169,6 @@ export default function MatchCard({
         attestedAt={attestedAt}
         rootHash={result.retreatRootHash}
       />
-
-      {agentTrace && (
-        <p className="tag mt-4 opacity-70">
-          <AgentTraceLine trace={agentTrace} />
-        </p>
-      )}
     </article>
   );
 }
@@ -227,13 +214,42 @@ function shortAddress(addr: string): string {
   return `${addr.slice(0, 6)}\u2026${addr.slice(-4)}`;
 }
 
+// Count from 0 to a target over `durationMs` with an ease-out curve.
+// When reduced motion is on, the hook returns the target directly so
+// the body of the effect never touches state — keeps the
+// react-hooks/set-state-in-effect lint happy.
+function useCountUp(target: number, durationMs = 700): number {
+  const reduced = useReducedMotion();
+  const [animated, setAnimated] = useState(0);
+  const raf = useRef<number | null>(null);
+  useEffect(() => {
+    if (reduced) return;
+    let start: number | null = null;
+    const tick = (t: number) => {
+      if (start === null) start = t;
+      const p = Math.min(1, (t - start) / durationMs);
+      // easeOutQuart — fast start, gentle landing.
+      const eased = 1 - Math.pow(1 - p, 4);
+      setAnimated(Math.round(target * eased));
+      if (p < 1) raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+    return () => {
+      if (raf.current !== null) cancelAnimationFrame(raf.current);
+    };
+  }, [target, durationMs, reduced]);
+  return reduced ? target : animated;
+}
+
 // Fit score with a quiet 0-100 indicator. The number is the headline;
 // the bar gives it gravity (it's at the high end / middle / low end of
 // the scale) without turning into a dashboard meter. Big variant used on
-// the recommended card; small on compact cards.
+// the recommended card; small on compact cards. On mount the number
+// climbs from 0 → target so the reveal lands instead of snapping in.
 function FitScore({ pct, size }: { pct: number; size: "sm" | "lg" }) {
   const safe = Math.max(0, Math.min(100, pct));
   const big = size === "lg";
+  const display = useCountUp(safe, big ? 800 : 600);
   return (
     <div
       className="text-right shrink-0"
@@ -246,7 +262,7 @@ function FitScore({ pct, size }: { pct: number; size: "sm" | "lg" }) {
             : "font-serif text-3xl tabular-nums leading-none"
         }
       >
-        {safe}
+        {display}
         <span
           className={
             big
@@ -267,8 +283,8 @@ function FitScore({ pct, size }: { pct: number; size: "sm" | "lg" }) {
         style={{ background: "var(--hairline)" }}
       >
         <div
-          className="h-full"
-          style={{ width: `${safe}%`, background: "var(--accent)" }}
+          className="h-full transition-[width] duration-700 ease-out"
+          style={{ width: `${display}%`, background: "var(--accent)" }}
         />
       </div>
       <p className="tag mt-1">fit score</p>
@@ -276,23 +292,3 @@ function FitScore({ pct, size }: { pct: number; size: "sm" | "lg" }) {
   );
 }
 
-// Local re-export of the agent trace shape — kept loose to avoid a circular
-// import with the types module. The provider field is "0g-compute" only;
-// the main match path doesn't have a silent fallback.
-type MatchRunAgentTrace = {
-  provider: "0g-compute";
-  model?: string;
-  promptVersion: string;
-};
-
-function AgentTraceLine({ trace }: { trace: MatchRunAgentTrace }) {
-  return (
-    <>
-      reasoned by{" "}
-      <span className="text-foreground">0G Compute Router</span>
-      {trace.model ? <> &middot; {trace.model}</> : null}
-      {" · prompt "}
-      {trace.promptVersion}
-    </>
-  );
-}
