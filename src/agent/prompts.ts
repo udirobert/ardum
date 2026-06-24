@@ -71,33 +71,41 @@ rules so your reasoning aligns with the deterministic fallback when it runs.
 ${rulesBlock}
 
 ## Task
+Return ONLY the top 3 retreats, ranked by composite fit. The UI shows
+detailed reasoning for the #1 match only — #2 and #3 are compact cards
+that need just a score and headline. So write detailed Gherkin reasoning
+ONLY for the top match. Keep it tight.
+
 Return a JSON object (no prose, no markdown fence) matching this shape:
 {
   "results": [
     {
       "retreatRootHash": "<from attestation>",
       "score": <0..1>,
-      "headline": "<one sentence>",
+      "headline": "<one short sentence, ≤ 18 words>",
       "reasoning": [
         {
           "axis": "<axis name from the rules above>",
-          "given": "<inputs observed>",
-          "when": "<trigger / matching rule>",
-          "then": "<conclusion drawn>",
+          "given": "<inputs observed, ≤ 20 words>",
+          "when": "<trigger / matching rule, ≤ 15 words>",
+          "then": "<conclusion, ≤ 18 words>",
           "weight": <0..1>
         }
       ]
-    }
+    },
+    { "retreatRootHash": "<from attestation>", "score": <0..1>, "headline": "<one short sentence>" },
+    { "retreatRootHash": "<from attestation>", "score": <0..1>, "headline": "<one short sentence>" }
   ]
 }
 
 Rules:
+- Exactly 3 results. The first has full reasoning; the other two omit the
+  reasoning field entirely.
 - Rank by composite fit, not by price or popularity.
-- Include 1 reasoning step per axis you considered. Skip axes with no signal
-  (e.g. Breath cycle when the retreat has no structured cycle).
-- Weight reflects how strongly this axis pulled toward the match. For
-  display-only axes (weight 0 in the rules) you may still emit them for
-  transparency, with weight 0.
+- For the #1 match: one reasoning step per axis you considered (skip
+  axes with no signal). Up to 6 steps total. Be terse — the UI renders
+  these one per line, long copy crowds it.
+- Weight reflects how strongly this axis pulled toward the match.
 - Headline is the single most honest sentence about why this retreat fits.
 - Never invent retreats or attestations that aren't in the pool.
 - If a step is uncertain, the Then must say so. Don't paper over weak matches.

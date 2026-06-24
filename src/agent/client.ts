@@ -69,12 +69,20 @@ type LLMResult = {
   retreatRootHash: string;
   score: number;
   headline: string;
-  reasoning: ReasoningStep[];
+  // Detailed Gherkin reasoning is sent only for the top match — the
+  // compact cards for #2 and #3 don't render it, and asking for it on
+  // every result blew past the function timeout.
+  reasoning?: ReasoningStep[];
 };
 
 type LLMResponse = {
   results: LLMResult[];
 };
+
+// Output cap — sized to fit a top-3 response with detailed reasoning
+// only for #1. At qwen3-vl-30b's ~110 tps this generates in ~6s, well
+// inside the 22s compute window we abort at.
+const MAX_RESPONSE_TOKENS = 800;
 
 // ─── LLM → MatchResult mapping ───────────────────────────────────────────
 
@@ -99,7 +107,9 @@ function mapLLMResults(
         practiceStyle: att.claims.practiceStyle,
         score: Math.max(0, Math.min(1, r.score)),
         headline: r.headline,
-        reasoning: r.reasoning,
+        // Only the top result carries detailed reasoning; default
+        // compact results to an empty array so MatchCard is happy.
+        reasoning: r.reasoning ?? [],
         attestationCount: 1,
         attestor: att.attestor,
         attestedAt: att.createdAt,
@@ -150,6 +160,11 @@ async function callComputeRouter(
     body: JSON.stringify({
       model: env.OG_COMPUTE_MODEL,
       messages: [{ role: "user", content: prompt }],
+      max_tokens: MAX_RESPONSE_TOKENS,
+      // Force valid JSON output. Without this, qwen3-vl-30b
+      // occasionally emits stray quotes between result objects which
+      // breaks our parse — JSON mode constrains the decoder.
+      response_format: { type: "json_object" },
     }),
     signal,
   });
@@ -196,6 +211,8 @@ async function* streamComputeRouter(
     body: JSON.stringify({
       model: env.OG_COMPUTE_MODEL,
       messages: [{ role: "user", content: prompt }],
+      max_tokens: MAX_RESPONSE_TOKENS,
+      response_format: { type: "json_object" },
       stream: true,
     }),
     signal,
