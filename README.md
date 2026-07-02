@@ -154,3 +154,103 @@ shareable judge link that opens fast.
 Raw camera frames never leave the browser. Wallet is only required for
 writing attestations, never for browsing or matching. The 0G Compute Router
 is only ever called from server-side route handlers.
+
+---
+
+## UXmaxx Hackathon — transaction abstraction layer
+
+Ardum is entering the [UXmaxx Hackathon](https://encode.club/) (Particle
+Network + Arbitrum + Magic Labs + ZeroDev + Openfort, Jun 22 – Jul 30 2026).
+The goal: reimagine the yoga retreat **booking** experience so it feels like
+booking a hotel — no MetaMask, no gas, no chain selection, no seed phrase.
+
+This is **additive** — 0G Storage and 0G Compute remain the attestation and
+matching layer. The booking layer is new code that sits downstream of the
+existing match flow. Nothing in `src/attestation/`, `src/agent/`, or
+`src/lib/og-storage.ts` is removed.
+
+### Architecture — each wallet/AA solution powers a distinct persona
+
+```
+PRACTITIONER — "Book this retreat"  (new, downstream of matching)
+  Magic social login (Google) → EOA created in TEE (no seed phrase)
+    → Particle UA SDK: EIP-7702 upgrade on Arbitrum (one-time delegation)
+    → createTransferTransaction: deposit in any token on any chain
+      → UA routes cross-chain automatically, settles on Arbitrum
+    → booking written as new "booking" attestation kind to 0G Storage
+
+OPERATOR — "Attest your retreat"  (upgraded from MetaMask)
+  Particle Auth social login → EOA
+    → ZeroDev Kernel smart account (ERC-4337, separate from practitioner UA)
+    → ZeroDev paymaster sponsors gas (operator never needs ETH)
+    → ZeroDev session keys: batch attestation writes without re-signing each
+    → attestations written to 0G Storage (existing flow, new signing path)
+
+DROP-IN CLASS — "Pay per session"  (new, lighter than full retreat booking)
+  Openfort embedded wallet (email / Google / guest)
+    → x402: request class → HTTP 402 → sign USDC TransferWithAuthorization
+    → facilitator settles on-chain → class access granted
+    → access written as new "class-access" attestation kind to 0G Storage
+
+0G STORAGE (untouched, extended)
+  Existing: "retreat" attestations + matching via 0G Compute
+  New: "booking" + "class-access" attestation kinds
+  → 0G remains the single source of truth for metadata + bookings + access
+```
+
+### Why the personas don't conflict
+
+Particle UA (EIP-7702) and ZeroDev Kernel (ERC-4337) are competing account
+abstraction implementations — they cannot run on the same EOA. The split
+avoids this: the **practitioner** gets a Particle Universal Account
+(EIP-7702, cross-chain deposits), the **operator** gets a ZeroDev Kernel
+account (gas sponsorship + session keys for batch attestations). Different
+users, different accounts, no overlap.
+
+### Prize coverage
+
+| Prize | Amount | Integration |
+|-------|--------|-------------|
+| Universal Accounts Track | $2,500 | Particle UA SDK in EIP-7702 mode + cross-chain deposit |
+| Arbitrum bounty | $2,000 | Deposit escrow contract deployed on Arbitrum; UA settles there |
+| Magic Labs bounty | $500 | Social login (Google) creates practitioner's embedded wallet |
+| ZeroDev subtrack | $500 | Operator gas sponsorship + session keys for batch attestations |
+| Openfort subtrack | $100 | x402 micropayments for drop-in classes |
+| General Track | $2,000 | Umbrella — the whole booking UX |
+
+**Total eligible: ~$7,600 across 6 prizes.**
+
+### Build phases (finale Jul 30)
+
+| Phase | What | Prizes unlocked | Risk |
+|-------|------|-----------------|------|
+| 1 | Practitioner booking: Magic + Particle UA + EIP-7702 + Arbitrum deposit contract | $5,000 (UA + Magic + Arbitrum) | Medium — smart contract + SDK integration |
+| 2 | 0G extension: "booking" attestation kind, booking API route | enables phase 1 | Low — extends existing patterns |
+| 3 | Operator upgrade: Particle Auth + ZeroDev Kernel + session keys | $500 (ZeroDev) | Medium — new operator signing path |
+| 4 | Drop-in classes: Openfort + x402 micropayments | $100 (Openfort) | Low — well-documented recipe |
+| 5 | Polish: booking UX flow, match detail → "Book" CTA, confirmation | General Track judging | Low — UI work |
+
+If only Phases 1–2 land, the project is already eligible for $5,000.
+
+### Verified integration paths
+
+- **Magic + Particle UA + EIP-7702**: officially documented by both Particle
+  (`developers.particle.network/universal-accounts/cha/how-to/ua-magic`) and
+  Magic (`docs.magic.link/recipes/server-wallets/particle-network-universal-accounts`).
+  Demo repos: `Particle-Network/ua-7702-magic-demo` (delegates on Arbitrum,
+  cross-chain conversion in a single tx) and
+  `Particle-Network/universal-accounts-magic-wallet-api` (full Next.js app,
+  Google OAuth → Magic → UA → cross-chain mint).
+- **ZeroDev + Particle Auth**: documented at `docs.zerodev.app/onboarding/particle`.
+  Particle Auth EOA → ZeroDev Kernel smart account → paymaster + session keys.
+- **Openfort + x402**: recipe at `openfort.io/docs/recipes/x402` with full-stack
+  demo (`openfort-xyz/recipes-hub` → `x402/`). React + Express, HTTP 402-gated
+  content, USDC `TransferWithAuthorization`, gasless via Openfort paymaster.
+
+### Risk: Particle UA V2 migration
+
+Particle's docs carry a warning: *"Universal Accounts are upgrading to V2.
+This will require a change in your app's account system."* The current SDK
+works and the demo repos use it. If V2 drops mid-hackathon, the migration
+is scoped to the practitioner booking path only — operator and drop-in
+flows are unaffected.
