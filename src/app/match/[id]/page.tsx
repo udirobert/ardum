@@ -7,6 +7,8 @@ import BreathCycleDiagram from "@/matching/BreathCycleDiagram";
 import ProgressiveBlurImage from "@/components/ProgressiveBlurImage";
 import RevealSection from "@/components/RevealSection";
 import ClientMatchBanner from "@/components/ClientMatchBanner";
+import BookingProviders from "@/booking/BookingProviders";
+import BookButton from "@/booking/BookButton";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +82,17 @@ export default async function MatchDetail({
       </div>
 
       <ClientMatchBanner retreatId={id} />
+
+      <BookingProviders>
+        <div className="mb-8">
+          <BookButton
+            retreatRootHash={id}
+            retreatTitle={title}
+            depositUsd={priceUsd}
+            operatorAddress={attestation.attestor}
+          />
+        </div>
+      </BookingProviders>
 
       {attestation && (
         <RevealSection delay={300}>

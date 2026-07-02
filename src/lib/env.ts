@@ -5,6 +5,13 @@
 type PublicEnv = {
   NEXT_PUBLIC_APP_NAME: string;
   NEXT_PUBLIC_0G_CHAIN_ID: string;
+  NEXT_PUBLIC_MAGIC_API_KEY: string;
+  NEXT_PUBLIC_MAGIC_OIDC_PROVIDER_ID: string;
+  NEXT_PUBLIC_PARTICLE_PROJECT_ID: string;
+  NEXT_PUBLIC_PARTICLE_CLIENT_KEY: string;
+  NEXT_PUBLIC_PARTICLE_APP_ID: string;
+  NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS: string;
+  NEXT_PUBLIC_USE_TESTNET: string;
 };
 
 type ServerEnv = {
@@ -22,6 +29,18 @@ const publicEnv: PublicEnv = {
   NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME ?? "Ardum",
   NEXT_PUBLIC_0G_CHAIN_ID:
     process.env.NEXT_PUBLIC_0G_CHAIN_ID ?? "0G testnet",
+  NEXT_PUBLIC_MAGIC_API_KEY: process.env.NEXT_PUBLIC_MAGIC_API_KEY ?? "",
+  NEXT_PUBLIC_MAGIC_OIDC_PROVIDER_ID:
+    process.env.NEXT_PUBLIC_MAGIC_OIDC_PROVIDER_ID ?? "",
+  NEXT_PUBLIC_PARTICLE_PROJECT_ID:
+    process.env.NEXT_PUBLIC_PARTICLE_PROJECT_ID ?? "",
+  NEXT_PUBLIC_PARTICLE_CLIENT_KEY:
+    process.env.NEXT_PUBLIC_PARTICLE_CLIENT_KEY ?? "",
+  NEXT_PUBLIC_PARTICLE_APP_ID:
+    process.env.NEXT_PUBLIC_PARTICLE_APP_ID ?? "",
+  NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS:
+    process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS ?? "",
+  NEXT_PUBLIC_USE_TESTNET: process.env.NEXT_PUBLIC_USE_TESTNET ?? "",
 };
 
 function readServerEnv(): ServerEnv {
@@ -52,6 +71,24 @@ export function has0GCompute(): boolean {
 export function hasSupabase(): boolean {
   const e = readServerEnv();
   return Boolean(e.SUPABASE_URL && e.SUPABASE_SERVICE_ROLE_KEY);
+}
+
+// ── UXmaxx Hackathon: booking layer predicates ────────────────────────────
+
+export function hasMagic(): boolean {
+  return Boolean(publicEnv.NEXT_PUBLIC_MAGIC_API_KEY);
+}
+
+export function hasParticleUA(): boolean {
+  return Boolean(
+    publicEnv.NEXT_PUBLIC_PARTICLE_PROJECT_ID &&
+      publicEnv.NEXT_PUBLIC_PARTICLE_CLIENT_KEY &&
+      publicEnv.NEXT_PUBLIC_PARTICLE_APP_ID,
+  );
+}
+
+export function hasEscrowContract(): boolean {
+  return Boolean(publicEnv.NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS);
 }
 
 export { publicEnv, readServerEnv };

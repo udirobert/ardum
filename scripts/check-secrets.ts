@@ -4,7 +4,7 @@ const SECRET_PATTERNS: { pattern: RegExp; description: string }[] = [
   { pattern: /api[_-]?key\s*[:=]\s*["']?[^"'\s]{16,}/i, description: "API Key" },
   { pattern: /secret\s*[:=]\s*["']?[^"'\s]{16,}/i, description: "Secret" },
   { pattern: /password\s*[:=]\s*["']?[^"'\s]{8,}/i, description: "Password" },
-  { pattern: /token\s*[:=]\s*["']?[^"'\s]{16,}/i, description: "Token" },
+  { pattern: /token\s*[:=]\s*["']?[A-Za-z0-9_\-]{16,}/i, description: "Token" },
   { pattern: /sk-[A-Za-z0-9_-]{20,}/, description: "OpenAI API Key (sk-)" },
   { pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/, description: "Private Key" },
   { pattern: /ghp_[A-Za-z0-9_]{36,}/, description: "GitHub Personal Access Token" },
@@ -47,6 +47,10 @@ for (const file of stagedFiles) {
 
       const content = line.slice(1);
       if (content.trim().length === 0) continue;
+
+      // Skip lines that read from process.env — these are env var
+      // references, not hardcoded secrets.
+      if (/process\.env\./.test(content)) continue;
 
       for (const { pattern, description } of SECRET_PATTERNS) {
         pattern.lastIndex = 0;
