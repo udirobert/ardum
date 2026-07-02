@@ -1,10 +1,10 @@
 import { execSync } from "child_process";
 
 const SECRET_PATTERNS: { pattern: RegExp; description: string }[] = [
-  { pattern: /api[_-]?key\s*[:=]\s*["']?[^"'\s]{16,}/i, description: "API Key" },
-  { pattern: /secret\s*[:=]\s*["']?[^"'\s]{16,}/i, description: "Secret" },
-  { pattern: /password\s*[:=]\s*["']?[^"'\s]{8,}/i, description: "Password" },
-  { pattern: /token\s*[:=]\s*["']?[A-Za-z0-9_\-]{16,}/i, description: "Token" },
+  { pattern: /api[_-]?key\s*[:=]\s*["'][^"'\s]{16,}["']/i, description: "API Key" },
+  { pattern: /secret\s*[:=]\s*["'][^"'\s]{16,}["']/i, description: "Secret" },
+  { pattern: /password\s*[:=]\s*["'][^"'\s]{8,}["']/i, description: "Password" },
+  { pattern: /token\s*[:=]\s*["'][A-Za-z0-9_\-]{16,}["']/i, description: "Token" },
   { pattern: /sk-[A-Za-z0-9_-]{20,}/, description: "OpenAI API Key (sk-)" },
   { pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/, description: "Private Key" },
   { pattern: /ghp_[A-Za-z0-9_]{36,}/, description: "GitHub Personal Access Token" },

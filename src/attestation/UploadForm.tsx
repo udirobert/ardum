@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import WalletButton from "./WalletButton";
+import OperatorWalletButton from "@/booking/OperatorWalletButton";
 import { canonicalAttestationMessage } from "./sign";
 import type { Attestation } from "./schema";
 
@@ -394,7 +395,21 @@ export default function UploadForm() {
 
           <div className="mb-8">
             <p className="tag mb-2">attestor</p>
-            <WalletButton onConnect={setAttestor} />
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-[color:var(--muted)] mb-2">
+                  Gasless (Particle Auth + ZeroDev) — recommended
+                </p>
+                <OperatorWalletButton onConnect={setAttestor} />
+              </div>
+              <div className="h-px bg-[color:var(--hairline)]" />
+              <div>
+                <p className="text-xs text-[color:var(--muted)] mb-2">
+                  Classic wallet (MetaMask / Rabby)
+                </p>
+                <WalletButton onConnect={setAttestor} />
+              </div>
+            </div>
           </div>
 
           <div className="t-acc mb-8 border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] surface-card" data-open={breathOpen ? "true" : "false"}>

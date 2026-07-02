@@ -12,6 +12,9 @@ type PublicEnv = {
   NEXT_PUBLIC_PARTICLE_APP_ID: string;
   NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS: string;
   NEXT_PUBLIC_USE_TESTNET: string;
+  NEXT_PUBLIC_ZERODEV_RPC: string;
+  NEXT_PUBLIC_OPENFORT_PUBLIC_KEY: string;
+  NEXT_PUBLIC_OPENFORT_POLICY_ID: string;
 };
 
 type ServerEnv = {
@@ -41,6 +44,11 @@ const publicEnv: PublicEnv = {
   NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS:
     process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS ?? "",
   NEXT_PUBLIC_USE_TESTNET: process.env.NEXT_PUBLIC_USE_TESTNET ?? "",
+  NEXT_PUBLIC_ZERODEV_RPC: process.env.NEXT_PUBLIC_ZERODEV_RPC ?? "",
+  NEXT_PUBLIC_OPENFORT_PUBLIC_KEY:
+    process.env.NEXT_PUBLIC_OPENFORT_PUBLIC_KEY ?? "",
+  NEXT_PUBLIC_OPENFORT_POLICY_ID:
+    process.env.NEXT_PUBLIC_OPENFORT_POLICY_ID ?? "",
 };
 
 function readServerEnv(): ServerEnv {
@@ -89,6 +97,17 @@ export function hasParticleUA(): boolean {
 
 export function hasEscrowContract(): boolean {
   return Boolean(publicEnv.NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS);
+}
+
+export function hasZeroDev(): boolean {
+  return Boolean(publicEnv.NEXT_PUBLIC_ZERODEV_RPC);
+}
+
+export function hasOpenfort(): boolean {
+  return Boolean(
+    publicEnv.NEXT_PUBLIC_OPENFORT_PUBLIC_KEY &&
+      publicEnv.NEXT_PUBLIC_OPENFORT_POLICY_ID,
+  );
 }
 
 export { publicEnv, readServerEnv };

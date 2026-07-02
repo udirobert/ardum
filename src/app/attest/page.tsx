@@ -1,5 +1,6 @@
 import UploadForm from "@/attestation/UploadForm";
 import RevealSection from "@/components/RevealSection";
+import OperatorProviders from "@/booking/OperatorProviders";
 
 export default function AttestPage() {
   return (
@@ -16,14 +17,17 @@ export default function AttestPage() {
         </p>
 
         <p className="why mb-12 max-w-prose">
-          This is the only part of Ardum that requires a wallet. Browse and
-          match without one — wallet is only for writing.
+          Sign in with Google for gasless attestation writes (Particle Auth +
+          ZeroDev). No MetaMask, no ETH needed. Or use the classic wallet
+          flow below.
         </p>
       </RevealSection>
 
-      <RevealSection delay={150}>
-        <UploadForm />
-      </RevealSection>
+      <OperatorProviders>
+        <RevealSection delay={150}>
+          <UploadForm />
+        </RevealSection>
+      </OperatorProviders>
     </section>
   );
 }

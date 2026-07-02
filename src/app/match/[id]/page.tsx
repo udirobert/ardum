@@ -9,6 +9,7 @@ import RevealSection from "@/components/RevealSection";
 import ClientMatchBanner from "@/components/ClientMatchBanner";
 import BookingProviders from "@/booking/BookingProviders";
 import BookButton from "@/booking/BookButton";
+import ClassButton from "@/booking/ClassButton";
 
 export const dynamic = "force-dynamic";
 
@@ -84,12 +85,17 @@ export default async function MatchDetail({
       <ClientMatchBanner retreatId={id} />
 
       <BookingProviders>
-        <div className="mb-8">
+        <div className="mb-8 flex flex-wrap gap-3">
           <BookButton
             retreatRootHash={id}
             retreatTitle={title}
             depositUsd={priceUsd}
             operatorAddress={attestation.attestor}
+          />
+          <ClassButton
+            retreatRootHash={id}
+            retreatTitle={title}
+            classPriceUsd={Math.max(25, Math.round(priceUsd / 20))}
           />
         </div>
       </BookingProviders>
