@@ -39,6 +39,27 @@ export default function Home() {
         </div>
       </section>
 
+      {/* UXmaxx Hackathon banner */}
+      <section className="relative z-10 mx-auto w-full max-w-4xl px-6 sm:px-10 py-6">
+        <div className="border border-[color:var(--accent-soft)] rounded-sm bg-[color:var(--surface)] p-5 surface-card">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <div>
+              <p className="tag mb-1 text-[color:var(--accent)]">UXmaxx hackathon</p>
+              <p className="text-sm text-[color:var(--muted)]">
+                Book retreats with Google login — no MetaMask, no seed phrases.
+                Gasless operator attestations. Drop-in class micropayments.
+              </p>
+            </div>
+            <a
+              href="/retreats"
+              className="text-sm text-[color:var(--accent)] hover:text-[color:var(--accent-ink)] transition-colors whitespace-nowrap"
+            >
+              Try booking →
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* How it works */}
       <section className="relative z-10 mx-auto w-full max-w-4xl px-6 sm:px-10 py-24">
         <MaskReveal>

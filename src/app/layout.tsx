@@ -85,7 +85,8 @@ export default function RootLayout({
           <div className="flex flex-wrap items-baseline justify-between gap-4">
             <p className="text-sm text-[color:var(--muted)]">
               Built on 0G Storage + 0G Compute · MediaPipe runs in your
-              browser · wallet only for attestation writes
+              browser · booking powered by Magic + Particle UA + Arbitrum +
+              ZeroDev + Openfort + x402
             </p>
             <nav className="flex gap-5 text-sm">
               <Link
