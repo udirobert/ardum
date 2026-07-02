@@ -13,6 +13,9 @@
 import { ethers, ContractFactory } from "ethers";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
 
 // Load .env.local manually (Next.js convention, not dotenv default)
 const envLocal = readFileSync(join(process.cwd(), ".env.local"), "utf-8");
@@ -24,7 +27,7 @@ for (const line of envLocal.split("\n")) {
 }
 
 // USDC addresses
-const USDC_ARBITRUM_SEPOLIA = "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA77";
+const USDC_ARBITRUM_SEPOLIA = "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d";
 const USDC_ARBITRUM_MAINNET = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
 
 const ARBITRUM_SEPOLIA_RPC = "https://sepolia-rollup.arbitrum.io/rpc";
@@ -66,7 +69,8 @@ async function main() {
   const contractPath = join(process.cwd(), "contracts", "RetreatDepositEscrow.sol");
   const source = readFileSync(contractPath, "utf-8");
 
-  const solc = await import("solc");
+  // Use require for solc — the ESM import shape differs
+  const solc = require("solc") as { compile: (input: string) => string };
   const input = {
     language: "Solidity",
     sources: {
