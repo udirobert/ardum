@@ -76,6 +76,22 @@ Repos that informed Ardum's agent-consumable retreat language and pose workflow:
   user always confirms before the old answers are reused), and
   one-tap clearable from the match page footer. Nothing leaves the
   browser; the matching run is still session-scoped server-side.
+- **Magic SDK** (`magic-sdk`) — social login (Google) creates an embedded
+  wallet for practitioners. No MetaMask, no seed phrase. Also supports
+  EIP-7702 authorization signing for Particle UA delegation.
+- **Particle Universal Account SDK** (`@particle-network/universal-account-sdk`)
+  — upgrades the Magic EOA via EIP-7702 on Arbitrum, enabling cross-chain
+  deposits (any token, any chain → settles on Arbitrum).
+- **Particle Auth** (`@particle-network/auth`) — social login for operators,
+  separate from the practitioner flow.
+- **ZeroDev SDK** (`@zerodev/sdk` + `@zerodev/ecdsa-validator`) — ERC-4337
+  Kernel smart account for operators. Gas sponsorship via paymaster +
+  session keys for batch attestation writes.
+- **Openfort** (`@openfort/react`) — embedded wallet + x402 micropayments
+  for drop-in class access. Settles on Base Sepolia (testnet).
+- **Solidity** — `RetreatDepositEscrow.sol` deployed on Arbitrum Sepolia
+  at `0xBEe032998c7A1d9268075Dfc2061514143d5B796`. Handles deposit,
+  check-in, claim, refund, and cancel-expired flows.
 
 ## Folder structure
 
@@ -86,18 +102,40 @@ src/
       counterfactual/ # re-score with a different weight balance
       perspectives/   # Restorative + Movement lens comparison
     api/attestations/ # server-only 0G Storage upload/retrieve
-    match/            # reasoning-reveal + match card
-    attest/           # wallet-gated attestation upload
+    api/bookings/     # booking attestation writer (verifies sig → 0G Storage)
+    api/classes/access/ # x402 payment-gated class access (402 → verify → grant)
+    api/magic/wallet/ # Magic TEE wallet creation (server-side, from JWT)
+    api/openfort/account/ # Openfort account creation + sponsored tx
+    match/            # reasoning-reveal + match card + booking CTA
+    attest/           # wallet-gated attestation upload (gasless + classic)
+  booking/            # UXmaxx hackathon booking layer
+    MagicAuth.tsx       # Magic SDK social login provider (connectWithUI)
+    UniversalAccount.tsx # Particle UA EIP-7702 + cross-chain deposit
+    BookingFlow.tsx     # 4-step booking UI (sign in → delegate → deposit → attest)
+    BookButton.tsx      # "Book this retreat" CTA on match detail
+    ClassPayment.tsx    # x402 drop-in class payment flow
+    ClassButton.tsx     # "Drop-in class ($N)" CTA on match detail
+    OperatorAuth.tsx    # Particle Auth + ZeroDev session keys for operators
+    OperatorWalletButton.tsx # "Sign in with Google (gasless)" on /attest
+    OpenfortWallet.tsx  # Openfort embedded wallet provider
+    types.ts            # booking + class-access attestation types
+    constants.ts        # Arbitrum + Base Sepolia + USDC constants
+    escrow-abi.ts       # RetreatDepositEscrow ABI
+    canonical.ts        # booking attestation signing canonical
   calibration/        # conversational intake + MediaPipe pose-check
   matching/           # match result types + reasoning UI
   attestation/        # attestation schema + wallet button
   agent/              # 0G Compute client + matching prompts (server-only)
   lib/                # env, session dispatcher + adapters, fingerprint, supabase, seed data
+    env.ts              # env access + hasMagic/hasParticleUA/hasZeroDev/hasOpenfort predicates
     session.ts          # async dispatcher (memory or supabase)
     session.memory.ts   # in-memory adapter (demo mode)
     session.supabase.ts # Supabase adapter (production)
     fingerprint.ts      # local cross-session memory (browser-only)
-scripts/              # seed + supabase migration
+contracts/            # Solidity contracts
+  RetreatDepositEscrow.sol # deposit escrow (Arbitrum Sepolia)
+scripts/              # seed + supabase migration + escrow deployment
+  deploy-escrow.ts     # compile + deploy escrow to Arbitrum Sepolia/mainnet
 ```
 
 ## Develop
@@ -123,6 +161,11 @@ layers you want to enable. Each one is independent:
 | `OG_RPC_URL` + `OG_STORAGE_INDEXER` + `OG_PRIVATE_KEY` | Real `POST /api/attestations` writes to 0G Storage; the seed script uploads the Bali retreats for real. |
 | `OG_COMPUTE_ROUTER_URL` + `OG_COMPUTE_API_KEY` [+ `OG_COMPUTE_MODEL`] | The matching agent calls the 0G Compute Router (OpenAI-compatible `/v1/chat/completions`) with graceful fallback: if the LLM call fails, the deterministic local scorer runs instead and the `agentTrace.provider` field records `"0g-compute-fallback"`. |
 | `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`           | Sessions and match runs persist across restarts and across Vercel serverless cold-starts. Apply `scripts/migrate-supabase.sql` once to create the `sessions` table; nothing else to configure. |
+| `NEXT_PUBLIC_MAGIC_API_KEY` [+ `MAGIC_SECRET_KEY`] | Practitioner social login (Google) via Magic `connectWithUI()`. Secret key enables server-side TEE wallet creation via `/api/magic/wallet`. |
+| `NEXT_PUBLIC_PARTICLE_PROJECT_ID` + `NEXT_PUBLIC_PARTICLE_CLIENT_KEY` + `NEXT_PUBLIC_PARTICLE_APP_ID` [+ `PARTICLE_SERVER_KEY`] | Particle Universal Account (EIP-7702 cross-chain deposits) for practitioners + Particle Auth social login for operators. Server key enables Particle server API calls. |
+| `NEXT_PUBLIC_ZERODEV_API_KEY` | ZeroDev gas sponsorship + session keys for operator attestations. RPC URL constructed automatically: `https://rpc.zerodev.app/api/v3/{key}/chain/{chainId}`. |
+| `NEXT_PUBLIC_OPENFORT_PUBLIC_KEY` + `NEXT_PUBLIC_OPENFORT_POLICY_ID` [+ `OPENFORT_SECRET_KEY`] | Openfort embedded wallet + x402 micropayments for drop-in classes. Settles on Base Sepolia (testnet). Secret key enables server-side account creation + sponsored transactions. |
+| `NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS` | The deployed `RetreatDepositEscrow` address on Arbitrum Sepolia (`0xBEe032998c7A1d9268075Dfc2061514143d5B796`). Set `NEXT_PUBLIC_USE_TESTNET=true` to target Sepolia. |
 
 The adapter at `src/lib/og-storage.ts` lazy-imports the SDK only when
 needed, and the agent at `src/agent/client.ts` falls back gracefully
@@ -173,10 +216,11 @@ existing match flow. Nothing in `src/attestation/`, `src/agent/`, or
 
 ```
 PRACTITIONER — "Book this retreat"  (new, downstream of matching)
-  Magic social login (Google) → EOA created in TEE (no seed phrase)
+  Magic social login (Google) → EOA via connectWithUI()
     → Particle UA SDK: EIP-7702 upgrade on Arbitrum (one-time delegation)
     → createTransferTransaction: deposit in any token on any chain
-      → UA routes cross-chain automatically, settles on Arbitrum
+      → UA routes cross-chain automatically, settles on Arbitrum Sepolia
+      → escrow contract: 0xBEe032998c7A1d9268075Dfc2061514143d5B796
     → booking written as new "booking" attestation kind to 0G Storage
 
 OPERATOR — "Attest your retreat"  (upgraded from MetaMask)
@@ -187,15 +231,22 @@ OPERATOR — "Attest your retreat"  (upgraded from MetaMask)
     → attestations written to 0G Storage (existing flow, new signing path)
 
 DROP-IN CLASS — "Pay per session"  (new, lighter than full retreat booking)
-  Openfort embedded wallet (email / Google / guest)
-    → x402: request class → HTTP 402 → sign USDC TransferWithAuthorization
-    → facilitator settles on-chain → class access granted
+  Sign in (Magic) → x402 flow:
+    → GET /api/classes/access → HTTP 402 + payment requirements
+    → Sign payment authorization (personal_sign)
+    → POST /api/classes/access → verify signature → settle on Base Sepolia
+    → Openfort sponsors gas via policy pol_68129a95-...
     → access written as new "class-access" attestation kind to 0G Storage
 
 0G STORAGE (untouched, extended)
   Existing: "retreat" attestations + matching via 0G Compute
   New: "booking" + "class-access" attestation kinds
   → 0G remains the single source of truth for metadata + bookings + access
+
+CROSS-CHAIN ARCHITECTURE
+  Booking deposits  → Arbitrum Sepolia (chain 421614) — Particle UA + escrow
+  Class payments    → Base Sepolia (chain 84532) — Openfort + x402
+  Operator gas      → sponsored by ZeroDev paymaster (no chain needed)
 ```
 
 ### Why the personas don't conflict
@@ -212,25 +263,24 @@ users, different accounts, no overlap.
 | Prize | Amount | Integration |
 |-------|--------|-------------|
 | Universal Accounts Track | $2,500 | Particle UA SDK in EIP-7702 mode + cross-chain deposit |
-| Arbitrum bounty | $2,000 | Deposit escrow contract deployed on Arbitrum; UA settles there |
-| Magic Labs bounty | $500 | Social login (Google) creates practitioner's embedded wallet |
+| Arbitrum bounty | $2,000 | Deposit escrow contract deployed on Arbitrum Sepolia; UA settles there |
+| Magic Labs bounty | $500 | Social login (Google) creates practitioner's embedded wallet via `connectWithUI()` |
 | ZeroDev subtrack | $500 | Operator gas sponsorship + session keys for batch attestations |
-| Openfort subtrack | $100 | x402 micropayments for drop-in classes |
+| Openfort subtrack | $1,000 | x402 micropayments for drop-in classes on Base Sepolia |
+| x402 subtrack | $1,000 | HTTP 402 payment protocol — `GET` returns 402 + requirements, `POST` verifies + settles |
 | General Track | $2,000 | Umbrella — the whole booking UX |
 
-**Total eligible: ~$7,600 across 6 prizes.**
+**Total eligible: ~$9,500 across 7 prizes.**
 
-### Build phases (finale Jul 30)
+### Build phases — all complete
 
-| Phase | What | Prizes unlocked | Risk |
-|-------|------|-----------------|------|
-| 1 | Practitioner booking: Magic + Particle UA + EIP-7702 + Arbitrum deposit contract | $5,000 (UA + Magic + Arbitrum) | Medium — smart contract + SDK integration |
-| 2 | 0G extension: "booking" attestation kind, booking API route | enables phase 1 | Low — extends existing patterns |
-| 3 | Operator upgrade: Particle Auth + ZeroDev Kernel + session keys | $500 (ZeroDev) | Medium — new operator signing path |
-| 4 | Drop-in classes: Openfort + x402 micropayments | $100 (Openfort) | Low — well-documented recipe |
-| 5 | Polish: booking UX flow, match detail → "Book" CTA, confirmation | General Track judging | Low — UI work |
-
-If only Phases 1–2 land, the project is already eligible for $5,000.
+| Phase | What | Status |
+|-------|------|--------|
+| 1 | Practitioner booking: Magic + Particle UA + EIP-7702 + Arbitrum deposit contract | Done — committed `95c86aa` |
+| 2 | Escrow deployment: `RetreatDepositEscrow` compiled + deployed to Arbitrum Sepolia | Done — `0xBEe032998c7A1d9268075Dfc2061514143d5B796` |
+| 3 | Operator upgrade: Particle Auth + ZeroDev Kernel + session keys | Done — gasless attestation UI on `/attest` |
+| 4 | Drop-in classes: Openfort + x402 micropayments on Base Sepolia | Done — `ClassButton` + `ClassPayment` + `/api/classes/access` |
+| 5 | Polish: UXmaxx banner, footer tech stack, match detail CTAs | Done |
 
 ### Verified integration paths
 
@@ -251,6 +301,6 @@ If only Phases 1–2 land, the project is already eligible for $5,000.
 
 Particle's docs carry a warning: *"Universal Accounts are upgrading to V2.
 This will require a change in your app's account system."* The current SDK
-works and the demo repos use it. If V2 drops mid-hackathon, the migration
-is scoped to the practitioner booking path only — operator and drop-in
-flows are unaffected.
+works and the demo repos use it. If V2 drops, the migration is scoped to
+the practitioner booking path only — operator and drop-in flows are
+unaffected.
