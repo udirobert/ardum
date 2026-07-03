@@ -26,6 +26,8 @@ type ServerEnv = {
   OG_PRIVATE_KEY: string;
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
+  MAGIC_SECRET_KEY: string;
+  MAGIC_OIDC_PROVIDER_ID: string;
 };
 
 const publicEnv: PublicEnv = {
@@ -61,6 +63,8 @@ function readServerEnv(): ServerEnv {
     OG_PRIVATE_KEY: process.env.OG_PRIVATE_KEY ?? "",
     SUPABASE_URL: process.env.SUPABASE_URL ?? "",
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+    MAGIC_SECRET_KEY: process.env.MAGIC_SECRET_KEY ?? "",
+    MAGIC_OIDC_PROVIDER_ID: process.env.MAGIC_OIDC_PROVIDER_ID ?? "",
   };
 }
 
@@ -85,6 +89,11 @@ export function hasSupabase(): boolean {
 
 export function hasMagic(): boolean {
   return Boolean(publicEnv.NEXT_PUBLIC_MAGIC_API_KEY);
+}
+
+export function hasMagicServer(): boolean {
+  const e = readServerEnv();
+  return Boolean(e.MAGIC_SECRET_KEY);
 }
 
 export function hasParticleUA(): boolean {
