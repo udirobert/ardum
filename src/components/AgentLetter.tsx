@@ -9,11 +9,12 @@
 // inline — the letter continues into the booking conversation, no
 // page change, no wizard.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import MiraOrb from "./MiraOrb";
 import ConversationalBooking from "@/booking/ConversationalBooking";
 import ClassInvitation from "@/booking/ClassInvitation";
 import BookingProviders from "@/booking/BookingProviders";
+import { describePreferences, type UserPreference } from "@/aesthetics/image-pool";
 
 type AgentLetterProps = {
   orbSize?: number;
@@ -25,6 +26,7 @@ type AgentLetterProps = {
   operatorAddress: string;
   classPriceUsd: number;
   signals: { energy?: string; budget?: string; social?: string };
+  sessionId?: string;
 };
 
 export default function AgentLetter({
@@ -37,9 +39,30 @@ export default function AgentLetter({
   operatorAddress,
   classPriceUsd,
   signals,
+  sessionId,
 }: AgentLetterProps) {
   const [bookingOpen, setBookingOpen] = useState(false);
   const [classOpen, setClassOpen] = useState(false);
+
+  // Read aesthetic preferences from sessionStorage and generate
+  // Mira's aesthetic observation lines. Computed via useMemo to
+  // avoid set-state-in-effect cascading renders.
+  const aestheticLines = useMemo<string[]>(() => {
+    if (!sessionId || typeof window === "undefined") return [];
+    try {
+      const raw = sessionStorage.getItem(`aesthetic-pref-${sessionId}`);
+      if (!raw) return [];
+      const pref = JSON.parse(raw) as UserPreference;
+      const dominant = describePreferences(pref);
+      if (dominant.length === 0) return [];
+      const observation = dominant.length === 1
+        ? `While I was thinking, you were drawn to ${dominant[0]}. That confirms what I'm seeing.`
+        : `While I was thinking, you were drawn to ${dominant.slice(0, -1).join(", ")} and ${dominant[dominant.length - 1]}. That tells me something about where you'd thrive.`;
+      return [observation];
+    } catch {
+      return [];
+    }
+  }, [sessionId]);
 
   return (
     <div className="mt-10 mb-10">
@@ -58,6 +81,15 @@ export default function AgentLetter({
           <p
             key={i}
             className={`text-lg leading-relaxed text-foreground mira-line mira-line-${Math.min(i + 1, 5)}`}
+          >
+            {line}
+          </p>
+        ))}
+        {/* Aesthetic observation — woven in from the journey */}
+        {aestheticLines.map((line, i) => (
+          <p
+            key={`aesthetic-${i}`}
+            className="text-lg leading-relaxed text-[color:var(--accent-ink)] italic mira-line mira-line-5"
           >
             {line}
           </p>

@@ -100,6 +100,7 @@ export default async function MatchDetail({
         operatorAddress={attestation.attestor}
         classPriceUsd={Math.max(25, Math.round(priceUsd / 20))}
         signals={signals}
+        sessionId={sessionId}
       />
 
       <ClientMatchBanner retreatId={id} />

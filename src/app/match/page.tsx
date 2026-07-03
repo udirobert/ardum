@@ -10,9 +10,11 @@ import Counterfactual from "@/matching/Counterfactual";
 import LensComparison from "@/matching/LensComparison";
 import ClearHistoryLink from "@/matching/ClearHistoryLink";
 import MaskReveal from "@/components/MaskReveal";
+import AestheticJourney from "@/aesthetics/AestheticJourney";
 import { saveMatchResult } from "@/lib/client-session";
 import { clearFingerprint } from "@/lib/fingerprint";
 import type { MatchRun, ReasoningStep } from "@/matching/types";
+import type { UserPreference } from "@/aesthetics/image-pool";
 
 export default function MatchPage() {
   return (
@@ -99,6 +101,8 @@ function MatchFlow() {
     elapsedMs: number;
     model: string;
   } | null>(null);
+  const [aestheticPref, setAestheticPref] = useState<UserPreference | null>(null);
+  const [journeyActive, setJourneyActive] = useState(true);
 
   // Keep latest state visible inside the EventSource handlers without
   // re-subscribing on every render.
@@ -110,6 +114,10 @@ function MatchFlow() {
   useEffect(() => {
     runRef.current = run;
   }, [run]);
+  const aestheticPrefRef = useRef<UserPreference | null>(null);
+  useEffect(() => {
+    aestheticPrefRef.current = aestheticPref;
+  }, [aestheticPref]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -147,6 +155,18 @@ function MatchFlow() {
         setRun(payload.run);
         if (sessionId) {
           saveMatchResult(sessionId, payload.run, stepsRef.current);
+        }
+        // Save aesthetic preference to sessionStorage for the match
+        // detail page to pick up and weave into Mira's letter.
+        if (aestheticPrefRef.current) {
+          try {
+            sessionStorage.setItem(
+              `aesthetic-pref-${sessionId}`,
+              JSON.stringify(aestheticPrefRef.current),
+            );
+          } catch {
+            /* sessionStorage might be full or unavailable */
+          }
         }
       } catch (parseErr) {
         console.error("bad done event", parseErr);
@@ -262,6 +282,24 @@ function MatchFlow() {
     return (
       <section className="mx-auto max-w-2xl px-6 sm:px-10 pt-20">
         <ComputeChip progress={progress} streamOpen={streamOpen} />
+
+        {/* Aesthetic journey — runs alongside the reasoning stream.
+            The user interacts with images + sound while the agent
+            thinks. Their reactions build a preference vector that
+            gets woven into Mira's match letter. */}
+        {journeyActive && (
+          <div className="mt-8 mb-8">
+            <AestheticJourney
+              onComplete={(pref) => {
+                setAestheticPref(pref);
+                setJourneyActive(false);
+              }}
+            />
+          </div>
+        )}
+
+        {/* Reasoning stream — visible below the journey, or as the
+            primary view once the journey completes */}
         <h1 className="font-serif text-4xl tracking-tight mb-6 mt-3">
           {steps.length === 0
             ? "Reading your profile…"
