@@ -1,13 +1,14 @@
 import Intake from "@/calibration/Intake";
 import MaskReveal from "@/components/MaskReveal";
-import HeroBackground from "@/components/HeroBackground";
+import ParallaxHero from "@/components/ParallaxHero";
+import ScrollReveal from "@/components/ScrollReveal";
 
 export default function Home() {
   return (
     <div className="relative">
       {/* Hero */}
       <section className="relative min-h-[78vh] overflow-hidden">
-        <HeroBackground />
+        <ParallaxHero />
         <div className="relative z-10 mx-auto w-full max-w-4xl px-6 sm:px-10 pt-20 sm:pt-28 pb-16 min-h-[70vh] flex flex-col justify-center">
         <div className="t-stagger is-shown">
           <span className="t-stagger-line tag mb-4 text-shadow-soft">agentic retreat matching</span>
@@ -39,27 +40,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* UXmaxx Hackathon banner */}
-      <section className="relative z-10 mx-auto w-full max-w-4xl px-6 sm:px-10 py-6">
-        <div className="border border-[color:var(--accent-soft)] rounded-sm bg-[color:var(--surface)] p-5 surface-card">
-          <div className="flex flex-wrap items-baseline justify-between gap-3">
-            <div>
-              <p className="tag mb-1 text-[color:var(--accent)]">UXmaxx hackathon</p>
-              <p className="text-sm text-[color:var(--muted)]">
-                Book retreats with Google login — no MetaMask, no seed phrases.
-                Gasless operator attestations. Drop-in class micropayments.
-              </p>
-            </div>
-            <a
-              href="/retreats"
-              className="text-sm text-[color:var(--accent)] hover:text-[color:var(--accent-ink)] transition-colors whitespace-nowrap"
-            >
-              Try booking →
-            </a>
-          </div>
-        </div>
-      </section>
-
       {/* How it works */}
       <section className="relative z-10 mx-auto w-full max-w-4xl px-6 sm:px-10 py-24">
         <MaskReveal>
@@ -84,6 +64,7 @@ export default function Home() {
                 </p>
               </div>
               <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 surface-card">
+                <ScrollReveal from="right" scrub={0.4}>
                 <p className="tag mb-3">step 1 of 3</p>
                 <p className="font-serif text-xl mb-4">How is your energy arriving?</p>
                 <div className="space-y-2">
@@ -96,6 +77,7 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
+                </ScrollReveal>
               </div>
             </div>
           </MaskReveal>
@@ -114,6 +96,7 @@ export default function Home() {
                 </p>
               </div>
               <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 surface-card">
+                <ScrollReveal from="left" scrub={0.4} stagger>
                 <p className="tag mb-3">reasoning</p>
                 <div className="space-y-4">
                   <div className="text-sm">
@@ -132,6 +115,7 @@ export default function Home() {
                   </div>
                 </div>
                 <p className="why pulse-soft mt-4 text-xs">agent reasoning&hellip;</p>
+                </ScrollReveal>
               </div>
             </div>
           </MaskReveal>
@@ -149,6 +133,7 @@ export default function Home() {
                 </p>
               </div>
               <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 surface-card">
+                <ScrollReveal from="right" scrub={0.4}>
                 <p className="tag mb-2">match #1</p>
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
@@ -176,6 +161,7 @@ export default function Home() {
                 >
                   Book this retreat →
                 </button>
+                </ScrollReveal>
               </div>
             </div>
           </MaskReveal>
@@ -194,6 +180,7 @@ export default function Home() {
                 </p>
               </div>
               <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 surface-card">
+                <ScrollReveal from="left" scrub={0.4} stagger>
                 <div className="flex gap-2 mb-6">
                   {[
                     { n: 1, label: "Sign in", done: true },
@@ -235,6 +222,7 @@ export default function Home() {
                 <p className="tag opacity-70">
                   powered by Magic + Particle UA + Arbitrum escrow
                 </p>
+                </ScrollReveal>
               </div>
             </div>
           </MaskReveal>

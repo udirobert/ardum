@@ -5,6 +5,7 @@ import { RETREAT_PHOTOS, FALLBACK_GRADIENT } from "@/lib/retreat-photos";
 import SectionDivider from "@/components/SectionDivider";
 import ProgressiveBlurImage from "@/components/ProgressiveBlurImage";
 import MaskReveal from "@/components/MaskReveal";
+import RetreatCarousel from "@/components/RetreatCarousel";
 
 // /retreats — a transparent browse of the attestation pool. Anyone can see
 // what the matching agent is reasoning against, and click through to the
@@ -44,6 +45,22 @@ export default async function RetreatsPage() {
       </div>
 
       <SectionDivider />
+
+      {/* 3D carousel — cinematic browse of the pool */}
+      {attestations.length > 0 && (
+        <div className="mb-16 -mx-6 sm:-mx-10">
+          <p className="tag mb-3 px-6 sm:px-10">drag to explore</p>
+          <RetreatCarousel
+            retreats={attestations.map((a) => ({
+              rootHash: a.rootHash,
+              title: a.title ?? "",
+              location: a.claims.location ?? "",
+              priceUsd: a.claims.priceUsd ?? 0,
+              photo: RETREAT_PHOTOS[a.rootHash],
+            }))}
+          />
+        </div>
+      )}
 
       {attestations.length === 0 ? (
         <div className="py-16 text-center surface-card rounded-sm border border-dashed border-[color:var(--hairline)]">
