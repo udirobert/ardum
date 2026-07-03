@@ -24,6 +24,8 @@ import {
 } from "./constants";
 import { bookingDialogue, preparationPlan } from "@/agent/mira-voice";
 import type { BookingAttestation } from "./types";
+import BreathSync from "./BreathSync";
+import MiraCheckIn from "./MiraCheckIn";
 
 type ConversationalBookingProps = {
   retreatRootHash: string;
@@ -38,6 +40,7 @@ type Phase =
   | "signIn"
   | "upgrading"
   | "depositing"
+  | "breathing"
   | "attesting"
   | "done"
   | "error";
@@ -83,11 +86,13 @@ export default function ConversationalBooking({
       ? phase
       : phase === "attesting"
         ? "attesting"
-        : !address
-          ? "signIn"
-          : !delegated
-            ? "upgrading"
-            : "depositing";
+        : phase === "breathing"
+          ? "breathing"
+          : !address
+            ? "signIn"
+            : !delegated
+              ? "upgrading"
+              : "depositing";
 
   // Auto-trigger delegation when we reach that phase
   useEffect(() => {
@@ -105,7 +110,7 @@ export default function ConversationalBooking({
 
   const handleDeposit = useCallback(async () => {
     if (!address) return;
-    setPhase("depositing");
+    setPhase("breathing"); // breath cycle starts with the deposit
 
     const receiver = ESCROW_CONTRACT_ADDRESS || operatorAddress;
     const amount = usdToTokenUnits(depositUsd);
@@ -124,6 +129,9 @@ export default function ConversationalBooking({
     }
 
     setDepositTxId(result.transactionId);
+    // The breath cycle (12s total) continues through the attestation
+    // phase. The user sees the exhale + "Confirmed" as the booking
+    // attestation is written to 0G Storage.
     setPhase("attesting");
 
     // Write booking attestation to 0G Storage
@@ -270,6 +278,11 @@ export default function ConversationalBooking({
           )}
         </div>
 
+        {/* Mira checks in — post-booking follow-up timeline */}
+        <div className="mt-6 ml-16">
+          <MiraCheckIn retreatTitle={retreatTitle} signals={signals} />
+        </div>
+
         <button
           type="button"
           onClick={onClose}
@@ -322,6 +335,7 @@ export default function ConversationalBooking({
     signIn: dialogue.signIn,
     upgrading: dialogue.upgrading,
     depositing: dialogue.depositing,
+    breathing: ["Breathe with me. Inhale as I sign your deposit. Hold as it settles. Exhale when it confirms."],
     attesting: dialogue.attesting,
     done: [],
     error: [],
@@ -395,6 +409,9 @@ export default function ConversationalBooking({
                 Unified balance: ${balance.totalUsd.toLocaleString()} across chains
               </p>
             )}
+            <p className="text-sm text-[color:var(--muted)] mb-4 max-w-prose">
+              Breathe with the circle. Your deposit settles as you exhale.
+            </p>
             <button
               type="button"
               onClick={handleDeposit}
@@ -411,16 +428,24 @@ export default function ConversationalBooking({
           </div>
         )}
 
-        {/* Attesting phase — automatic */}
+        {/* Breathing phase — deposit is being sent, breath cycle plays */}
+        {effectivePhase === "breathing" && (
+          <BreathSync active={true} />
+        )}
+
+        {/* Attesting phase — breath cycle continues, 0G Storage write */}
         {effectivePhase === "attesting" && (
-          <div className="flex items-center gap-3">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft" />
-            <span className="tag">Writing to 0G Storage…</span>
+          <div>
+            <BreathSync active={true} />
+            <div className="flex items-center gap-3 justify-center -mt-4">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft" />
+              <span className="tag">Writing to 0G Storage…</span>
+            </div>
           </div>
         )}
 
         {/* Cancel option */}
-        {effectivePhase !== "attesting" && (
+        {effectivePhase !== "attesting" && effectivePhase !== "breathing" && (
           <button
             type="button"
             onClick={onClose}

@@ -9,6 +9,8 @@ import MatchCard from "@/matching/MatchCard";
 import Counterfactual from "@/matching/Counterfactual";
 import LensComparison from "@/matching/LensComparison";
 import ClearHistoryLink from "@/matching/ClearHistoryLink";
+import WhyNotThisOne from "@/matching/WhyNotThisOne";
+import ChangedMyMind from "@/matching/ChangedMyMind";
 import MaskReveal from "@/components/MaskReveal";
 import AestheticJourney from "@/aesthetics/AestheticJourney";
 import { saveMatchResult } from "@/lib/client-session";
@@ -395,6 +397,20 @@ function MatchFlow() {
             />
           </div>
         ))}
+      </div>
+
+      {/* I changed my mind — agent-mediated re-matching */}
+      <div className="drop-in-3">
+        <ChangedMyMind sessionId={run.practitionerId} />
+      </div>
+
+      {/* Why not this one? — interactive counterfactual via Mira */}
+      <div className="drop-in-3">
+        <WhyNotThisOne
+          topMatch={top}
+          otherRetreats={run.results.slice(1)}
+          sessionId={run.practitionerId}
+        />
       </div>
 
       <div className="drop-in-3">
