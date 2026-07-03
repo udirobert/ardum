@@ -28,6 +28,7 @@ type ServerEnv = {
   SUPABASE_SERVICE_ROLE_KEY: string;
   MAGIC_SECRET_KEY: string;
   MAGIC_OIDC_PROVIDER_ID: string;
+  PARTICLE_SERVER_KEY: string;
 };
 
 const publicEnv: PublicEnv = {
@@ -65,6 +66,7 @@ function readServerEnv(): ServerEnv {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
     MAGIC_SECRET_KEY: process.env.MAGIC_SECRET_KEY ?? "",
     MAGIC_OIDC_PROVIDER_ID: process.env.MAGIC_OIDC_PROVIDER_ID ?? "",
+    PARTICLE_SERVER_KEY: process.env.PARTICLE_SERVER_KEY ?? "",
   };
 }
 
