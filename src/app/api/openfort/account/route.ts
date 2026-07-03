@@ -64,11 +64,8 @@ export async function POST(req: Request) {
 
     if (body.action === "sign" && body.accountId && body.tx) {
       // Sign + sponsor a transaction via Openfort
-      // In a full implementation, this would:
-      // 1. Create a transaction intent
-      // 2. Sign it with the Openfort backend wallet
-      // 3. Sponsor the gas via the policy
-      // 4. Return the on-chain tx hash
+      // The policy ID sponsors gas on Base Sepolia
+      const policyId = process.env.NEXT_PUBLIC_OPENFORT_POLICY_ID ?? "";
       const res = await fetch(
         `${OPENFORT_API_BASE}/accounts/${body.accountId}/transaction_intents`,
         {
@@ -77,7 +74,7 @@ export async function POST(req: Request) {
           body: JSON.stringify({
             chainId: 84532,
             transaction: body.tx,
-            // policy would be set here once created
+            policy: policyId || undefined,
           }),
         },
       );
