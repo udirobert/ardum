@@ -11,6 +11,7 @@
 // is handling everything for them.
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import MiraOrb from "@/components/MiraOrb";
 import { useMagicAuth } from "./MagicAuth";
 import { useUniversalAccount } from "./UniversalAccount";
@@ -281,6 +282,45 @@ export default function ConversationalBooking({
         {/* Mira checks in — post-booking follow-up timeline */}
         <div className="mt-6 ml-16">
           <MiraCheckIn retreatTitle={retreatTitle} signals={signals} />
+        </div>
+
+        {/* Share + referral — the viral loop closes here */}
+        <div className="mt-6 ml-16 border border-[color:var(--accent-soft)] rounded-sm bg-[color:var(--surface)] p-6 surface-card">
+          <div className="flex items-start gap-3 mb-4">
+            <MiraOrb size={32} state="speaking" className="flex-shrink-0 mt-0.5" />
+            <p className="text-sm leading-relaxed">
+              Your spot is held. If a friend books through your link, you both
+              get $50 off your next retreat. Want to share?
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3 ml-11">
+            <button
+              type="button"
+              onClick={() => {
+                const url = typeof window !== "undefined"
+                  ? `${window.location.origin}/match/${retreatRootHash}?ref=booked`
+                  : "";
+                const text = `I booked ${retreatTitle} through Ardum — an agent matched me. ${url}`;
+                const nav = navigator as Navigator & { share?: (data: { title?: string; text?: string; url?: string }) => Promise<void> };
+                if (typeof nav.share === "function") {
+                  nav.share({ title: `Ardum — ${retreatTitle}`, text, url }).catch(() => {
+                    nav.clipboard?.writeText(text).catch(() => {});
+                  });
+                } else {
+                  nav.clipboard?.writeText(text).catch(() => {});
+                }
+              }}
+              className="px-4 py-2 rounded-sm bg-[color:var(--accent)] text-background hover:bg-[color:var(--accent-ink)] transition-colors text-sm"
+            >
+              Share with a friend →
+            </button>
+            <Link
+              href={`/match/${retreatRootHash}`}
+              className="px-4 py-2 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
+            >
+              View your retreat →
+            </Link>
+          </div>
         </div>
 
         <button

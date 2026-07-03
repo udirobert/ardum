@@ -1,5 +1,6 @@
 import Intake from "@/calibration/Intake";
 import MaskReveal from "@/components/MaskReveal";
+import MiraOrb from "@/components/MiraOrb";
 import ParallaxHero from "@/components/ParallaxHero";
 import ScrollReveal from "@/components/ScrollReveal";
 
@@ -10,6 +11,11 @@ export default function Home() {
       <section className="relative min-h-[78vh] overflow-hidden">
         <ParallaxHero />
         <div className="relative z-10 mx-auto w-full max-w-4xl px-6 sm:px-10 pt-20 sm:pt-28 pb-16 min-h-[70vh] flex flex-col justify-center">
+        {/* Mira breathing in the hero — the agent is present from the first frame */}
+        <div className="flex items-center gap-3 mb-6 t-stagger is-shown">
+          <MiraOrb size={36} state="calm" />
+          <span className="t-stagger-line tag text-shadow-soft">Mira is here</span>
+        </div>
         <div className="t-stagger is-shown">
           <span className="t-stagger-line tag mb-4 text-shadow-soft">agentic retreat matching</span>
           <strong className="t-stagger-line t-stagger-line--2 font-serif text-5xl sm:text-7xl leading-[1.02] tracking-tight mb-8 max-w-3xl block">
@@ -28,7 +34,7 @@ export default function Home() {
             href="#intake"
             className="px-6 py-3 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors text-center"
           >
-            Start matching →
+            Talk to Mira →
           </a>
           <a
             href="/retreats"

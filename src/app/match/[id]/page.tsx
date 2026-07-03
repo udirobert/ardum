@@ -10,6 +10,8 @@ import RevealSection from "@/components/RevealSection";
 import ClientMatchBanner from "@/components/ClientMatchBanner";
 import AgentLetter from "@/components/AgentLetter";
 import { matchLetter } from "@/agent/mira-voice";
+import ChangedMyMind from "@/matching/ChangedMyMind";
+import ShareMatch from "@/matching/ShareMatch";
 import type { MatchResult } from "@/matching/types";
 
 export const dynamic = "force-dynamic";
@@ -169,6 +171,22 @@ export default async function MatchDetail({
               cycle={attestation.claims.breathCycle}
             />
           </div>
+        </RevealSection>
+      )}
+
+      {/* Share this match — viral loop on the detail page too */}
+      {sessionId && (
+        <RevealSection delay={500}>
+          <div className="mt-8">
+            <ShareMatch match={matchForLetter} />
+          </div>
+        </RevealSection>
+      )}
+
+      {/* I changed my mind — re-match from the detail page */}
+      {sessionId && (
+        <RevealSection delay={550}>
+          <ChangedMyMind sessionId={sessionId} />
         </RevealSection>
       )}
     </section>

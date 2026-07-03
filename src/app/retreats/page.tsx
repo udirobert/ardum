@@ -5,6 +5,7 @@ import { RETREAT_PHOTOS, FALLBACK_GRADIENT } from "@/lib/retreat-photos";
 import SectionDivider from "@/components/SectionDivider";
 import ProgressiveBlurImage from "@/components/ProgressiveBlurImage";
 import MaskReveal from "@/components/MaskReveal";
+import MiraOrb from "@/components/MiraOrb";
 import RetreatCarousel from "@/components/RetreatCarousel";
 
 // /retreats — a transparent browse of the attestation pool. Anyone can see
@@ -45,6 +46,23 @@ export default async function RetreatsPage() {
       </div>
 
       <SectionDivider />
+
+      {/* Mira greeting — the agent is present even on the browse page */}
+      <div className="flex items-start gap-4 mb-12 fade-in-up">
+        <MiraOrb size={40} state="calm" className="flex-shrink-0 mt-1" />
+        <div className="max-w-prose">
+          <p className="text-sm leading-relaxed text-[color:var(--muted)]">
+            These are the retreats I reason against. Each one is a verified
+            attestation — not a listing. If you&apos;d rather I find your match,
+            <Link
+              href="/#intake"
+              className="text-[color:var(--accent)] hover:text-[color:var(--accent-ink)] transition-colors ml-1"
+            >
+              talk to me first →
+            </Link>
+          </p>
+        </div>
+      </div>
 
       {/* 3D carousel — cinematic browse of the pool */}
       {attestations.length > 0 && (

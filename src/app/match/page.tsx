@@ -11,6 +11,7 @@ import LensComparison from "@/matching/LensComparison";
 import ClearHistoryLink from "@/matching/ClearHistoryLink";
 import WhyNotThisOne from "@/matching/WhyNotThisOne";
 import ChangedMyMind from "@/matching/ChangedMyMind";
+import ShareMatch from "@/matching/ShareMatch";
 import MaskReveal from "@/components/MaskReveal";
 import AestheticJourney from "@/aesthetics/AestheticJourney";
 import { saveMatchResult } from "@/lib/client-session";
@@ -385,6 +386,12 @@ function MatchFlow() {
             attestedAt={top.attestedAt}
           />
         </div>
+
+        {/* Share your match — the viral loop entry point */}
+        <div className="drop-in-2">
+          <ShareMatch match={top} />
+        </div>
+
         {run.results.slice(1, 3).map((r, i) => (
           <div key={r.id} className={i === 0 ? "drop-in-2" : "drop-in-3"}>
             <MatchCard
