@@ -5,6 +5,13 @@
 export const ARBITRUM_ONE_CHAIN_ID = 42161;
 export const ARBITRUM_SEPOLIA_CHAIN_ID = 421614;
 
+// Openfort settles on Base Sepolia (testnet only)
+export const BASE_SEPOLIA_CHAIN_ID = 84532;
+export const BASE_SEPOLIA_RPC = "https://sepolia.base.org";
+
+// USDC on Base Sepolia
+export const USDC_BASE_SEPOLIA = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+
 // USDC addresses on Arbitrum
 // Mainnet: 0xaf88d065e77c8cC2239327C5EDb3A432268e5831 (USDC native)
 // Sepolia: 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d (test USDC)

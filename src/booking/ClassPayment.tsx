@@ -13,7 +13,7 @@
 
 import { useCallback, useState } from "react";
 import { useMagicAuth } from "./MagicAuth";
-import { SETTLE_CHAIN_ID, USDC_ADDRESS } from "./constants";
+import { BASE_SEPOLIA_CHAIN_ID, USDC_BASE_SEPOLIA } from "./constants";
 import type { ClassAccessAttestation } from "./types";
 
 type ClassPaymentProps = {
@@ -64,8 +64,8 @@ export default function ClassPayment({
         const body = await res.json();
         const paymentRequirements = body.paymentRequirements ?? {
           amount: classPriceUsd.toString(),
-          token: USDC_ADDRESS,
-          chainId: SETTLE_CHAIN_ID,
+          token: USDC_BASE_SEPOLIA,
+          chainId: BASE_SEPOLIA_CHAIN_ID,
           payTo: body.payTo,
           description: `Class access: ${retreatTitle}`,
         };

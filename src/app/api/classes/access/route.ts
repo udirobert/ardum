@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
 import { verifyMessage } from "ethers";
+import { BASE_SEPOLIA_CHAIN_ID, USDC_BASE_SEPOLIA } from "@/booking/constants";
 
 // x402 payment-gated class access endpoint.
 //
 // GET  → returns 402 Payment Required with payment requirements
 // POST → verifies payment signature, grants access, returns tx hash
 //
+// Settles on Base Sepolia via Openfort (testnet only).
 // In production, the POST handler would:
 //   1. Verify the EIP-3009 TransferWithAuthorization signature
-//   2. Submit to a facilitator (Coinbase CDP) for on-chain settlement
+//   2. Submit to Openfort for sponsored transaction settlement
 //   3. Return the on-chain tx hash
-//
-// For the hackathon demo, we verify the personal_sign signature and
-// simulate the payment settlement.
 
 export const dynamic = "force-dynamic";
 
@@ -34,8 +33,8 @@ export async function GET(req: Request) {
       error: "Payment Required",
       paymentRequirements: {
         amount: CLASS_PRICE_USD.toString(),
-        token: "USDC",
-        chainId: 421614, // Arbitrum Sepolia
+        token: USDC_BASE_SEPOLIA,
+        chainId: BASE_SEPOLIA_CHAIN_ID,
         description: `Drop-in class access for retreat ${retreat.slice(0, 16)}`,
       },
       payTo: "0x0000000000000000000000000000000000000000", // platform address

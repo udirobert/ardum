@@ -29,6 +29,7 @@ type ServerEnv = {
   MAGIC_SECRET_KEY: string;
   MAGIC_OIDC_PROVIDER_ID: string;
   PARTICLE_SERVER_KEY: string;
+  OPENFORT_SECRET_KEY: string;
 };
 
 const publicEnv: PublicEnv = {
@@ -67,6 +68,7 @@ function readServerEnv(): ServerEnv {
     MAGIC_SECRET_KEY: process.env.MAGIC_SECRET_KEY ?? "",
     MAGIC_OIDC_PROVIDER_ID: process.env.MAGIC_OIDC_PROVIDER_ID ?? "",
     PARTICLE_SERVER_KEY: process.env.PARTICLE_SERVER_KEY ?? "",
+    OPENFORT_SECRET_KEY: process.env.OPENFORT_SECRET_KEY ?? "",
   };
 }
 
@@ -127,6 +129,11 @@ export function hasOpenfort(): boolean {
     publicEnv.NEXT_PUBLIC_OPENFORT_PUBLIC_KEY &&
       publicEnv.NEXT_PUBLIC_OPENFORT_POLICY_ID,
   );
+}
+
+export function hasOpenfortServer(): boolean {
+  const e = readServerEnv();
+  return Boolean(e.OPENFORT_SECRET_KEY);
 }
 
 export { publicEnv, readServerEnv };
