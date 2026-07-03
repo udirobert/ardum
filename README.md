@@ -2,6 +2,10 @@
 
 Agentic yoga retreat matching built on 0G (Storage + Compute). Verified
 attestations, in-browser pose calibration, reasoning visible at every step.
+The entire user journey — from intake to booking to post-booking preparation
+— is guided by Mira, a persistent agent persona. The matching phase is an
+aesthetic journey through generative imagery and ambient sound, not a
+loading screen.
 
 ## Design references
 
@@ -92,6 +96,34 @@ Repos that informed Ardum's agent-consumable retreat language and pose workflow:
 - **Solidity** — `RetreatDepositEscrow.sol` deployed on Arbitrum Sepolia
   at `0xBEe032998c7A1d9268075Dfc2061514143d5B796`. Handles deposit,
   check-in, claim, refund, and cancel-expired flows.
+- **Mira — agent persona** (`src/components/MiraOrb.tsx`,
+  `src/agent/mira-voice.ts`) — a breathing orb (4s calm cycle matching
+  relaxed breathing rhythm) that anchors every interaction. Mira's voice
+  is warm, second-person, present tense. Present at every step: intake,
+  match letter, booking conversation, post-booking preparation plan.
+  Three orb states: calm (idle), thinking (reasoning), speaking (active
+  dialogue).
+- **Aesthetic journey** (`src/aesthetics/`) — the matching phase is an
+  interactive visual + sound experience, not a loading spinner. While
+  the agent reasons via SSE, the user journeys through curated imagery
+  (12-image pool with 15-dimensional aesthetic vectors) and hears an
+  ambient drone synthesized via Web Audio API. Their reactions (resonate
+  / skip, weighted by dwell time) build a preference vector that:
+  (1) drives bandit-style image selection, (2) shifts the drone in
+  real-time, (3) gets woven into Mira's match letter, (4) informs the
+  fal.ai prompt for the generated retreat vision. Token-efficient: ~8
+  curated interactions at zero cost, 1 fal.ai call for the generated
+  retreat vision (Tier 2), falls back to curated Unsplash if
+  `FAL_KEY` is not set.
+- **fal.ai** (`@fal-ai/client`) — generative imagery for the retreat
+  vision (Tier 2) and post-booking preparation plan (Tier 3, future).
+  Uses flux/schnell (4 inference steps). 1 call per match, not per
+  interaction. Falls back to curated Unsplash images if
+  `FAL_KEY` is not set.
+- **Motion design** — Lenis smooth scroll (`@studio-freight/lenis`),
+  GSAP-powered parallax hero, scroll-driven reveals, and a 3D retreat
+  carousel. The motion layer is cinematic but restrained — depth and
+  rhythm, not spectacle.
 
 ## Folder structure
 
@@ -104,17 +136,30 @@ src/
     api/attestations/ # server-only 0G Storage upload/retrieve
     api/bookings/     # booking attestation writer (verifies sig → 0G Storage)
     api/classes/access/ # x402 payment-gated class access (402 → verify → grant)
+    api/generate-vision/ # fal.ai retreat vision generation (Tier 2)
     api/magic/wallet/ # Magic TEE wallet creation (server-side, from JWT)
     api/openfort/account/ # Openfort account creation + sponsored tx
     match/            # reasoning-reveal + match card + booking CTA
+      [id]/           # match detail page — Mira's agent letter
     attest/           # wallet-gated attestation upload (gasless + classic)
-  booking/            # UXmaxx hackathon booking layer
+  aesthetics/         # Aesthetic journey — imagery + sound during matching
+    image-pool.ts      # 12 curated images with 15-dim aesthetic vectors
+    AmbientDrone.ts    # Web Audio API drone synthesizer
+    AestheticJourney.tsx # interactive image + sound experience
+  agent/              # 0G Compute client + matching prompts + Mira voice
+    mira-voice.ts      # Mira's dialogue generation (letter, booking, class, prep)
+    score.ts           # AXES registry — single source of truth for matching
+    prompts.ts         # LLM prompt construction
+    client.ts          # 0G Compute Router client
+  booking/            # transaction abstraction + conversational booking
     MagicAuth.tsx       # Magic SDK social login provider (connectWithUI)
     UniversalAccount.tsx # Particle UA EIP-7702 + cross-chain deposit
-    BookingFlow.tsx     # 4-step booking UI (sign in → delegate → deposit → attest)
+    ConversationalBooking.tsx # booking as dialogue with Mira (not wizard)
+    ClassInvitation.tsx # drop-in class as agent invitation (not checkout)
+    BookingFlow.tsx     # legacy 4-step booking UI (kept for reference)
     BookButton.tsx      # "Book this retreat" CTA on match detail
-    ClassPayment.tsx    # x402 drop-in class payment flow
-    ClassButton.tsx     # "Drop-in class ($N)" CTA on match detail
+    ClassPayment.tsx    # legacy x402 drop-in class payment flow
+    ClassButton.tsx     # legacy "Drop-in class ($N)" CTA
     OperatorAuth.tsx    # Particle Auth + ZeroDev session keys for operators
     OperatorWalletButton.tsx # "Sign in with Google (gasless)" on /attest
     OpenfortWallet.tsx  # Openfort embedded wallet provider
@@ -123,9 +168,20 @@ src/
     escrow-abi.ts       # RetreatDepositEscrow ABI
     canonical.ts        # booking attestation signing canonical
   calibration/        # conversational intake + MediaPipe pose-check
+    Intake.tsx          # guided introspection with Mira present at each step
+    intakeSteps.ts      # 3 questions with Mira's voice + why explanation
+    PoseCheck.tsx       # in-browser pose calibration (MediaPipe)
   matching/           # match result types + reasoning UI
   attestation/        # attestation schema + wallet button
-  agent/              # 0G Compute client + matching prompts (server-only)
+  components/         # shared UI
+    MiraOrb.tsx         # the breathing orb (calm/thinking/speaking states)
+    AgentLetter.tsx     # Mira's match letter + inline booking
+    ParallaxHero.tsx    # GSAP parallax hero section
+    ScrollReveal.tsx    # scroll-driven reveal animations
+    RetreatCarousel.tsx # 3D retreat carousel for /retreats
+    SmoothScroll.tsx    # Lenis smooth scroll provider
+    ProgressiveBlurImage.tsx # progressive image loading
+    MaskReveal.tsx      # mask reveal animation for match results
   lib/                # env, session dispatcher + adapters, fingerprint, supabase, seed data
     env.ts              # env access + hasMagic/hasParticleUA/hasZeroDev/hasOpenfort predicates
     session.ts          # async dispatcher (memory or supabase)
@@ -166,6 +222,7 @@ layers you want to enable. Each one is independent:
 | `NEXT_PUBLIC_ZERODEV_API_KEY` | ZeroDev gas sponsorship + session keys for operator attestations. RPC URL constructed automatically: `https://rpc.zerodev.app/api/v3/{key}/chain/{chainId}`. |
 | `NEXT_PUBLIC_OPENFORT_PUBLIC_KEY` + `NEXT_PUBLIC_OPENFORT_POLICY_ID` [+ `OPENFORT_SECRET_KEY`] | Openfort embedded wallet + x402 micropayments for drop-in classes. Settles on Base Sepolia (testnet). Secret key enables server-side account creation + sponsored transactions. |
 | `NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS` | The deployed `RetreatDepositEscrow` address on Arbitrum Sepolia (`0xBEe032998c7A1d9268075Dfc2061514143d5B796`). Set `NEXT_PUBLIC_USE_TESTNET=true` to target Sepolia. |
+| `FAL_KEY` | fal.ai generative imagery for the retreat vision (Tier 2). If not set, falls back to curated Unsplash images matched to the user's dominant aesthetic quality. 1 call per match — token-efficient. |
 
 The adapter at `src/lib/og-storage.ts` lazy-imports the SDK only when
 needed, and the agent at `src/agent/client.ts` falls back gracefully
@@ -304,3 +361,67 @@ This will require a change in your app's account system."* The current SDK
 works and the demo repos use it. If V2 drops, the migration is scoped to
 the practitioner booking path only — operator and drop-in flows are
 unaffected.
+
+---
+
+## Agent-driven UX — Mira + aesthetic journey
+
+The booking experience was functional but indistinguishable from any other
+booking site. The agent did the matching and then disappeared at the exact
+moment it should have become more present. The entire user journey is now
+reimagined around a persistent agent guide.
+
+### Mira — the agent persona
+
+A breathing orb (4s calm cycle, matching relaxed breathing rhythm) anchors
+every interaction. Mira's voice is warm, second-person, present tense.
+Never says "I am an AI." Talks like a guide who has been doing this for
+years. Three orb states: calm (idle), thinking (reasoning), speaking
+(active dialogue).
+
+- `src/components/MiraOrb.tsx` — the orb visual
+- `src/agent/mira-voice.ts` — dialogue generation for every touchpoint
+
+### Touchpoint transformation
+
+| Touchpoint | Before | After |
+|---|---|---|
+| Onboarding | 3-question form | Mira orb + voice guides each question as a conversation |
+| Match detail | Product listing (photo, title, price, button) | Personal letter from Mira with reasoning woven in |
+| Booking | 4-step wizard with progress bar | Conversation — Mira narrates each step inline |
+| Post-booking | Success screen with tx hash | 5-day personalized preparation plan based on match signals |
+| Drop-in class | "Drop-in class ($25)" button | Spontaneous invitation from Mira, opened with empathy |
+
+### Aesthetic journey — the matching phase as experience
+
+The matching phase was dead time — a loading spinner. Now it is the
+experience. While the agent reasons via SSE, the user journeys through
+curated imagery with an ambient drone that shifts based on their reactions.
+
+**Tier 1 (zero API cost):**
+- 12-image curated pool with 15-dimensional aesthetic vectors
+- Web Audio API ambient drone synthesizer — no files, no API, deterministic
+- Bandit-style image selection (exploitation + exploration)
+- Dwell-time-weighted preference vector updates
+
+**Tier 2 (1 fal.ai call per match):**
+- API route generates a custom retreat vision image from accumulated
+  preferences + retreat location/practice style
+- Falls back to curated Unsplash if `FAL_KEY` not set
+
+**Tier 3 (future, lazy-loaded):**
+- Each day of the 5-day prep plan gets a unique generative image
+- Deeper personalization after commitment — loss aversion works in our favor
+
+The user's aesthetic preferences are woven into Mira's match letter:
+*"While I was thinking, you were drawn to ocean and warm tones. That tells
+me something about where you'd thrive."*
+
+### Token efficiency
+
+| Phase | API calls | Cost |
+|---|---|---|
+| 8 curated interactions | 0 | $0 |
+| Retreat vision (Tier 2) | 1 fal.ai | ~$0.003 |
+| Prep plan images (Tier 3, future) | 5 fal.ai (lazy) | ~$0.015 |
+| **Total per user** | **~6** | **~$0.018** |
