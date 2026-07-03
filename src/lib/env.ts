@@ -12,7 +12,7 @@ type PublicEnv = {
   NEXT_PUBLIC_PARTICLE_APP_ID: string;
   NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS: string;
   NEXT_PUBLIC_USE_TESTNET: string;
-  NEXT_PUBLIC_ZERODEV_RPC: string;
+  NEXT_PUBLIC_ZERODEV_API_KEY: string;
   NEXT_PUBLIC_OPENFORT_PUBLIC_KEY: string;
   NEXT_PUBLIC_OPENFORT_POLICY_ID: string;
 };
@@ -47,7 +47,7 @@ const publicEnv: PublicEnv = {
   NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS:
     process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS ?? "",
   NEXT_PUBLIC_USE_TESTNET: process.env.NEXT_PUBLIC_USE_TESTNET ?? "",
-  NEXT_PUBLIC_ZERODEV_RPC: process.env.NEXT_PUBLIC_ZERODEV_RPC ?? "",
+  NEXT_PUBLIC_ZERODEV_API_KEY: process.env.NEXT_PUBLIC_ZERODEV_API_KEY ?? "",
   NEXT_PUBLIC_OPENFORT_PUBLIC_KEY:
     process.env.NEXT_PUBLIC_OPENFORT_PUBLIC_KEY ?? "",
   NEXT_PUBLIC_OPENFORT_POLICY_ID:
@@ -111,7 +111,15 @@ export function hasEscrowContract(): boolean {
 }
 
 export function hasZeroDev(): boolean {
-  return Boolean(publicEnv.NEXT_PUBLIC_ZERODEV_RPC);
+  return Boolean(publicEnv.NEXT_PUBLIC_ZERODEV_API_KEY);
+}
+
+// Construct the ZeroDev RPC URL from the API key + chain ID.
+// Format: https://rpc.zerodev.app/api/v3/{apiKey}/chain/{chainId}
+export function zerodevRpcUrl(chainId: number): string {
+  const key = publicEnv.NEXT_PUBLIC_ZERODEV_API_KEY;
+  if (!key) return "";
+  return `https://rpc.zerodev.app/api/v3/${key}/chain/${chainId}`;
 }
 
 export function hasOpenfort(): boolean {

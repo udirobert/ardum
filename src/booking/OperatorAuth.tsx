@@ -41,20 +41,20 @@ type OperatorEnv = {
   particleProjectId: string;
   particleClientKey: string;
   particleAppId: string;
-  zerodevRpc: string;
+  zerodevApiKey: string;
 };
 
 function readOperatorEnv(): OperatorEnv | null {
   const particleProjectId = process.env.NEXT_PUBLIC_PARTICLE_PROJECT_ID ?? "";
   const particleClientKey = process.env.NEXT_PUBLIC_PARTICLE_CLIENT_KEY ?? "";
   const particleAppId = process.env.NEXT_PUBLIC_PARTICLE_APP_ID ?? "";
-  const zerodevRpc = process.env.NEXT_PUBLIC_ZERODEV_RPC ?? "";
+  const zerodevApiKey = process.env.NEXT_PUBLIC_ZERODEV_API_KEY ?? "";
   if (!particleProjectId || !particleClientKey || !particleAppId) return null;
   return {
     particleProjectId,
     particleClientKey,
     particleAppId,
-    zerodevRpc,
+    zerodevApiKey,
   };
 }
 
@@ -133,8 +133,8 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
   }, [particleAuth]);
 
   const createSessionKey = useCallback(async (): Promise<boolean> => {
-    if (!address || !env?.zerodevRpc) {
-      setError("Need operator address + ZeroDev RPC for session keys.");
+    if (!address || !env?.zerodevApiKey) {
+      setError("Need operator address + ZeroDev API key for session keys.");
       return false;
     }
     setError(null);
