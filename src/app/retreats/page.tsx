@@ -107,16 +107,25 @@ export default async function RetreatsPage() {
                       ))}
                     </div>
                     <div className="pt-3 border-t border-[color:var(--hairline)] mt-2">
-                      <p className="tag flex items-baseline justify-between">
-                        <span>
+                      <div className="flex items-baseline justify-between mb-2">
+                        <p className="tag">
                           1 attestation ·{" "}
                           <span className="text-foreground">0G Storage</span>
-                        </span>
-                        <span className="opacity-70">
+                        </p>
+                        <span className="opacity-70 text-xs">
                           {new Date(a.createdAt).toLocaleDateString()}
                         </span>
-                      </p>
-                      <p className="tag opacity-60 truncate mt-1">
+                      </div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-sm bg-[color:var(--accent-soft)] text-[color:var(--accent-ink)]">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)]" />
+                          bookable
+                        </span>
+                        <span className="text-xs text-[color:var(--muted)]">
+                          ${a.claims.priceUsd.toLocaleString()} deposit · drop-in ${Math.max(25, Math.round(a.claims.priceUsd / 20))}
+                        </span>
+                      </div>
+                      <p className="tag opacity-60 truncate">
                         {a.rootHash}
                       </p>
                     </div>

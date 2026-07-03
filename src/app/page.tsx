@@ -65,7 +65,7 @@ export default function Home() {
         <MaskReveal>
           <p className="tag mb-4">how it works</p>
           <h2 className="font-serif text-4xl sm:text-5xl leading-[1.05] tracking-tight mb-16">
-            Calibrate. Reason. Match.
+            Calibrate. Reason. Match. Book.
           </h2>
         </MaskReveal>
 
@@ -170,6 +170,71 @@ export default function Home() {
                   <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--accent)]" />
                   <span className="tag">matched</span>
                 </div>
+                <button
+                  type="button"
+                  className="mt-4 w-full px-5 py-2.5 rounded-sm bg-[color:var(--accent)] text-background text-sm text-center"
+                >
+                  Book this retreat →
+                </button>
+              </div>
+            </div>
+          </MaskReveal>
+
+          {/* Step 4 */}
+          <MaskReveal>
+            <div className="grid sm:grid-cols-2 gap-8 sm:gap-16 items-center">
+              <div className="order-last sm:order-first">
+                <span className="font-serif text-6xl text-[color:var(--accent-soft)] leading-none">04</span>
+                <h3 className="font-serif text-3xl tracking-tight mt-2 mb-4">Book</h3>
+                <p className="text-[color:var(--muted)] leading-relaxed">
+                  Sign in with Google. No MetaMask, no seed phrase, no gas.
+                  A Universal Account upgrades your wallet via EIP-7702,
+                  routes your deposit cross-chain, and settles on Arbitrum —
+                  all in one click. The booking is attested on 0G Storage.
+                </p>
+              </div>
+              <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 surface-card">
+                <div className="flex gap-2 mb-6">
+                  {[
+                    { n: 1, label: "Sign in", done: true },
+                    { n: 2, label: "Upgrade", done: true },
+                    { n: 3, label: "Deposit", done: false },
+                    { n: 4, label: "Attest", done: false },
+                  ].map((s, i) => (
+                    <div key={s.n} className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs ${
+                          s.done
+                            ? "bg-[color:var(--accent)] text-background"
+                            : "border border-[color:var(--accent)] text-[color:var(--accent)]"
+                        }`}
+                      >
+                        {s.done ? "✓" : s.n}
+                      </span>
+                      <span
+                        className={`text-xs ${
+                          s.done ? "text-foreground" : "text-[color:var(--accent)]"
+                        }`}
+                      >
+                        {s.label}
+                      </span>
+                      {i < 3 && (
+                        <span className="text-[color:var(--hairline)] mx-1">→</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm text-[color:var(--muted)] mb-4">
+                  Deposit $1,800 — UA routes from any chain, settles on Arbitrum.
+                </p>
+                <div className="flex items-center gap-3">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft" />
+                  <span className="tag">Depositing on Arbitrum…</span>
+                </div>
+                <div className="h-px bg-[color:var(--hairline)] my-4" />
+                <p className="tag opacity-70">
+                  powered by Magic + Particle UA + Arbitrum escrow
+                </p>
               </div>
             </div>
           </MaskReveal>
