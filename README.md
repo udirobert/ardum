@@ -1,11 +1,26 @@
 # Ardum — the shape of your practice
 
+*Ardum is mudra reversed. A mudra seals your practice. Ardum finds it.*
+
 Agentic yoga retreat matching built on 0G (Storage + Compute). Verified
 attestations, in-browser pose calibration, reasoning visible at every step.
 The entire user journey — from intake to booking to post-booking preparation
 — is guided by Mira, a persistent agent persona. The matching phase is an
 aesthetic journey through generative imagery and ambient sound, not a
 loading screen.
+
+## The name
+
+**Mudra** (Sanskrit: मुद्रा) means "seal" or "gesture" — a symbolic shape,
+usually of the hands, that directs energy and intention during practice.
+**Ardum** is mudra reversed. The seal opened, the search begun.
+
+The Mira orb carries this concept visually: a thin ring inside the orb
+represents the mudra seal. When Mira is calm, the ring is complete (the
+seal — chin mudra, receptivity). When Mira is thinking, the ring opens —
+a gap appears (the seal cracked open, inquiry — Ardum, the reversed mudra).
+When Mira is speaking, the ring radiates outward (the offering — abhaya
+mudra, fearlessness). The gap *is* the concept. A mudra seals. Ardum opens.
 
 ## Design references
 

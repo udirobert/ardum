@@ -194,6 +194,18 @@ body::before {
   }
 }
 
+/* Mira radiate — the offering dots when Mira speaks (abhaya mudra) */
+@keyframes mira-radiate {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.2);
+  }
+}
+
 /* Mira dialogue — typewriter-style line reveal */
 @keyframes mira-line-in {
   0% {

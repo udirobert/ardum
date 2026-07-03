@@ -46,6 +46,26 @@ export default function Home() {
         </div>
       </section>
 
+      {/* The name — a quiet reveal of the concept */}
+      <section className="relative z-10 mx-auto w-full max-w-4xl px-6 sm:px-10 py-16">
+        <MaskReveal>
+          <div className="flex items-start gap-6">
+            <MiraOrb size={56} state="calm" className="flex-shrink-0" />
+            <div className="max-w-2xl">
+              <p className="font-serif text-2xl sm:text-3xl leading-[1.3] tracking-tight">
+                <span className="italic">Ardum</span> is{" "}
+                <span className="italic">mudra</span> reversed.
+              </p>
+              <p className="text-[color:var(--muted)] mt-3 leading-relaxed">
+                A mudra is a seal — a shape your hands make to direct energy
+                and intention. Ardum inverts it: the seal opened, the search
+                begun. The shape that finds your practice, instead of closing it.
+              </p>
+            </div>
+          </div>
+        </MaskReveal>
+      </section>
+
       {/* How it works */}
       <section className="relative z-10 mx-auto w-full max-w-4xl px-6 sm:px-10 py-24">
         <MaskReveal>
