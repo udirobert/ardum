@@ -8,6 +8,7 @@ export type IntakeStep = {
   prompt: string;
   sub: string;
   why: string;
+  mira: string; // Mira's opening line for this step
   options: { value: string; label: string; description?: string }[];
 };
 
@@ -18,6 +19,7 @@ export const INTAKE_STEPS: IntakeStep[] = [
     sub: "Right now, this week — wherever is more honest.",
     why: `Matching on energy rather than category is what lets the agent
 reason about the kind of practice that will actually meet you.`,
+    mira: `Let's start with where you are. Not where you want to be — where you actually are, right now.`,
     options: [
       { value: "settled", label: "Settled" },
       { value: "in-movement", label: "In movement" },
@@ -31,6 +33,7 @@ reason about the kind of practice that will actually meet you.`,
     sub: "Per person, all-in. It's a guardrail, not a verdict.",
     why: `Budget narrows the field but doesn't rank it — a $1,200 week in
 Sidemen can out-carry a $4,000 intensive in Tulum if the practice matches.`,
+    mira: `Good. Now let's talk about the practical side. This is a guardrail, not a verdict — I'll work with whatever you give me.`,
     options: [
       { value: "under-1k", label: "Under $1,000" },
       { value: "1k-2k", label: "$1,000 – $2,000" },
@@ -44,6 +47,7 @@ Sidemen can out-carry a $4,000 intensive in Tulum if the practice matches.`,
     sub: "How much company do you want, in honest terms.",
     why: `Social comfort is the single biggest predictor of whether a retreat
 feels nourishing or draining — and it's the one most filters get wrong.`,
+    mira: `One more thing. This is the question most retreat platforms get wrong — how much company do you actually want?`,
     options: [
       { value: "solo", label: "Mostly alone" },
       { value: "small-circle", label: "Small circle" },

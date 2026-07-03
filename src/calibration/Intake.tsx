@@ -12,6 +12,7 @@ import type {
   PractitionerProfile,
 } from "./schema";
 import PoseCheck from "./PoseCheck";
+import MiraOrb from "@/components/MiraOrb";
 import {
   clearFingerprint,
   getFingerprint,
@@ -249,6 +250,18 @@ export default function Intake() {
       <div className="t-page-slide relative min-h-[60vh]" data-page={pageIndex + 1}>
         {INTAKE_STEPS.map((step, i) => (
           <div key={step.id} className="t-page" data-page-id={i + 1}>
+            {/* Mira — the guide present at every step */}
+            <div className="flex items-center gap-4 mb-8">
+              <MiraOrb size={44} state="speaking" />
+              <div>
+                <p className="font-serif text-xl tracking-tight">Mira</p>
+                <p className="tag">your guide</p>
+              </div>
+            </div>
+            <p className="text-lg leading-relaxed text-foreground mb-8 max-w-prose mira-line">
+              {step.mira}
+            </p>
+
             <p className="tag mb-6">
               step {i + 1} of {INTAKE_STEPS.length + 1}
             </p>
@@ -309,6 +322,20 @@ export default function Intake() {
         ))}
 
         <div className="t-page" data-page-id={INTAKE_STEPS.length + 1}>
+          {/* Mira — guiding the final step */}
+          <div className="flex items-center gap-4 mb-8">
+            <MiraOrb size={44} state="calm" />
+            <div>
+              <p className="font-serif text-xl tracking-tight">Mira</p>
+              <p className="tag">your guide</p>
+            </div>
+          </div>
+          <p className="text-lg leading-relaxed text-foreground mb-8 max-w-prose mira-line">
+            I have what I need. This last step is optional — a five-second
+            posture sample gives me a real baseline to reason from. Your
+            camera frames never leave this browser tab.
+          </p>
+
           <p className="tag mb-6">
             step {INTAKE_STEPS.length + 1} of {INTAKE_STEPS.length + 1}
           </p>
@@ -377,7 +404,7 @@ export default function Intake() {
               disabled={submitting}
               className="px-6 py-3 rounded-sm bg-[color:var(--accent)] text-background disabled:opacity-50 hover:bg-[color:var(--accent-ink)] transition-colors"
             >
-              {submitting ? "reasoning…" : submitError ? "try again →" : "begin matching →"}
+              {submitting ? "I'm reasoning…" : submitError ? "try again →" : "find my retreat →"}
             </button>
           </div>
         </div>

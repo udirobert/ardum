@@ -1,0 +1,163 @@
+// Mira's voice — the agent persona that guides users through Ardum.
+//
+// Not a chatbot. A guide who has been doing this for years.
+// Warm, second-person, present tense. Never says "I am an AI."
+// Talks like someone who knows retreats and knows people.
+//
+// These functions generate the narrative text that appears on the
+// match detail page, in the booking flow, and in the preparation plan.
+
+import type { MatchResult } from "@/matching/types";
+
+type PractitionerSignals = {
+  energy?: string;
+  budget?: string;
+  social?: string;
+};
+
+// ── Match letter ────────────────────────────────────────────────────
+// The match detail page opens with a letter from Mira, not a product
+// listing. The reasoning is woven into the narrative.
+
+export function matchLetter(
+  match: MatchResult,
+  signals: PractitionerSignals,
+): { lines: string[]; cta: string } {
+  const energy = signals.energy ?? "your energy";
+  const social = signals.social ?? "your comfort";
+
+  const energyPhrase: Record<string, string> = {
+    low: "you're arriving depleted",
+    settled: "you're arriving settled",
+    "in-movement": "you're arriving in motion",
+    sharp: "you're arriving sharp",
+  };
+
+  const socialPhrase: Record<string, string> = {
+    solo: "you need space to yourself",
+    "small-circle": "you want a small circle",
+    "open-circle": "you're open to a larger group",
+    communal: "you're seeking community",
+  };
+
+  const arrival = energyPhrase[signals.energy ?? ""] ?? `your energy is ${energy}`;
+  const socialLine = socialPhrase[signals.social ?? ""] ?? `your social comfort leans ${social}`;
+
+  const lines = [
+    `I found a retreat that fits where you are right now.`,
+    `${match.retreatTitle} in ${match.retreatLocation}.`,
+    `I'm recommending this because ${arrival}, and ${socialLine}. This retreat specializes in ${match.practiceStyle.slice(0, 2).join(" and ")}.`,
+    match.headline,
+    `The deposit is $${match.priceUsd.toLocaleString()}. It's held in escrow on Arbitrum — the operator doesn't get it until you check in.`,
+    `If you book, I'll build you a preparation plan based on what I've learned about you. Five minutes a day until you leave.`,
+  ];
+
+  const cta = `Want me to hold your spot?`;
+
+  return { lines, cta };
+}
+
+// ── Booking conversation ────────────────────────────────────────────
+// The booking flow is a conversation, not a wizard. Mira narrates
+// each step. These are the lines that appear as the flow progresses.
+
+export function bookingDialogue(depositUsd: number, retreatTitle: string) {
+  return {
+    signIn: [
+      `I'll hold your spot on ${retreatTitle}.`,
+      `Sign in with Google — I'll handle the wallet, the chain, the gas. You won't see any of it.`,
+    ],
+    upgrading: [
+      `Good. I'm upgrading your account now.`,
+      `This is a one-time step. A Universal Account lets you pay from any chain, any token. You won't need to do this again.`,
+    ],
+    depositing: [
+      `Your account is ready. The deposit is $${depositUsd.toLocaleString()}.`,
+      `I'll route it cross-chain and settle on Arbitrum. The operator won't touch it until you arrive.`,
+    ],
+    attesting: [
+      `Deposit confirmed. I'm writing the booking to 0G Storage now.`,
+      `This is your proof of reservation — stored permanently, verifiable by anyone.`,
+    ],
+    done: [
+      `You're booked.`,
+      `I've started your preparation plan. It's based on what I've learned about your energy, your practice, and what this retreat offers.`,
+      `Five minutes a day. Start tonight.`,
+    ],
+  };
+}
+
+// ── Drop-in class invitation ────────────────────────────────────────
+// The class payment is reframed as a spontaneous invitation from Mira,
+// not a checkout button.
+
+export function classInvitation(
+  retreatTitle: string,
+  classPriceUsd: number,
+  signals: PractitionerSignals,
+) {
+  const opener: Record<string, string> = {
+    low: `Can't commit to the full retreat? I understand. Your energy is low right now.`,
+    settled: `Not ready for the full retreat? That's fine.`,
+    "in-movement": `Want to try before you commit? Good instinct.`,
+    sharp: `Not sure about the full retreat? Let's start small.`,
+  };
+
+  const line = opener[signals.energy ?? ""] ?? `Can't commit to the full retreat?`;
+
+  return {
+    lines: [
+      line,
+      `Tomorrow's 6am practice at ${retreatTitle} is open. ${classPriceUsd} dollars — I'll handle the payment. One session, no commitment.`,
+      `If it resonates, the full retreat will still be here.`,
+    ],
+    cta: `Join tomorrow's class`,
+  };
+}
+
+// ── Preparation plan ────────────────────────────────────────────────
+// After booking, Mira generates a personalized pre-retreat plan.
+// Based on the same signals that drove the match.
+
+export function preparationPlan(
+  match: MatchResult,
+  signals: PractitionerSignals,
+): { title: string; days: { day: number; title: string; description: string; duration: string }[] } {
+  const energy = signals.energy ?? "settled";
+
+  const plans: Record<string, { day: number; title: string; description: string; duration: string }[]> = {
+    low: [
+      { day: 1, title: "Arrive where you are", description: "Five minutes of seated breathing. Don't try to change anything. Just notice the rhythm you're in.", duration: "5 min" },
+      { day: 2, title: "Lengthen the exhale", description: "Breathe in for 4, out for 6. This signals your nervous system to settle. Do this lying down.", duration: "5 min" },
+      { day: 3, title: "Gentle movement", description: "Three rounds of cat-cow, slow. Let your breath lead the movement. No ambition here.", duration: "5 min" },
+      { day: 4, title: "Write it down", description: "One sentence: what are you hoping to feel by the end of the retreat? Don't overthink it.", duration: "5 min" },
+      { day: 5, title: "Rest", description: "No practice today. Just rest. The retreat starts when you arrive, not when you push.", duration: "0 min" },
+    ],
+    settled: [
+      { day: 1, title: "Check your foundation", description: "Five minutes of mountain pose. Feel your feet. Let your breath find its natural depth.", duration: "5 min" },
+      { day: 2, title: "Open the shoulders", description: "Three rounds of thread-the-needle. Your shoulders carry more than you think.", duration: "5 min" },
+      { day: 3, title: "Find your edge", description: "Hold warrior II for five breaths longer than comfortable. Notice what happens in your mind.", duration: "5 min" },
+      { day: 4, title: "Journal prompt", description: "What pattern in your practice are you ready to release? Write for three minutes.", duration: "5 min" },
+      { day: 5, title: "Integrate", description: "Five minutes of seated meditation. Let the week's practice settle into your body.", duration: "5 min" },
+    ],
+    "in-movement": [
+      { day: 1, title: "Slow it down", description: "Five sun salutations at half speed. Let each breath be longer than the movement.", duration: "5 min" },
+      { day: 2, title: "Ground through the feet", description: "Standing forward fold, knees bent. Let your weight sink. Stay for ten breaths.", duration: "5 min" },
+      { day: 3, title: "Hip openers", description: "Pigeon pose, both sides. This is where you store momentum. Let it release.", duration: "5 min" },
+      { day: 4, title: "Write it down", description: "What are you running toward? What are you running from? One sentence each.", duration: "5 min" },
+      { day: 5, title: "Pause", description: "No movement today. Five minutes of seated breathing. Let stillness be the practice.", duration: "5 min" },
+    ],
+    sharp: [
+      { day: 1, title: "Drop the edge", description: "Five minutes of alternate-nostril breathing. This balances the nervous system. Do it seated.", duration: "5 min" },
+      { day: 2, title: "Long exhales", description: "Breathe in for 4, out for 8. If you can't do 8, do 6. The point is the ratio, not the count.", duration: "5 min" },
+      { day: 3, title: "Restorative poses", description: "Legs-up-the-wall for five minutes. This is the most underused pose in yoga.", duration: "5 min" },
+      { day: 4, title: "Journal prompt", description: "What would it feel like to not push for a week? Write for three minutes.", duration: "5 min" },
+      { day: 5, title: "Soften", description: "Five minutes of savasana. Let your body tell you what it needs. Don't instruct.", duration: "5 min" },
+    ],
+  };
+
+  return {
+    title: `Your 5-day preparation`,
+    days: plans[energy] ?? plans.settled,
+  };
+}

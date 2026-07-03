@@ -164,6 +164,45 @@ body::before {
   animation: pulse-soft 1.6s ease-in-out infinite;
 }
 
+/* Mira orb — breathing animation. Calm = 4s (relaxed breathing),
+   thinking = 2s, speaking = 3s. Scale + opacity shift, not a pulse. */
+@keyframes mira-breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+.mira-orb {
+  animation: mira-breathe 4s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Mira dialogue — typewriter-style line reveal */
+@keyframes mira-line-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mira-line {
+  animation: mira-line-in 600ms var(--ease-ardum) both;
+}
+
+.mira-line-2 { animation-delay: 200ms; }
+.mira-line-3 { animation-delay: 400ms; }
+.mira-line-4 { animation-delay: 600ms; }
+.mira-line-5 { animation-delay: 800ms; }
+
 /* Subtle card lift on hover — the only tactile feedback in the system. */
 .hover-lift {
   transition: transform 480ms var(--ease-ardum),

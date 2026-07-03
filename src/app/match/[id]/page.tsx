@@ -2,29 +2,39 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 
 import { getAttestation } from "@/lib/og-storage";
+import { getProfile } from "@/lib/session";
 import { RETREAT_PHOTOS, FALLBACK_GRADIENT } from "@/lib/retreat-photos";
 import BreathCycleDiagram from "@/matching/BreathCycleDiagram";
 import ProgressiveBlurImage from "@/components/ProgressiveBlurImage";
 import RevealSection from "@/components/RevealSection";
 import ClientMatchBanner from "@/components/ClientMatchBanner";
-import BookingProviders from "@/booking/BookingProviders";
-import BookButton from "@/booking/BookButton";
-import ClassButton from "@/booking/ClassButton";
+import AgentLetter from "@/components/AgentLetter";
+import { matchLetter } from "@/agent/mira-voice";
+import type { MatchResult } from "@/matching/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function MatchDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ session?: string }>;
 }) {
   const { id } = await params;
+  const { session: sessionId } = await searchParams;
 
   const attestation = await getAttestation(id);
 
   if (!attestation) {
     notFound();
   }
+
+  // Fetch the practitioner's profile to personalize Mira's letter
+  const profile = sessionId ? await getProfile(sessionId) : undefined;
+  const signals = profile
+    ? { energy: profile.energy, budget: profile.budget, social: profile.social }
+    : {};
 
   const title = attestation.title ?? id;
   const description = attestation.description ?? "";
@@ -34,6 +44,27 @@ export default async function MatchDetail({
   const capacity = attestation.claims.capacity ?? 0;
   const practiceStyle = attestation.claims.practiceStyle ?? [];
   const photo = RETREAT_PHOTOS[id];
+
+  // Build a minimal MatchResult for Mira's letter
+  const matchForLetter: MatchResult = {
+    id,
+    retreatRootHash: id,
+    retreatTitle: title,
+    retreatDescription: description,
+    retreatLocation: location,
+    durationDays,
+    priceUsd,
+    capacity,
+    practiceStyle,
+    score: 0,
+    headline: description.slice(0, 140),
+    reasoning: [],
+    attestationCount: 1,
+    attestor: attestation.attestor,
+    attestedAt: attestation.createdAt,
+  };
+
+  const letter = matchLetter(matchForLetter, signals);
 
   return (
     <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
@@ -58,51 +89,50 @@ export default async function MatchDetail({
         </div>
       )}
 
-      <p className="tag mt-10 mb-2">{location}</p>
-      <h1 className="font-serif text-5xl sm:text-6xl leading-[1.02] tracking-tight mb-3">
-        {title}
-      </h1>
-      <p className="text-[color:var(--muted)] mb-6">
-        {durationDays} days · ${priceUsd.toLocaleString()} · cohort of{" "}
-        {capacity}
-      </p>
-
-      <p className="text-[color:var(--muted)] max-w-prose mb-10 leading-relaxed">
-        {description}
-      </p>
-
-      <div className="flex flex-wrap gap-2 mb-12">
-        {practiceStyle.map((s) => (
-          <span
-            key={s}
-            className="text-xs px-2.5 py-1 rounded-sm border border-[color:var(--hairline)] text-[color:var(--muted)]"
-          >
-            {s}
-          </span>
-        ))}
-      </div>
+      {/* Mira's letter — the agent presents the match, not a product listing */}
+      <AgentLetter
+        orbSize={56}
+        lines={letter.lines}
+        cta={letter.cta}
+        retreatRootHash={id}
+        retreatTitle={title}
+        depositUsd={priceUsd}
+        operatorAddress={attestation.attestor}
+        classPriceUsd={Math.max(25, Math.round(priceUsd / 20))}
+        signals={signals}
+      />
 
       <ClientMatchBanner retreatId={id} />
 
-      <BookingProviders>
-        <div className="mb-8 flex flex-wrap gap-3">
-          <BookButton
-            retreatRootHash={id}
-            retreatTitle={title}
-            depositUsd={priceUsd}
-            operatorAddress={attestation.attestor}
-          />
-          <ClassButton
-            retreatRootHash={id}
-            retreatTitle={title}
-            classPriceUsd={Math.max(25, Math.round(priceUsd / 20))}
-          />
+      {/* Retreat details — below the letter, as supporting context */}
+      <RevealSection delay={200}>
+        <div className="mt-12 pt-8 border-t border-[color:var(--hairline)]">
+          <p className="tag mb-4">the retreat</p>
+          <h2 className="font-serif text-3xl tracking-tight mb-3">{title}</h2>
+          <p className="text-[color:var(--muted)] mb-4">
+            {durationDays} days · ${priceUsd.toLocaleString()} · cohort of{" "}
+            {capacity} · {location}
+          </p>
+          <p className="text-[color:var(--muted)] max-w-prose mb-6 leading-relaxed">
+            {description}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {practiceStyle.map((s) => (
+              <span
+                key={s}
+                className="text-xs px-2.5 py-1 rounded-sm border border-[color:var(--hairline)] text-[color:var(--muted)]"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
         </div>
-      </BookingProviders>
+      </RevealSection>
 
+      {/* Attestation provenance */}
       {attestation && (
         <RevealSection delay={300}>
-          <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8 surface-card">
+          <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-8 surface-card mt-8">
             <p className="tag mb-4 flex items-center gap-2">
               <span
                 aria-hidden
