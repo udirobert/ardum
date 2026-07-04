@@ -194,6 +194,18 @@ body::before {
   }
 }
 
+/* Mira glow — a warm accent halo for success moments (enrich, welcome-back).
+   Slower and softer than breath-ripple; lingers like a held breath releasing. */
+@keyframes mira-glow {
+  0% { opacity: 0; transform: scale(1); }
+  40% { opacity: 0.5; transform: scale(1.15); }
+  100% { opacity: 0; transform: scale(1.4); }
+}
+
+.mira-glow {
+  animation: mira-glow 1400ms var(--ease-ardum) both;
+}
+
 /* Mira radiate — the offering dots when Mira speaks (abhaya mudra) */
 @keyframes mira-radiate {
   0%, 100% {

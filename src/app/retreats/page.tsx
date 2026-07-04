@@ -82,13 +82,17 @@ export default async function RetreatsPage() {
 
       {attestations.length === 0 ? (
         <div className="py-16 text-center surface-card rounded-sm border border-dashed border-[color:var(--hairline)]">
+          <div className="flex justify-center mb-6">
+            <MiraOrb size={48} state="calm" />
+          </div>
           <p className="font-serif text-3xl tracking-tight mb-4">
-            The pool is empty
+            The pool is still forming.
           </p>
           <p className="text-[color:var(--muted)] max-w-md mx-auto mb-8 leading-relaxed">
-            No attestations have been written yet. Be the first — write one
-            about a retreat you know, and the matching agent will reason
-            against it.
+            No attestations have been written yet. Be the first to seed it —
+            write one about a retreat you know, and I&apos;ll start reasoning
+            against it. Every attestation makes the matching smarter for the
+            next practitioner who arrives.
           </p>
           <Link
             href="/attest"

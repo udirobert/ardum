@@ -34,6 +34,7 @@ export default function MemoryPage() {
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<"idle" | "improving" | "forgetting">("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const [justEnriched, setJustEnriched] = useState(false);
   const userIdRef = useRef<string>("");
 
   useEffect(() => {
@@ -68,6 +69,8 @@ export default function MemoryPage() {
       });
       const data = await res.json();
       setMessage(data.message ?? "Memory enriched.");
+      setJustEnriched(true);
+      window.setTimeout(() => setJustEnriched(false), 1600);
     } catch {
       setMessage("Something went wrong enriching memory.");
     }
@@ -129,11 +132,40 @@ export default function MemoryPage() {
         ← back to matching
       </Link>
 
-      <div className="flex items-center gap-4 mb-8 mt-8">
-        <MiraOrb size={56} state="calm" />
+      <div className="flex items-center gap-4 mb-8 mt-8 relative">
+        <div className="relative">
+          <MiraOrb
+            size={56}
+            state={
+              action === "improving"
+                ? "thinking"
+                : action === "forgetting"
+                  ? "calm"
+                  : "calm"
+            }
+          />
+          {justEnriched && (
+            <span
+              aria-hidden
+              className="mira-glow pointer-events-none absolute inset-0 rounded-full"
+              style={{
+                background:
+                  "radial-gradient(circle, var(--accent) 0%, transparent 70%)",
+              }}
+            />
+          )}
+        </div>
         <div>
           <p className="font-serif text-2xl tracking-tight">Mira</p>
-          <p className="tag">your guide</p>
+          <p className="tag">
+            {action === "improving"
+              ? "enriching your graph…"
+              : action === "forgetting"
+                ? "letting go…"
+                : justEnriched
+                  ? "your graph just deepened"
+                  : "your guide"}
+          </p>
         </div>
       </div>
 
@@ -146,6 +178,13 @@ export default function MemoryPage() {
         a hybrid graph-vector knowledge layer. You can enrich it or wipe it
         at any time.
       </p>
+
+      {/* Welcome-back recognition — the moment that makes memory tangible */}
+      {memory?.isReturning && (
+        <p className="font-serif text-lg italic text-[color:var(--accent-ink)] mb-8 fade-in-up max-w-prose leading-relaxed">
+          You&apos;ve been here before. I remember.
+        </p>
+      )}
 
       {/* Status indicator */}
       <div className="mb-8 inline-flex items-center gap-2 border border-[color:var(--hairline)] rounded-sm px-3 py-2 bg-[color:var(--surface)] surface-card">
@@ -255,12 +294,19 @@ export default function MemoryPage() {
         </div>
       ) : (
         <div className="border border-[color:var(--hairline)] rounded-sm p-8 bg-[color:var(--surface)] surface-card">
-          <p className="font-serif text-xl mb-3">A blank page.</p>
-          <p className="why max-w-prose">
-            {memory?.configured
-              ? "I don't have any memories of you yet. Complete the intake and I'll start remembering — your energy, your matches, your bookings, the things you tell me. Every visit adds to the graph."
-              : "Cognee isn't configured right now, so I'm running in demo mode with browser-only memory. Set COGNEE_BASE_URL and COGNEE_API_KEY to give me a real memory layer."}
-          </p>
+          <div className="flex items-start gap-4 mb-4">
+            <MiraOrb size={40} state="calm" className="flex-shrink-0 mt-1" />
+            <div>
+              <p className="font-serif text-xl mb-2">
+                I&apos;m ready to learn about your practice.
+              </p>
+              <p className="why max-w-prose">
+                {memory?.configured
+                  ? "I don't have any memories of you yet — and that's okay. Every beginning is a blank graph. Complete the intake and I'll start remembering: your energy, your matches, the things you tell me. Each visit adds nodes and edges, and the graph deepens. Come back tomorrow, and I'll know you better than today."
+                  : "I'm running in demo mode right now — browser-only memory that fades. Connect Cognee (set COGNEE_BASE_URL and COGNEE_API_KEY) and I'll hold your practice journey across infinite sessions, on any device."}
+              </p>
+            </div>
+          </div>
           <Link
             href="/"
             className="inline-block mt-6 px-5 py-2.5 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors text-sm"
