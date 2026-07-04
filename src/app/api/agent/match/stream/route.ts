@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
         );
 
         for await (const ev of streamMatchAgent(
-          { practitioner, attestations },
+          { practitioner, attestations, memory },
           sessionId,
           // Abort the upstream 0G Compute fetch when the client disconnects,
           // so we don't keep paying for tokens nobody's reading.

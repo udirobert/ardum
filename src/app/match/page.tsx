@@ -439,7 +439,7 @@ function MatchFlow() {
 
       {/* I changed my mind — agent-mediated re-matching */}
       <div className="drop-in-3">
-        <ChangedMyMind sessionId={run.practitionerId} />
+        <ChangedMyMind sessionId={run.practitionerId} userId={userId ?? undefined} />
       </div>
 
       {/* Why not this one? — interactive counterfactual via Mira */}
@@ -448,6 +448,7 @@ function MatchFlow() {
           topMatch={top}
           otherRetreats={run.results.slice(1)}
           sessionId={run.practitionerId}
+          userId={userId ?? undefined}
         />
       </div>
 
@@ -456,6 +457,7 @@ function MatchFlow() {
           sessionId={run.practitionerId}
           currentTopId={top.id}
           currentTopScore={top.score}
+          userId={userId ?? undefined}
         />
       </div>
 
@@ -463,6 +465,7 @@ function MatchFlow() {
         <LensComparison
           sessionId={run.practitionerId}
           currentTopId={top.id}
+          userId={userId ?? undefined}
         />
       </div>
 

@@ -18,6 +18,7 @@ import type { PractitionerProfile } from "@/calibration/schema";
 
 type ChangedMyMindProps = {
   sessionId: string;
+  userId?: string;
 };
 
 type Signal = "energy" | "budget" | "social";
@@ -57,7 +58,7 @@ const MIRA_ACK: Record<Signal, string> = {
   social: "Noted. Re-running with your updated social comfort.",
 };
 
-export default function ChangedMyMind({ sessionId }: ChangedMyMindProps) {
+export default function ChangedMyMind({ sessionId, userId }: ChangedMyMindProps) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("closed");
   const [signal, setSignal] = useState<Signal | null>(null);
@@ -97,6 +98,23 @@ export default function ChangedMyMind({ sessionId }: ChangedMyMindProps) {
       });
     } catch {
       // Best-effort — the match stream waits for the profile
+    }
+
+    // Fire-and-forget: store the preference shift in Cognee memory and
+    // trigger improve() to enrich the graph. This closes the feedback
+    // loop — Mira learns from every "I changed my mind" without the
+    // user visiting a settings page.
+    if (userId) {
+      fetch("/api/memory/feedback", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          type: "changed-mind",
+          description: `Practitioner changed their ${signal} from "${currentProfile[signal]}" to "${newValue}".`,
+          details: { signal, from: currentProfile[signal], to: newValue },
+        }),
+      }).catch(() => {});
     }
 
     // Navigate to a fresh match with the same session

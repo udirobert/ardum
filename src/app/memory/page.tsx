@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import MiraOrb from "@/components/MiraOrb";
+import EnergyTimeline from "@/components/EnergyTimeline";
+import MemoryGraph from "@/components/MemoryGraph";
 import { getOrCreateUserId, clearUserId, clearFingerprint } from "@/lib/fingerprint";
 
 // Memory transparency page — "What does Mira remember about me?"
@@ -165,21 +167,14 @@ export default function MemoryPage() {
       {/* Memory contents */}
       {memory && memory.isReturning ? (
         <div className="space-y-8">
-          {/* Energy trajectory */}
+          {/* Energy trajectory — the sparkline */}
           {memory.energyHistory.length > 0 && (
             <MemorySection title="Your energy over time">
-              <div className="flex flex-wrap gap-2">
-                {memory.energyHistory.map((e, i) => (
-                  <span
-                    key={i}
-                    className="text-sm px-3 py-1.5 rounded-sm border border-[color:var(--hairline)] bg-[color:var(--surface)]"
-                  >
-                    {e}
-                  </span>
-                ))}
+              <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 surface-card">
+                <EnergyTimeline energyHistory={memory.energyHistory} />
               </div>
               <p className="why mt-3 max-w-prose">
-                I&apos;ve seen your energy shift across visits. This helps me
+                I&apos;ve seen your energy {memory.energyHistory.length > 1 ? "shift" : "once"} across {memory.energyHistory.length === 1 ? "one visit" : `${memory.energyHistory.length} visits`}. This helps me
                 recommend retreats that meet you where you are, not where you
                 were.
               </p>
@@ -238,9 +233,19 @@ export default function MemoryPage() {
             </MemorySection>
           )}
 
-          {/* Raw recall count */}
-          <MemorySection title="The graph">
-            <p className="why max-w-prose">
+          {/* Knowledge graph — the visual that makes Cognee tangible */}
+          <MemorySection title="The knowledge graph">
+            <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 surface-card">
+              <MemoryGraph
+                data={{
+                  energyHistory: memory.energyHistory,
+                  pastMatches: memory.pastMatches,
+                  pastBookings: memory.pastBookings,
+                  pastNotes: memory.pastNotes,
+                }}
+              />
+            </div>
+            <p className="why mt-3 max-w-prose">
               Your memory lives in a hybrid graph-vector store. Every intake,
               match, and booking becomes nodes and edges that I can traverse.
               The more you use Ardum, the richer the graph becomes — and the

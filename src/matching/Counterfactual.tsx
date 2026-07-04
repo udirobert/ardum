@@ -27,10 +27,12 @@ export default function Counterfactual({
   sessionId,
   currentTopId,
   currentTopScore,
+  userId,
 }: {
   sessionId: string;
   currentTopId: string;
   currentTopScore: number;
+  userId?: string;
 }) {
   const [active, setActive] = useState<PresetKey | null>(null);
   const [result, setResult] = useState<Counterfactual | null>(null);
@@ -53,6 +55,27 @@ export default function Counterfactual({
       }
       const data: Counterfactual = await res.json();
       setResult(data);
+
+      // Fire-and-forget: store the exploration signal in Cognee memory
+      // and trigger improve(). Mira learns which axes the user is
+      // curious about — "they explored energy-heavy weighting" — so
+      // future matches can account for that priority.
+      if (userId) {
+        fetch("/api/memory/feedback", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            userId,
+            type: "counterfactual",
+            description: `Practitioner explored ${preset}-heavy weighting. Top match ${data.top.id === currentTopId ? "held" : "shifted to " + data.top.retreatTitle}.`,
+            details: {
+              preset,
+              topShifted: data.top.id !== currentTopId,
+              newTop: data.top.retreatTitle,
+            },
+          }),
+        }).catch(() => {});
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Counterfactual failed.");
     } finally {

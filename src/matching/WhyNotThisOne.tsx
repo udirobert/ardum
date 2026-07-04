@@ -22,6 +22,8 @@ type WhyNotThisOneProps = {
   otherRetreats: MatchResult[];
   /** Session ID for counterfactual API calls */
   sessionId: string;
+  /** Persistent user ID for Cognee memory feedback */
+  userId?: string;
 };
 
 type ExplanationState =
@@ -42,6 +44,7 @@ export default function WhyNotThisOne({
   topMatch,
   otherRetreats,
   sessionId,
+  userId,
 }: WhyNotThisOneProps) {
   const [state, setState] = useState<ExplanationState>({ status: "idle" });
   const [expanded, setExpanded] = useState(false);
@@ -124,6 +127,27 @@ export default function WhyNotThisOne({
         gap: overallGap,
         reasons,
       });
+
+      // Fire-and-forget: store the curiosity signal in Cognee memory
+      // and trigger improve(). Mira learns what the user is curious
+      // about — "they asked why X wasn't recommended" — so future
+      // matches can account for that interest.
+      if (userId) {
+        fetch("/api/memory/feedback", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            userId,
+            type: "why-not",
+            description: `Practitioner asked why ${retreat.retreatTitle} wasn't recommended instead of ${topMatch.retreatTitle}. Gap was ${overallGap.toFixed(3)}.`,
+            details: {
+              asked: retreat.retreatTitle,
+              top: topMatch.retreatTitle,
+              gap: overallGap.toFixed(3),
+            },
+          }),
+        }).catch(() => {});
+      }
     } catch (err) {
       setState({
         status: "error",

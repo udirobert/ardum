@@ -15,9 +15,11 @@ import { useReveal } from "@/hooks/useReveal";
 export default function LensComparison({
   sessionId,
   currentTopId,
+  userId,
 }: {
   sessionId: string;
   currentTopId: string;
+  userId?: string;
 }) {
   const [data, setData] = useState<LensesResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -37,6 +39,24 @@ export default function LensComparison({
         }
         const json = (await res.json()) as LensesResponse;
         if (!cancelled) setData(json);
+
+        // Fire-and-forget: store the lens exploration in Cognee memory
+        // and trigger improve(). Mira learns that the user is
+        // comparing perspectives — a signal of thoughtful engagement.
+        if (userId && !cancelled) {
+          fetch("/api/memory/feedback", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              userId,
+              type: "perspectives",
+              description: `Practitioner compared Restorative vs Movement lenses. ${json.agreement ? "Both lenses agreed." : "Lenses disagreed."}`,
+              details: {
+                agreement: json.agreement,
+              },
+            }),
+          }).catch(() => {});
+        }
       } catch (e) {
         if (!cancelled) {
           setErr(e instanceof Error ? e.message : "Lens comparison failed.");
@@ -47,7 +67,7 @@ export default function LensComparison({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, currentTopId, inView]);
+  }, [sessionId, currentTopId, inView, userId]);
 
   if (err) {
     return (

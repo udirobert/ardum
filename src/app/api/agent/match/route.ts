@@ -51,6 +51,10 @@ export async function POST(req: NextRequest) {
   const agentReq: AgentRequest = {
     practitioner,
     attestations,
+    // Pass the recalled memory into the agent prompt so the LLM can
+    // reason about the practitioner's history. This is what makes
+    // Cognee memory actually change the recommendation.
+    memory,
   };
 
   const { run } = await runMatchAgent(agentReq, sessionId);

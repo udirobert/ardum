@@ -195,7 +195,7 @@ export default async function MatchDetail({
       {/* I changed my mind — re-match from the detail page */}
       {sessionId && (
         <RevealSection delay={550}>
-          <ChangedMyMind sessionId={sessionId} />
+          <ChangedMyMind sessionId={sessionId} userId={userId ?? undefined} />
         </RevealSection>
       )}
     </section>
