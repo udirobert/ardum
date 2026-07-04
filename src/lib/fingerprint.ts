@@ -11,6 +11,7 @@
 import type { PoseBaseline, PractitionerProfile } from "@/calibration/schema";
 
 export const STORAGE_KEY = "ardum:fingerprint:v1";
+export const USER_ID_KEY = "ardum:user-id";
 
 // Show the recall prompt for sessions in this window. <1 day feels like
 // the same session; >30 days is stale enough to start fresh.
@@ -88,4 +89,35 @@ export function recallAgeLabel(fp: Fingerprint | null): string | null {
   if (age < RECALL_MIN_AGE_MS || age > RECALL_MAX_AGE_MS) return null;
   const days = Math.max(1, Math.round(age / (24 * 60 * 60 * 1000)));
   return days === 1 ? "yesterday" : `${days} days ago`;
+}
+
+// ── Persistent user ID ────────────────────────────────────────────────────
+// A stable identifier for Cognee memory. Unlike the session ID (which is
+// regenerated every visit), this persists in localStorage so Mira's
+// memory survives across sessions. Generated once on first visit.
+
+export function getOrCreateUserId(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    let id = window.localStorage.getItem(USER_ID_KEY);
+    if (!id) {
+      id =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `u-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      window.localStorage.setItem(USER_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return "";
+  }
+}
+
+export function clearUserId(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(USER_ID_KEY);
+  } catch {
+    /* ignore */
+  }
 }

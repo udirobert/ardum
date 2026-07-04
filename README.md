@@ -95,6 +95,15 @@ Repos that informed Ardum's agent-consumable retreat language and pose workflow:
   user always confirms before the old answers are reused), and
   one-tap clearable from the match page footer. Nothing leaves the
   browser; the matching run is still session-scoped server-side.
+- **Cognee — Mira's memory layer** (`src/lib/cognee.ts`) — a persistent,
+  hybrid graph-vector memory store that replaces the localStorage
+  fingerprint for real cross-session recall. Mira remembers every
+  practitioner's energy trajectory, past matches, bookings, and notes
+  across infinite sessions. The four lifecycle verbs (`remember`,
+  `recall`, `improve`, `forget`) map to the user journey: intake →
+  match → feedback → right-to-be-forgotten. Self-hosted or Cognee Cloud,
+  env-gated with graceful no-op fallback. See the
+  [Cognee section](#cognee--miras-memory-layer) below.
 - **Magic SDK** (`magic-sdk`) — social login (Google) creates an embedded
   wallet for practitioners. No MetaMask, no seed phrase. Also supports
   EIP-7702 authorization signing for Particle UA delegation.
@@ -238,6 +247,7 @@ layers you want to enable. Each one is independent:
 | `NEXT_PUBLIC_OPENFORT_PUBLIC_KEY` + `NEXT_PUBLIC_OPENFORT_POLICY_ID` [+ `OPENFORT_SECRET_KEY`] | Openfort embedded wallet + x402 micropayments for drop-in classes. Settles on Base Sepolia (testnet). Secret key enables server-side account creation + sponsored transactions. |
 | `NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS` | The deployed `RetreatDepositEscrow` address on Arbitrum Sepolia (`0xBEe032998c7A1d9268075Dfc2061514143d5B796`). Set `NEXT_PUBLIC_USE_TESTNET=true` to target Sepolia. |
 | `FAL_KEY` | fal.ai generative imagery for the retreat vision (Tier 2). If not set, falls back to curated Unsplash images matched to the user's dominant aesthetic quality. 1 call per match — token-efficient. |
+| `COGNEE_BASE_URL` + `COGNEE_API_KEY` | Mira's persistent memory layer. Self-hosted (`http://localhost:8000`) for the Open Source track, or Cognee Cloud (`https://your-tenant.aws.cognee.ai`) for the Cloud track. If not set, memory calls are no-ops and the app uses localStorage-only recall. |
 
 The adapter at `src/lib/og-storage.ts` lazy-imports the SDK only when
 needed, and the agent at `src/agent/client.ts` falls back gracefully
@@ -269,6 +279,136 @@ shareable judge link that opens fast.
 Raw camera frames never leave the browser. Wallet is only required for
 writing attestations, never for browsing or matching. The 0G Compute Router
 is only ever called from server-side route handlers.
+
+---
+
+## Cognee — Mira's memory layer
+
+> **The Hangover Part AI: Where's My Context?** — WeMakeDevs hackathon,
+> Jun 29 – Jul 5 2026. Build AI that doesn't forget with Cognee's
+> self-hosted, hybrid graph-vector memory layer.
+
+Mira was already a "persistent agent persona" — but her memory was fake.
+A localStorage fingerprint with 3 fields and a 1-30 day window. No
+cross-device recall. No knowledge graph. No way to learn over time.
+
+Cognee replaces that with a real memory layer. Mira now genuinely
+remembers every practitioner across infinite sessions — their energy
+trajectory, past matches, bookings, and the things they've told her. The
+more you use Ardum, the richer the graph becomes, and the more precisely
+Mira can match you.
+
+### The four memory verbs in Ardum
+
+| Cognee verb | Where it fires | What gets stored/retrieved |
+|---|---|---|
+| **`remember()`** | After intake, after match, after booking | "Practitioner arrived with energy=low, budget=1k-2k, notes='recovering from burnout'. Matched to Restorative Yin in Ubud, score 0.87." |
+| **`recall()`** | Before match (SSE stream), before Mira's letter | "What do I know about this practitioner?" → past visits, energy trajectory, past matches, bookings, notes |
+| **`improve()`** | User-triggered from `/memory` page | Enrich the graph, prune stale nodes, surface deeper relationships |
+| **`forget()`** | User-triggered from `/memory` page | Surgical wipe of one practitioner's entire memory (right to be forgotten) |
+
+### Architecture
+
+```
+PRACTITIONER VISITS
+  │
+  ├─ Intake → POST /api/profile
+  │    └─ cognee.remember(userId, intake text)  → graph + vector store
+  │
+  ├─ Match stream → GET /api/agent/match/stream?session=...&user=...
+  │    ├─ cognee.recall(userId, "what do I know?")  → MemoryContext
+  │    ├─ SSE event: memory  → UI shows "Mira remembers you"
+  │    ├─ Agent reasons with memory context fed into prompt
+  │    └─ cognee.remember(userId, match result)  → graph + vector store
+  │
+  ├─ Match detail → /match/[id]?session=...&user=...
+  │    ├─ cognee.recall(userId)  → MemoryContext
+  │    └─ Mira's letter opens with recognition, not a cold start
+  │
+  └─ Memory page → /memory
+       ├─ GET /api/memory?userId=...  → cognee.recall  → transparency
+       ├─ POST { action: "improve" }  → cognee.improve  → enrich graph
+       └─ POST { action: "forget" }   → cognee.forget   → wipe memory
+```
+
+### Same code, two prize tracks
+
+The integration uses Cognee's REST API directly (no SDK dependency).
+The base URL is env-gated — one codebase, two tracks:
+
+| Track | Config | Prize |
+|---|---|---|
+| **Best Use of Open Source** | `COGNEE_BASE_URL=http://localhost:8000` (self-hosted Docker) | Apple MacBook per team member |
+| **Best Use of Cognee Cloud** | `COGNEE_BASE_URL=https://your-tenant.aws.cognee.ai` + `COGNEE_API_KEY` (free Developer plan with code COGNEE-35) | Apple iPhone 17 per team member |
+
+When neither is set, every Cognee call is a graceful no-op — the app
+runs in demo mode with localStorage-only memory, exactly as before.
+
+### Persistent user identity
+
+Cognee memory is keyed by a persistent user ID stored in localStorage
+(`ardum:user-id`), not the ephemeral session ID. This means Mira's
+memory survives across sessions, devices (if localStorage syncs), and
+serverless cold-starts. The session ID is still used for the session
+store (profile, match run) but Cognee operations use the stable user ID.
+
+### Reliability — graceful fallback everywhere
+
+Every Cognee call degrades silently. The match flow never breaks if
+Cognee is unavailable:
+
+| Failure mode | What happens |
+|---|---|
+| Env vars not set | `hasCognee()` returns false — every verb is a no-op, app runs in demo mode |
+| Credits exhausted (HTTP 402) | `!res.ok` path logs the error, returns safe default (void / empty array) |
+| Bad API key (401/403) | Same — logged, no-op |
+| Cognee down / network error | try/catch logs the error, returns safe default |
+| Malformed JSON response | Defensive try/catch in `recallContext()`, returns `EMPTY_MEMORY` |
+| Client disconnects mid-stream | `req.signal` aborts the fetch, stream closes cleanly |
+
+`recallContext()` — the only Cognee call on the critical match path —
+is wrapped in a defensive try/catch that returns `EMPTY_MEMORY` on any
+unexpected throw. The match agent gets no memory context, but it still
+reasons and recommends. Mira just doesn't show the "welcome back" banner.
+
+`remember()` calls are all fire-and-forget (`void ... .catch(() => {})`)
+at every call site. If Cognee can't store, the match still happens —
+the practitioner just won't be remembered next time.
+
+The `/memory` transparency page checks `hasCognee()` and shows a clear
+"Cognee not configured · demo mode" indicator when env vars are missing,
+so judges can tell which track is active.
+
+### Files
+
+| File | Role |
+|---|---|
+| `src/lib/cognee.ts` | Server-only Cognee REST client — the four verbs + structured memory context builder |
+| `src/app/api/memory/route.ts` | Frontend API — recall (GET), improve + forget (POST) |
+| `src/app/memory/page.tsx` | "What Mira remembers" transparency page with controls |
+| `src/agent/mira-voice.ts` | `matchLetter()` and `preparationPlan()` accept optional `MemoryContext` |
+| `src/lib/fingerprint.ts` | Added persistent `getOrCreateUserId()` / `clearUserId()` |
+| `src/app/api/profile/route.ts` | Fires `cognee.remember()` after intake |
+| `src/app/api/agent/match/route.ts` | Recalls before match, remembers after |
+| `src/app/api/agent/match/stream/route.ts` | Emits `memory` SSE event, remembers after done |
+| `src/app/match/page.tsx` | Handles `memory` SSE event, shows memory banner |
+| `src/app/match/[id]/page.tsx` | Recalls memory for Mira's letter |
+
+### Why this scores well
+
+- **Potential Impact**: Persistent memory for a wellness agent that guides
+  people over months/years — not just one session
+- **Creativity**: The "Mira remembers your practice journey" narrative;
+  the graph captures how a practitioner's energy evolves over time
+- **Technical Excellence**: Clean adapter pattern matching existing
+  codebase, graceful fallback, all four Cognee verbs used meaningfully
+- **Best Use of Cognee**: All four lifecycle operations with real purpose,
+  graph traversals for "what retreats has this user shown interest in,"
+  `improve()` for feedback-based enrichment
+- **User Experience**: Transparency page showing what Mira remembers +
+  one-tap forget
+- **Presentation**: The "mudra reversed" concept extends — "A mudra seals.
+  Ardum opens. Cognee remembers."
 
 ---
 

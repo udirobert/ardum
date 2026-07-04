@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 import ReasoningList from "@/matching/ReasoningList";
 import StreamProgress from "@/matching/StreamProgress";
@@ -13,11 +14,23 @@ import WhyNotThisOne from "@/matching/WhyNotThisOne";
 import ChangedMyMind from "@/matching/ChangedMyMind";
 import ShareMatch from "@/matching/ShareMatch";
 import MaskReveal from "@/components/MaskReveal";
+import MiraOrb from "@/components/MiraOrb";
 import AestheticJourney from "@/aesthetics/AestheticJourney";
 import { saveMatchResult } from "@/lib/client-session";
 import { clearFingerprint } from "@/lib/fingerprint";
 import type { MatchRun, ReasoningStep } from "@/matching/types";
 import type { UserPreference } from "@/aesthetics/image-pool";
+
+// Memory context received from the SSE stream's first event. Mirrors the
+// MemoryContext shape from src/lib/cognee.ts but client-safe (no rawRecall).
+type StreamMemory = {
+  isReturning: boolean;
+  energyHistory: string[];
+  pastMatches: { title: string; location: string; score: number }[];
+  pastBookings: { title: string; location: string }[];
+  pastNotes: string[];
+  provider: string;
+};
 
 export default function MatchPage() {
   return (
@@ -94,6 +107,7 @@ function MatchFlow() {
   const sp = useSearchParams();
   const router = useRouter();
   const sessionId = sp.get("session");
+  const userId = sp.get("user");
 
   const [steps, setSteps] = useState<ReasoningStep[]>([]);
   const [run, setRun] = useState<MatchRun | null>(null);
@@ -106,6 +120,7 @@ function MatchFlow() {
   } | null>(null);
   const [aestheticPref, setAestheticPref] = useState<UserPreference | null>(null);
   const [journeyActive, setJourneyActive] = useState(true);
+  const [memory, setMemory] = useState<StreamMemory | null>(null);
 
   // Keep latest state visible inside the EventSource handlers without
   // re-subscribing on every render.
@@ -125,10 +140,19 @@ function MatchFlow() {
   useEffect(() => {
     if (!sessionId) return;
 
-    const url = `/api/agent/match/stream?session=${encodeURIComponent(sessionId)}`;
+    const url = `/api/agent/match/stream?session=${encodeURIComponent(sessionId)}${userId ? `&user=${encodeURIComponent(userId)}` : ""}`;
     const es = new EventSource(url);
 
     es.addEventListener("open", () => setStreamOpen(true));
+
+    es.addEventListener("memory", (e) => {
+      try {
+        const payload = JSON.parse((e as MessageEvent).data) as StreamMemory;
+        setMemory(payload);
+      } catch (parseErr) {
+        console.error("bad memory event", parseErr);
+      }
+    });
 
     es.addEventListener("reasoning", (e) => {
       try {
@@ -209,7 +233,7 @@ function MatchFlow() {
     });
 
     return () => es.close();
-  }, [sessionId, router]);
+  }, [sessionId, userId, router]);
 
   if (!sessionId) {
     return (
@@ -285,6 +309,13 @@ function MatchFlow() {
     return (
       <section className="mx-auto max-w-2xl px-6 sm:px-10 pt-20">
         <ComputeChip progress={progress} streamOpen={streamOpen} />
+
+        {/* Memory banner — if Mira remembers this practitioner from Cognee,
+            show a recognition line while the agent reasons. This is the
+            "AI that doesn't forget" moment, visible before the match lands. */}
+        {memory && memory.isReturning && memory.provider !== "none" && (
+          <MemoryBanner memory={memory} />
+        )}
 
         {/* Aesthetic journey — runs alongside the reasoning stream.
             The user interacts with images + sound while the agent
@@ -447,7 +478,70 @@ function MatchFlow() {
       <div className="mt-6 text-center drop-in-3">
         <ClearHistoryLink onClear={clearFingerprint} />
       </div>
+
+      {/* Link to the memory transparency page */}
+      {memory && memory.isReturning && memory.provider !== "none" && (
+        <div className="mt-4 text-center drop-in-3">
+          <Link
+            href="/memory"
+            className="tag hover:text-foreground transition-colors"
+          >
+            what does Mira remember about me? →
+          </Link>
+        </div>
+      )}
       </MaskReveal>
     </section>
+  );
+}
+
+// Memory banner — shown while the agent reasons, if Mira has memory of
+// this practitioner from Cognee. The "AI that doesn't forget" moment.
+function MemoryBanner({ memory }: { memory: StreamMemory }) {
+  const lastBooking = memory.pastBookings[0];
+  const lastMatch = memory.pastMatches[0];
+  const lastEnergy = memory.energyHistory[memory.energyHistory.length - 1];
+  const lastNote = memory.pastNotes[0];
+
+  let recognition: string;
+  if (lastBooking) {
+    recognition = `You've been to ${lastBooking.title} in ${lastBooking.location}.`;
+  } else if (lastMatch) {
+    recognition = `Last time I recommended ${lastMatch.title} in ${lastMatch.location}.`;
+  } else {
+    recognition = "I remember you from a previous visit.";
+  }
+
+  if (lastEnergy) {
+    recognition += ` Your energy was ${lastEnergy} then.`;
+  }
+
+  return (
+    <aside className="mt-6 mb-6 border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-5 fade-in-up surface-card">
+      <div className="flex items-start gap-4">
+        <MiraOrb size={36} state="calm" />
+        <div className="flex-1">
+          <p className="tag mb-1 flex items-center gap-2">
+            <span
+              aria-hidden
+              className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)]"
+            />
+            Mira remembers you
+          </p>
+          <p className="text-sm leading-relaxed max-w-prose">
+            {recognition}
+            {lastNote && (
+              <>
+                {" "}
+                You mentioned: <em>&ldquo;{lastNote}&rdquo;</em>
+              </>
+            )}
+          </p>
+          <p className="tag mt-2 opacity-70">
+            powered by Cognee · hybrid graph-vector memory
+          </p>
+        </div>
+      </div>
+    </aside>
   );
 }

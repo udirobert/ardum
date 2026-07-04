@@ -2,8 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getProfile, saveMatchRun } from "@/lib/session.edge";
 import { listAttestations } from "@/lib/attestations.edge";
 import { streamMatchAgent } from "@/agent/client";
+import { recallContext, rememberMatch } from "@/lib/cognee";
 
 // SSE stream of the matching agent's reasoning. Events:
+//   event: memory            — Mira's recalled memory context (emitted first)
 //   event: reasoning         — Gherkin step (Given/When/Then) for the audit list
 //   event: compute-progress  — live { tokens, elapsedMs, model } for the header chip
 //   event: done              — final MatchRun
@@ -41,6 +43,7 @@ async function waitForProfile(sessionId: string, timeoutMs = 4000) {
 
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get("session");
+  const userId = req.nextUrl.searchParams.get("user");
   if (!sessionId) {
     return NextResponse.json({ error: "Missing session." }, { status: 400 });
   }
@@ -55,10 +58,33 @@ export async function GET(req: NextRequest) {
   const attestations = await listAttestations();
   const encoder = new TextEncoder();
 
+  // Recall Mira's memory for this practitioner before the stream starts.
+  // Uses the persistent userId (not the ephemeral sessionId) so memory
+  // survives across sessions. The memory context is emitted as the first
+  // SSE event so the UI can show "Mira remembers you..." while the agent
+  // reasons. Graceful no-op when Cognee is not configured.
+  const cogneeUserId = userId ?? sessionId;
+  const memory = await recallContext(cogneeUserId);
+
   const stream = new ReadableStream({
     async start(controller) {
       let runSaved = false;
       try {
+        // Emit the memory event first — the frontend uses this to render
+        // the welcome-back banner and weave memory into Mira's letter.
+        controller.enqueue(
+          encoder.encode(
+            sseEncode("memory", {
+              isReturning: memory.isReturning,
+              energyHistory: memory.energyHistory,
+              pastMatches: memory.pastMatches,
+              pastBookings: memory.pastBookings,
+              pastNotes: memory.pastNotes,
+              provider: memory.provider,
+            })
+          )
+        );
+
         for await (const ev of streamMatchAgent(
           { practitioner, attestations },
           sessionId,
@@ -70,6 +96,17 @@ export async function GET(req: NextRequest) {
           if (ev.event === "done") {
             try { await saveMatchRun(sessionId, ev.data.run); } catch {}
             runSaved = true;
+            // Store the top match in Cognee memory. Fire-and-forget,
+            // graceful no-op when Cognee is not configured.
+            const top = ev.data.run.results[0];
+            if (top) {
+              void rememberMatch(cogneeUserId, {
+                retreatTitle: top.retreatTitle,
+                retreatLocation: top.retreatLocation,
+                score: top.score,
+                practiceStyle: top.practiceStyle,
+              }).catch(() => {});
+            }
           }
         }
       } catch (err) {

@@ -16,6 +16,7 @@ import MiraOrb from "@/components/MiraOrb";
 import {
   clearFingerprint,
   getFingerprint,
+  getOrCreateUserId,
   isRecallable,
   recallAgeLabel,
   setFingerprint,
@@ -125,6 +126,11 @@ export default function Intake() {
     // the user to opt back in for that explicitly.
     setFingerprint(profile, pose);
 
+    // Persistent user ID for Cognee memory. This survives across sessions
+    // (unlike sessionId which is ephemeral) so Mira can remember the
+    // practitioner across infinite visits.
+    const userId = getOrCreateUserId();
+
     // Optimistic navigation: generate the sessionId on the client,
     // push the route immediately, and POST the profile in the
     // background. The /api/agent/match/stream endpoint waits a few
@@ -135,13 +141,13 @@ export default function Intake() {
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : `s-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    router.push(`/match?session=${sessionId}`);
+    router.push(`/match?session=${sessionId}&user=${userId}`);
 
     try {
       const profRes = await fetch("/api/profile", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sessionId, profile }),
+        body: JSON.stringify({ sessionId, userId, profile }),
       });
       if (!profRes.ok) {
         const body = await profRes.text();

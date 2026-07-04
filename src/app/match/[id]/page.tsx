@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { getAttestation } from "@/lib/og-storage";
 import { getProfile } from "@/lib/session";
+import { recallContext } from "@/lib/cognee";
 import { RETREAT_PHOTOS, FALLBACK_GRADIENT } from "@/lib/retreat-photos";
 import BreathCycleDiagram from "@/matching/BreathCycleDiagram";
 import ProgressiveBlurImage from "@/components/ProgressiveBlurImage";
@@ -21,10 +22,10 @@ export default async function MatchDetail({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ session?: string }>;
+  searchParams: Promise<{ session?: string; user?: string }>;
 }) {
   const { id } = await params;
-  const { session: sessionId } = await searchParams;
+  const { session: sessionId, user: userId } = await searchParams;
 
   const attestation = await getAttestation(id);
 
@@ -37,6 +38,12 @@ export default async function MatchDetail({
   const signals = profile
     ? { energy: profile.energy, budget: profile.budget, social: profile.social }
     : {};
+
+  // Recall Mira's memory for this practitioner so the letter can open
+  // with recognition instead of a cold start. Uses the persistent userId
+  // (not the ephemeral sessionId) so memory survives across sessions.
+  // Graceful no-op when Cognee is not configured.
+  const memory = (userId ?? sessionId) ? await recallContext(userId ?? sessionId!) : undefined;
 
   const title = attestation.title ?? id;
   const description = attestation.description ?? "";
@@ -66,7 +73,7 @@ export default async function MatchDetail({
     attestedAt: attestation.createdAt,
   };
 
-  const letter = matchLetter(matchForLetter, signals);
+  const letter = matchLetter(matchForLetter, signals, memory);
 
   return (
     <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">

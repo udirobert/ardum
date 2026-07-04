@@ -25,6 +25,7 @@ import { consideringStep, contextStep } from "./score";
 export type StreamEvent =
   | { event: "reasoning"; data: ReasoningStep }
   | { event: "compute-progress"; data: ComputeProgress }
+  | { event: "memory"; data: { isReturning: boolean; energyHistory: string[]; pastMatches: { title: string; location: string; score: number }[]; pastBookings: { title: string; location: string }[]; pastNotes: string[]; provider: string } }
   | { event: "done"; data: { run: MatchRun } }
   | { event: "error"; data: { message: string } };
 

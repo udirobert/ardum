@@ -10,12 +10,13 @@ import {
   saveMatchRun,
   saveProfile,
 } from "@/lib/session";
+import { recallContext, rememberMatch } from "@/lib/cognee";
 
 // Mark this route as dynamic so it runs at request time.
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  let body: { sessionId?: string; profile: PractitionerProfile };
+  let body: { sessionId?: string; userId?: string; profile: PractitionerProfile };
   try {
     body = await req.json();
   } catch {
@@ -39,6 +40,12 @@ export async function POST(req: NextRequest) {
     createdAt: body.profile.createdAt ?? new Date().toISOString(),
   });
 
+  // Recall Mira's memory for this practitioner before matching. Uses the
+  // persistent userId (not the ephemeral sessionId) so memory survives
+  // across sessions. Graceful no-op when Cognee is not configured.
+  const cogneeUserId = body.userId ?? sessionId;
+  const memory = await recallContext(cogneeUserId);
+
   const attestations = await listAttestations();
   const practitioner = (await getProfile(sessionId))!;
   const agentReq: AgentRequest = {
@@ -49,5 +56,17 @@ export async function POST(req: NextRequest) {
   const { run } = await runMatchAgent(agentReq, sessionId);
   await saveMatchRun(sessionId, run);
 
-  return NextResponse.json({ sessionId, run });
+  // Store the top match in Cognee so future sessions can recall "what
+  // has Mira recommended before?" Fire-and-forget, graceful no-op.
+  const top = run.results[0];
+  if (top) {
+    void rememberMatch(cogneeUserId, {
+      retreatTitle: top.retreatTitle,
+      retreatLocation: top.retreatLocation,
+      score: top.score,
+      practiceStyle: top.practiceStyle,
+    }).catch(() => {});
+  }
+
+  return NextResponse.json({ sessionId, run, memory });
 }

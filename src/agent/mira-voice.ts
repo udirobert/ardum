@@ -8,6 +8,7 @@
 // match detail page, in the booking flow, and in the preparation plan.
 
 import type { MatchResult } from "@/matching/types";
+import type { MemoryContext } from "@/lib/cognee";
 
 type PractitionerSignals = {
   energy?: string;
@@ -22,6 +23,7 @@ type PractitionerSignals = {
 export function matchLetter(
   match: MatchResult,
   signals: PractitionerSignals,
+  memory?: MemoryContext,
 ): { lines: string[]; cta: string } {
   const energy = signals.energy ?? "your energy";
   const social = signals.social ?? "your comfort";
@@ -43,14 +45,44 @@ export function matchLetter(
   const arrival = energyPhrase[signals.energy ?? ""] ?? `your energy is ${energy}`;
   const socialLine = socialPhrase[signals.social ?? ""] ?? `your social comfort leans ${social}`;
 
-  const lines = [
+  const lines: string[] = [];
+
+  // If Mira has memory of this practitioner, open with a recognition line
+  // instead of a cold start. This is the "AI that doesn't forget" moment.
+  if (memory?.isReturning && memory.provider !== "none") {
+    const lastEnergy = memory.energyHistory[memory.energyHistory.length - 1];
+    const energyShifted =
+      lastEnergy && lastEnergy !== signals.energy
+        ? ` Last time you were ${lastEnergy} — I can see that's shifted.`
+        : "";
+    const lastMatch = memory.pastMatches[0];
+    const lastBooking = memory.pastBookings[0];
+
+    if (lastBooking) {
+      lines.push(
+        `Welcome back. You've been to ${lastBooking.title} in ${lastBooking.location}.${energyShifted}`,
+      );
+    } else if (lastMatch) {
+      lines.push(
+        `Welcome back. Last time I recommended ${lastMatch.title} in ${lastMatch.location}.${energyShifted}`,
+      );
+    } else {
+      lines.push(`Welcome back. I remember you.${energyShifted}`);
+    }
+
+    if (memory.pastNotes.length > 0) {
+      lines.push(`You mentioned: "${memory.pastNotes[0]}". I've kept that with me.`);
+    }
+  }
+
+  lines.push(
     `I found a retreat that fits where you are right now.`,
     `${match.retreatTitle} in ${match.retreatLocation}.`,
     `I'm recommending this because ${arrival}, and ${socialLine}. This retreat specializes in ${match.practiceStyle.slice(0, 2).join(" and ")}.`,
     match.headline,
     `The deposit is $${match.priceUsd.toLocaleString()}. It's held in escrow on Arbitrum — the operator doesn't get it until you check in.`,
     `If you book, I'll build you a preparation plan based on what I've learned about you. Five minutes a day until you leave.`,
-  ];
+  );
 
   const cta = `Want me to hold your spot?`;
 
@@ -122,6 +154,7 @@ export function classInvitation(
 export function preparationPlan(
   match: MatchResult,
   signals: PractitionerSignals,
+  memory?: MemoryContext,
 ): { title: string; days: { day: number; title: string; description: string; duration: string }[] } {
   const energy = signals.energy ?? "settled";
 
@@ -156,8 +189,20 @@ export function preparationPlan(
     ],
   };
 
+  const days = plans[energy] ?? plans.settled;
+
+  // If Mira has memory of past practice, weave it into day 1's description.
+  // This is the improve() payoff — the preparation plan gets sharper the
+  // more the practitioner uses Ardum.
+  if (memory?.isReturning && memory.provider !== "none" && memory.pastNotes.length > 0) {
+    days[0] = {
+      ...days[0],
+      description: `${days[0].description} You've told me before: "${memory.pastNotes[0]}". See if that's still true today.`,
+    };
+  }
+
   return {
     title: `Your 5-day preparation`,
-    days: plans[energy] ?? plans.settled,
+    days,
   };
 }
