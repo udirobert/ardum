@@ -187,7 +187,17 @@ export async function recall(
   try {
     const res = await cogneeFetch("/api/v1/recall", {
       method: "POST",
-      body: { query, datasets: [dataset] },
+      body: {
+        query,
+        datasets: [dataset],
+        // Use CHUNKS search type to get raw text segments from the
+        // knowledge graph. GRAPH_COMPLETION (the default) returns
+        // LLM-generated completions which are harder to parse into
+        // structured memory. CHUNKS gives us the raw extracted text
+        // which our buildMemoryContext() parser can work with.
+        searchType: "CHUNKS",
+        topK: 20,
+      },
       signal: opts?.signal,
     });
     if (!res.ok) {
@@ -198,14 +208,29 @@ export async function recall(
       return [];
     }
     const data = await res.json();
-    // Cognee returns an array of result objects with a `text` field.
-    if (Array.isArray(data)) {
-      return data as RecallResult[];
-    }
-    if (data?.results && Array.isArray(data.results)) {
-      return data.results as RecallResult[];
-    }
-    return [];
+    // Cognee's recall endpoint returns an array of entries with
+    // different shapes depending on the source (graph, session, trace).
+    // Each entry may have `text`, `content`, `answer`, or `chunk`
+    // fields. We normalize to RecallResult with a `text` field.
+    const rawItems: unknown[] = Array.isArray(data)
+      ? data
+      : data?.results && Array.isArray(data.results)
+        ? data.results
+        : [];
+    return rawItems.map((item) => {
+      const obj = item as Record<string, unknown>;
+      return {
+        text:
+          (obj.text as string) ??
+          (obj.content as string) ??
+          (obj.answer as string) ??
+          (obj.chunk as string) ??
+          JSON.stringify(obj),
+        source: (obj.source as string) ?? "graph",
+        timestamp: (obj.timestamp as string) ?? new Date().toISOString(),
+        ...obj,
+      } as RecallResult;
+    });
   } catch (err) {
     console.error("[ardum] cognee.recall error:", err);
     return [];
@@ -228,7 +253,14 @@ export async function improve(
   try {
     const res = await cogneeFetch("/api/v1/improve", {
       method: "POST",
-      body: { dataset_name: dataset },
+      body: {
+        datasetName: dataset,
+        // Run enrichment asynchronously — the improve call is
+        // fire-and-forget from every call site (feedback loops, the
+        // memory page button). Blocking would add latency the user
+        // doesn't need to wait for.
+        runInBackground: true,
+      },
       signal: opts?.signal,
     });
     if (!res.ok) {
@@ -249,6 +281,11 @@ export async function improve(
  * When called with a userId, deletes that practitioner's entire memory
  * (the "right to be forgotten" / "clear my memory" UX). When called with
  * everything=true, wipes all Ardum datasets — used only in tests.
+ *
+ * Uses the DELETE /api/v1/datasets endpoints (the canonical deletion
+ * path per the Cognee API reference). The single-dataset path requires
+ * a dataset UUID (not the name), so we first list datasets to find the
+ * UUID by name.
  */
 export async function forget(
   userId?: string,
@@ -257,9 +294,9 @@ export async function forget(
   if (!hasCognee()) return;
   try {
     if (opts?.everything) {
-      const res = await cogneeFetch("/api/v1/forget", {
+      // DELETE /api/v1/datasets — deletes all datasets for the user.
+      const res = await cogneeFetch("/api/v1/datasets", {
         method: "DELETE",
-        body: { everything: true },
         signal: opts?.signal,
       });
       if (!res.ok) {
@@ -271,20 +308,163 @@ export async function forget(
       return;
     }
     if (!userId) return;
-    const dataset = userDataset(userId);
-    const res = await cogneeFetch("/api/v1/forget", {
+    // Find the dataset UUID by name, then delete it.
+    const datasetName = userDataset(userId);
+    const datasetId = await findDatasetIdByName(datasetName, opts?.signal);
+    if (!datasetId) {
+      // Dataset doesn't exist — nothing to forget.
+      return;
+    }
+    const res = await cogneeFetch(`/api/v1/datasets/${datasetId}`, {
       method: "DELETE",
-      body: { dataset },
       signal: opts?.signal,
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       console.error(
-        `[ardum] cognee.forget(${dataset}) failed (${res.status}): ${body.slice(0, 200)}`,
+        `[ardum] cognee.forget(${datasetName}) failed (${res.status}): ${body.slice(0, 200)}`,
       );
     }
   } catch (err) {
     console.error("[ardum] cognee.forget error:", err);
+  }
+}
+
+// ── Dataset management helpers ────────────────────────────────────────────
+
+/**
+ * DatasetInfo — the shape returned by GET /api/v1/datasets.
+ * Used to find dataset UUIDs by name (needed for delete and graph endpoints).
+ */
+export type DatasetInfo = {
+  id: string;
+  name: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+/**
+ * listDatasets — list all datasets accessible to the authenticated user.
+ * GET /api/v1/datasets
+ */
+export async function listDatasets(
+  opts?: { signal?: AbortSignal },
+): Promise<DatasetInfo[]> {
+  if (!hasCognee()) return [];
+  try {
+    const res = await cogneeFetch("/api/v1/datasets", {
+      method: "GET",
+      signal: opts?.signal,
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    // The API returns an array of dataset objects with id, name, etc.
+    const items: unknown[] = Array.isArray(data) ? data : data?.datasets ?? [];
+    return items.map((item) => {
+      const obj = item as Record<string, unknown>;
+      return {
+        id: String(obj.id ?? ""),
+        name: String(obj.name ?? ""),
+        createdAt: obj.created_at as string | undefined,
+        updatedAt: obj.updated_at as string | undefined,
+      };
+    });
+  } catch (err) {
+    console.error("[ardum] cognee.listDatasets error:", err);
+    return [];
+  }
+}
+
+/**
+ * findDatasetIdByName — look up a dataset UUID by name.
+ * Needed because DELETE /api/v1/datasets/{id} and GET /api/v1/datasets/{id}/graph
+ * require a UUID, not a name.
+ */
+async function findDatasetIdByName(
+  name: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const datasets = await listDatasets({ signal });
+  const found = datasets.find((d) => d.name === name);
+  return found?.id ?? null;
+}
+
+/**
+ * GraphNode — a node in the Cognee knowledge graph.
+ * From GET /api/v1/datasets/{id}/graph → GraphDTO.nodes
+ */
+export type GraphNode = {
+  id: string;
+  label: string;
+  type: string;
+  properties: Record<string, unknown>;
+};
+
+/**
+ * GraphEdge — an edge in the Cognee knowledge graph.
+ * From GET /api/v1/datasets/{id}/graph → GraphDTO.edges
+ */
+export type GraphEdge = {
+  source: string;
+  target: string;
+  label: string;
+};
+
+/**
+ * GraphData — the full knowledge graph for a dataset.
+ * From GET /api/v1/datasets/{id}/graph
+ */
+export type GraphData = {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+};
+
+/**
+ * getDatasetGraph — fetch the actual Cognee knowledge graph for a
+ * practitioner's dataset. Returns nodes and edges that can be rendered
+ * directly in the MemoryGraph visualization.
+ *
+ * This is the real graph — not our synthetic approximation. When
+ * Cognee has processed the practitioner's memory, this returns the
+ * actual entity nodes and relationship edges that Cognee extracted.
+ */
+export async function getDatasetGraph(
+  userId: string,
+  opts?: { signal?: AbortSignal },
+): Promise<GraphData | null> {
+  if (!hasCognee()) return null;
+  const datasetName = userDataset(userId);
+  const datasetId = await findDatasetIdByName(datasetName, opts?.signal);
+  if (!datasetId) return null;
+  try {
+    const res = await cogneeFetch(`/api/v1/datasets/${datasetId}/graph`, {
+      method: "GET",
+      signal: opts?.signal,
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      nodes: (data.nodes ?? []).map((n: unknown) => {
+        const obj = n as Record<string, unknown>;
+        return {
+          id: String(obj.id ?? ""),
+          label: String(obj.label ?? ""),
+          type: String(obj.type ?? ""),
+          properties: (obj.properties ?? {}) as Record<string, unknown>,
+        };
+      }),
+      edges: (data.edges ?? []).map((e: unknown) => {
+        const obj = e as Record<string, unknown>;
+        return {
+          source: String(obj.source ?? ""),
+          target: String(obj.target ?? ""),
+          label: String(obj.label ?? ""),
+        };
+      }),
+    };
+  } catch (err) {
+    console.error("[ardum] cognee.getDatasetGraph error:", err);
+    return null;
   }
 }
 
