@@ -87,9 +87,13 @@ body::before {
   border-radius: 2px;
 }
 
-/* Text shadow for readability over the hero photo. */
+/* Text shadow for readability over the hero photo. A layered shadow —
+   a tight dark drop for contrast over bright areas, plus a soft cream
+   halo so the text reads on both light and dark photo regions. */
 .text-shadow-soft {
-  text-shadow: 0 1px 4px rgba(26, 23, 20, 0.08);
+  text-shadow:
+    0 1px 3px rgba(26, 23, 20, 0.35),
+    0 0 16px rgba(246, 241, 231, 0.45);
 }
 
 /* Surface card with a subtle shadow so it lifts off the cream background. */

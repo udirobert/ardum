@@ -25,7 +25,7 @@ const HERO_IMAGE =
   "https://images.unsplash.com/photo-1557093793-d149a38a1be8?w=1920&q=80&auto=format&fit=crop";
 
 const HERO_IMAGE_ALT =
-  "https://images.unsplash.com/photo-1544367591-64f2f87f3d8c?w=1920&q=80&auto=format&fit=crop";
+  "https://images.unsplash.com/photo-1505765050516-f72dcac9c60e?w=1920&q=80&auto=format&fit=crop";
 
 export default function ParallaxHero() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -118,12 +118,14 @@ export default function ParallaxHero() {
         />
       </div>
 
-      {/* Warm cream wash — fades from transparent to opaque */}
+      {/* Warm cream wash — fades from semi-transparent to opaque.
+          The top is denser than before so the headline area has enough
+          backing for the dark ink text to read over any photo. */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(180deg, rgba(246,241,231,0.15) 0%, rgba(246,241,231,0.30) 40%, rgba(246,241,231,0.90) 100%)",
+            "linear-gradient(180deg, rgba(246,241,231,0.35) 0%, rgba(246,241,231,0.45) 40%, rgba(246,241,231,0.92) 100%)",
         }}
       />
 

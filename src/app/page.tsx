@@ -18,7 +18,7 @@ export default function Home() {
         </div>
         <div className="t-stagger is-shown">
           <span className="t-stagger-line tag mb-4 text-shadow-soft">agentic retreat matching</span>
-          <strong className="t-stagger-line t-stagger-line--2 font-serif text-5xl sm:text-7xl leading-[1.02] tracking-tight mb-8 max-w-3xl block">
+          <strong className="t-stagger-line t-stagger-line--2 font-serif text-5xl sm:text-7xl leading-[1.02] tracking-tight mb-8 max-w-3xl block text-shadow-soft">
             A retreat matched to{" "}
             <span className="italic text-[color:var(--accent)]">your practice</span>,
             not a filter.
