@@ -97,18 +97,33 @@ export async function uploadAttestation(
 export async function getAttestation(
   rootHash: string
 ): Promise<Attestation | null> {
+  // Always check the local store first — it holds the seed attestations
+  // and acts as a write-through cache for user-uploaded ones. The 0G
+  // indexer only has attestations that were actually uploaded to 0G
+  // Storage; the seeds are local-only. Without this check, every match
+  // detail page 500s because the indexer throws "file not found" on
+  // seed root hashes.
+  const cached = localStore.get(rootHash);
+  if (cached) return cached;
+
   if (!has0GStorage()) {
-    return localStore.get(rootHash) ?? null;
+    return null;
   }
 
-  const { Indexer } = await load0G();
-  const env = await import("./env").then((m) => m.readServerEnv());
-  const indexer = new Indexer(env.OG_STORAGE_INDEXER);
+  try {
+    const { Indexer } = await load0G();
+    const env = await import("./env").then((m) => m.readServerEnv());
+    const indexer = new Indexer(env.OG_STORAGE_INDEXER);
 
-  const [blob, err] = await indexer.downloadToBlob(rootHash);
-  if (err || !blob) return null;
-  const text = await blob.text();
-  return JSON.parse(text) as Attestation;
+    const [blob, err] = await indexer.downloadToBlob(rootHash);
+    if (err || !blob) return null;
+    const text = await blob.text();
+    return JSON.parse(text) as Attestation;
+  } catch {
+    // Indexer throws (not just returns err) for missing files — treat
+    // as "not found" so the page can notFound() gracefully.
+    return null;
+  }
 }
 
 export async function listAttestations(): Promise<AttestationIndex[]> {
