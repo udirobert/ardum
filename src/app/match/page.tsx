@@ -497,19 +497,18 @@ function MatchFlow() {
 
 // Memory banner — shown while the agent reasons, if Mira has memory of
 // this practitioner from Cognee. The "AI that doesn't forget" moment.
+// Uses the "thinking" orb state to signal Mira is actively recalling.
 function MemoryBanner({ memory }: { memory: StreamMemory }) {
   const lastBooking = memory.pastBookings[0];
   const lastMatch = memory.pastMatches[0];
   const lastEnergy = memory.energyHistory[memory.energyHistory.length - 1];
   const lastNote = memory.pastNotes[0];
 
-  let recognition: string;
+  let recognition = "I remember you from a previous visit.";
   if (lastBooking) {
     recognition = `You've been to ${lastBooking.title} in ${lastBooking.location}.`;
   } else if (lastMatch) {
     recognition = `Last time I recommended ${lastMatch.title} in ${lastMatch.location}.`;
-  } else {
-    recognition = "I remember you from a previous visit.";
   }
 
   if (lastEnergy) {
@@ -517,14 +516,14 @@ function MemoryBanner({ memory }: { memory: StreamMemory }) {
   }
 
   return (
-    <aside className="mt-6 mb-6 border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-5 fade-in-up surface-card">
+    <aside className="mt-6 mb-6 border border-[color:var(--accent-soft)] rounded-sm bg-[color:var(--surface)] p-5 fade-in-up surface-card">
       <div className="flex items-start gap-4">
-        <MiraOrb size={36} state="calm" />
+        <MiraOrb size={36} state="thinking" />
         <div className="flex-1">
           <p className="tag mb-1 flex items-center gap-2">
             <span
               aria-hidden
-              className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)]"
+              className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft"
             />
             Mira remembers you
           </p>
@@ -537,7 +536,13 @@ function MemoryBanner({ memory }: { memory: StreamMemory }) {
               </>
             )}
           </p>
-          <p className="tag mt-2 opacity-70">
+          {memory.pastMatches.length > 1 && (
+            <p className="tag mt-2 opacity-70">
+              {memory.pastMatches.length} past recommendations ·{" "}
+              {memory.pastBookings.length} booked
+            </p>
+          )}
+          <p className="tag mt-2 opacity-60">
             powered by Cognee · hybrid graph-vector memory
           </p>
         </div>

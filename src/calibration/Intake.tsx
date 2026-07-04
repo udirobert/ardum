@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import { INTAKE_STEPS } from "./intakeSteps";
 import type {
@@ -23,6 +24,17 @@ import {
   STORAGE_KEY as FINGERPRINT_KEY,
   type Fingerprint,
 } from "@/lib/fingerprint";
+
+// ── Cognee memory types (client-safe subset) ──────────────────────────────
+type CogneeMemory = {
+  isReturning: boolean;
+  energyHistory: string[];
+  pastMatches: { title: string; location: string; score: number }[];
+  pastBookings: { title: string; location: string }[];
+  pastNotes: string[];
+  provider: string;
+  configured: boolean;
+};
 
 // External store for the local fingerprint. useSyncExternalStore is
 // React 19's idiom for reading browser-only state without triggering the
@@ -70,7 +82,25 @@ export default function Intake() {
   );
   const [recallDismissed, setRecallDismissed] = useState(false);
 
-  const recallVisible = fingerprint && !recallDismissed;
+  // Cognee memory — fetched on mount. If Mira has persistent memory of
+  // this practitioner, we show a richer welcome-back banner that
+  // references past matches, bookings, and notes. Falls back to the
+  // localStorage fingerprint banner when Cognee is not configured.
+  const [cogneeMemory, setCogneeMemory] = useState<CogneeMemory | null>(null);
+  const userIdRef = useRef<string>("");
+  useEffect(() => {
+    const id = getOrCreateUserId();
+    userIdRef.current = id;
+    if (!id) return;
+    fetch(`/api/memory?userId=${encodeURIComponent(id)}`)
+      .then((r) => r.json())
+      .then((data: CogneeMemory) => setCogneeMemory(data))
+      .catch(() => {});
+  }, []);
+
+  const hasCogneeMemory =
+    cogneeMemory?.isReturning && cogneeMemory.provider !== "none";
+  const recallVisible = (fingerprint || hasCogneeMemory) && !recallDismissed;
 
   const currentStep = INTAKE_STEPS[pageIndex];
   const isFinal = pageIndex === INTAKE_STEPS.length;
@@ -244,13 +274,29 @@ export default function Intake() {
     <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 sm:pt-20 pb-24">
       <ProgressBar current={progress.current} total={progress.total} />
 
-      {recallVisible && fingerprint && (
+      {recallVisible && hasCogneeMemory && cogneeMemory && (
+        <CogneeRecallBanner
+          memory={cogneeMemory}
+          fingerprint={fingerprint}
+          onUse={useRecallAnswers}
+          onStartOver={startFresh}
+          onClear={clearAndStart}
+        />
+      )}
+
+      {recallVisible && !hasCogneeMemory && fingerprint && (
         <RecallBanner
           fingerprint={fingerprint}
           onUse={useRecallAnswers}
           onStartOver={startFresh}
           onClear={clearAndStart}
         />
+      )}
+
+      {/* First-visit intro — Mira sets the expectation that she remembers.
+          Shown only when there's no recall banner and we're on step 1. */}
+      {!recallVisible && !hasCogneeMemory && pageIndex === 0 && cogneeMemory && (
+        <FirstVisitIntro configured={cogneeMemory.configured} />
       )}
 
       <div className="t-page-slide relative min-h-[60vh]" data-page={pageIndex + 1}>
@@ -436,8 +482,8 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
   );
 }
 
-// The welcome-back banner. Three explicit actions so the user is never
-// surprised by an auto-applied profile.
+// The welcome-back banner for localStorage-only memory. Three explicit
+// actions so the user is never surprised by an auto-applied profile.
 function RecallBanner({
   fingerprint,
   onUse,
@@ -461,8 +507,7 @@ function RecallBanner({
         {age === "yesterday" ? "Yesterday you said" : "Last time you said"}{" "}
         your energy was <em>{energy}</em>, your budget band{" "}
         <em>{budget}</em>, and your social comfort{" "}
-        <em>{social}</em>. Still true? Nothing leaves your browser — this
-        memory lives only in this tab.
+        <em>{social}</em>. Still true?
       </p>
       <div className="flex flex-wrap gap-3">
         <button
@@ -486,6 +531,162 @@ function RecallBanner({
         >
           Clear my history
         </button>
+      </div>
+    </aside>
+  );
+}
+
+// The Cognee-powered welcome-back banner. This is the "AI that doesn't
+// forget" moment — Mira references past matches, bookings, and notes
+// from her persistent graph-vector memory, not just the localStorage
+// fingerprint.
+function CogneeRecallBanner({
+  memory,
+  fingerprint,
+  onUse,
+  onStartOver,
+  onClear,
+}: {
+  memory: CogneeMemory;
+  fingerprint: Fingerprint | null;
+  onUse: () => void;
+  onStartOver: () => void;
+  onClear: () => void;
+}) {
+  const lastBooking = memory.pastBookings[0];
+  const lastMatch = memory.pastMatches[0];
+  const lastNote = memory.pastNotes[0];
+  const energyTrajectory = memory.energyHistory;
+  const lastEnergy = energyTrajectory[energyTrajectory.length - 1];
+
+  // Build Mira's recognition line — the thing that makes the user feel
+  // genuinely seen, not just recalled from a cookie.
+  let recognition = "I remember you.";
+  if (lastBooking) {
+    recognition = `You've been to ${lastBooking.title} in ${lastBooking.location}.`;
+  } else if (lastMatch) {
+    recognition = `Last time I recommended ${lastMatch.title} in ${lastMatch.location}.`;
+  }
+
+  if (lastEnergy && fingerprint) {
+    const energyShifted = lastEnergy !== fingerprint.profile.energy;
+    recognition += energyShifted
+      ? ` Your energy was ${lastEnergy} then — I see it's shifted to ${fingerprint.profile.energy}.`
+      : ` Your energy was ${lastEnergy} then, and it still is.`;
+  } else if (lastEnergy) {
+    recognition += ` Your energy was ${lastEnergy} last time.`;
+  }
+
+  return (
+    <aside className="mb-10 border border-[color:var(--accent-soft)] rounded-sm bg-[color:var(--surface)] p-6 fade-in-up surface-card">
+      <div className="flex items-start gap-4 mb-4">
+        <MiraOrb size={40} state="calm" />
+        <div className="flex-1">
+          <p className="tag mb-1 flex items-center gap-2">
+            <span
+              aria-hidden
+              className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)]"
+            />
+            Mira remembers you
+          </p>
+          <h2 className="font-serif text-xl tracking-tight mb-2">
+            {recognition}
+          </h2>
+        </div>
+      </div>
+
+      {/* Memory details — the transparency that builds trust */}
+      <div className="ml-14 space-y-3 mb-4">
+        {lastNote && (
+          <p className="why max-w-prose">
+            You told me: <em>&ldquo;{lastNote}&rdquo;</em>. I&apos;ve kept that with me.
+          </p>
+        )}
+        {memory.pastMatches.length > 1 && (
+          <p className="tag opacity-70">
+            {memory.pastMatches.length} past recommendations ·{" "}
+            {memory.pastBookings.length} booked
+          </p>
+        )}
+        {energyTrajectory.length > 1 && (
+          <p className="tag opacity-70">
+            energy trajectory: {energyTrajectory.join(" → ")}
+          </p>
+        )}
+      </div>
+
+      <p className="why max-w-prose mb-4 ml-14">
+        {fingerprint
+          ? "Your energy, budget, and social comfort from last time are below. Still true?"
+          : "Want me to use what I know, or start fresh?"}
+      </p>
+
+      <div className="flex flex-wrap gap-3 ml-14">
+        <button
+          type="button"
+          onClick={onUse}
+          className="px-4 py-2 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors text-sm"
+        >
+          Use what you know
+        </button>
+        <button
+          type="button"
+          onClick={onStartOver}
+          className="px-4 py-2 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors text-sm"
+        >
+          Let me change something
+        </button>
+        <Link
+          href="/memory"
+          className="px-4 py-2 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors text-sm text-[color:var(--muted)] hover:text-foreground"
+        >
+          See everything I remember →
+        </Link>
+        <button
+          type="button"
+          onClick={onClear}
+          className="px-4 py-2 rounded-sm border border-dashed border-[color:var(--hairline)] text-[color:var(--muted)] hover:text-foreground transition-colors text-sm"
+        >
+          Forget me
+        </button>
+      </div>
+
+      <p className="tag mt-4 ml-14 opacity-60">
+        powered by Cognee · hybrid graph-vector memory ·{" "}
+        <Link href="/memory" className="underline hover:text-foreground">
+          what does Mira know?
+        </Link>
+      </p>
+    </aside>
+  );
+}
+
+// First-visit intro — Mira sets the expectation that she remembers.
+// This is the trust-building moment: "I'll remember you, and you can
+// see or wipe what I know at any time."
+function FirstVisitIntro({ configured }: { configured: boolean }) {
+  return (
+    <aside className="mb-10 border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-5 fade-in-up">
+      <div className="flex items-start gap-3">
+        <MiraOrb size={32} state="speaking" />
+        <div className="flex-1">
+          <p className="text-sm leading-relaxed max-w-prose">
+            {configured
+              ? "I'm Mira. I'll remember everything you tell me — your energy, your matches, the things you share. The more we work together, the better I'll know you. You can see or wipe what I know at any time."
+              : "I'm Mira. I'll remember your answers from last time, right here in your browser. Set up Cognee memory and I'll remember you across devices and sessions, too."}
+          </p>
+          {configured && (
+            <p className="tag mt-2 opacity-60">
+              powered by Cognee ·{" "}
+              <Link
+                href="/memory"
+                className="underline hover:text-foreground transition-colors"
+              >
+                your memory, your control
+              </Link>
+            </p>
+          )}
+        </div>
       </div>
     </aside>
   );

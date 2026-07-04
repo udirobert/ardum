@@ -103,6 +103,7 @@ export default async function MatchDetail({
         orbSize={56}
         lines={letter.lines}
         cta={letter.cta}
+        recognitionLineCount={letter.recognitionLineCount}
         retreatRootHash={id}
         retreatTitle={title}
         depositUsd={priceUsd}
@@ -110,6 +111,7 @@ export default async function MatchDetail({
         classPriceUsd={Math.max(25, Math.round(priceUsd / 20))}
         signals={signals}
         sessionId={sessionId}
+        userId={userId}
       />
 
       <ClientMatchBanner retreatId={id} />

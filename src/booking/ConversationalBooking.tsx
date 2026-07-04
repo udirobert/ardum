@@ -10,7 +10,7 @@
 // they're in a checkout. They're in a conversation with a guide who
 // is handling everything for them.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import MiraOrb from "@/components/MiraOrb";
 import { useMagicAuth } from "./MagicAuth";
@@ -28,12 +28,23 @@ import type { BookingAttestation } from "./types";
 import BreathSync from "./BreathSync";
 import MiraCheckIn from "./MiraCheckIn";
 
+// Client-safe memory context shape (subset of MemoryContext from cognee.ts)
+type BookingMemory = {
+  isReturning: boolean;
+  energyHistory: string[];
+  pastMatches: { title: string; location: string; score: number }[];
+  pastBookings: { title: string; location: string }[];
+  pastNotes: string[];
+  provider: string;
+};
+
 type ConversationalBookingProps = {
   retreatRootHash: string;
   retreatTitle: string;
   depositUsd: number;
   operatorAddress: string;
   signals: { energy?: string; budget?: string; social?: string };
+  userId?: string;
   onClose: () => void;
 };
 
@@ -52,6 +63,7 @@ export default function ConversationalBooking({
   depositUsd,
   operatorAddress,
   signals,
+  userId,
   onClose,
 }: ConversationalBookingProps) {
   const {
@@ -78,6 +90,17 @@ export default function ConversationalBooking({
   const [bookingRootHash, setBookingRootHash] = useState<string | null>(null);
   const [prepPlanShown, setPrepPlanShown] = useState(false);
 
+  // Fetch Mira's memory for this practitioner so the preparation plan
+  // can weave in past notes. Fire-and-forget — the plan works without it.
+  const [memory, setMemory] = useState<BookingMemory | null>(null);
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`/api/memory?userId=${encodeURIComponent(userId)}`)
+      .then((r) => r.json())
+      .then((data: BookingMemory) => setMemory(data))
+      .catch(() => {});
+  }, [userId]);
+
   const dialogue = bookingDialogue(depositUsd, retreatTitle);
 
   // Derive the effective phase from underlying auth/UA state.
@@ -94,6 +117,26 @@ export default function ConversationalBooking({
             : !delegated
               ? "upgrading"
               : "depositing";
+
+  // Fire rememberBooking when the deposit confirms (phase transitions
+  // to "done"). This stores the booking in Cognee so future sessions
+  // can recall "you've been to X in Y."
+  const bookingRememberedRef = useRef(false);
+  useEffect(() => {
+    if (effectivePhase === "done" && userId && !bookingRememberedRef.current) {
+      bookingRememberedRef.current = true;
+      fetch("/api/memory/booking", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          retreatTitle,
+          retreatLocation: "",
+          depositUsd,
+        }),
+      }).catch(() => {});
+    }
+  }, [effectivePhase, userId, retreatTitle, depositUsd]);
 
   // Auto-trigger delegation when we reach that phase
   useEffect(() => {
@@ -210,6 +253,17 @@ export default function ConversationalBooking({
         attestedAt: "",
       },
       signals,
+      memory && memory.provider !== "none"
+        ? {
+            isReturning: memory.isReturning,
+            energyHistory: memory.energyHistory,
+            pastMatches: memory.pastMatches,
+            pastBookings: memory.pastBookings,
+            pastNotes: memory.pastNotes,
+            rawRecall: [],
+            provider: memory.provider as "cognee" | "none",
+          }
+        : undefined,
     );
 
     return (

@@ -24,7 +24,7 @@ export function matchLetter(
   match: MatchResult,
   signals: PractitionerSignals,
   memory?: MemoryContext,
-): { lines: string[]; cta: string } {
+): { lines: string[]; cta: string; recognitionLineCount: number } {
   const energy = signals.energy ?? "your energy";
   const social = signals.social ?? "your comfort";
 
@@ -46,6 +46,7 @@ export function matchLetter(
   const socialLine = socialPhrase[signals.social ?? ""] ?? `your social comfort leans ${social}`;
 
   const lines: string[] = [];
+  let recognitionLineCount = 0;
 
   // If Mira has memory of this practitioner, open with a recognition line
   // instead of a cold start. This is the "AI that doesn't forget" moment.
@@ -69,9 +70,11 @@ export function matchLetter(
     } else {
       lines.push(`Welcome back. I remember you.${energyShifted}`);
     }
+    recognitionLineCount++;
 
     if (memory.pastNotes.length > 0) {
       lines.push(`You mentioned: "${memory.pastNotes[0]}". I've kept that with me.`);
+      recognitionLineCount++;
     }
   }
 
@@ -86,7 +89,7 @@ export function matchLetter(
 
   const cta = `Want me to hold your spot?`;
 
-  return { lines, cta };
+  return { lines, cta, recognitionLineCount };
 }
 
 // ── Booking conversation ────────────────────────────────────────────

@@ -20,6 +20,10 @@ type AgentLetterProps = {
   orbSize?: number;
   lines: string[];
   cta: string;
+  // Number of leading lines that are "welcome back" recognition (from
+  // Cognee memory). These get a distinct visual treatment — italic,
+  // accent-colored — to separate "I remember you" from "here's your match."
+  recognitionLineCount?: number;
   retreatRootHash: string;
   retreatTitle: string;
   depositUsd: number;
@@ -27,12 +31,14 @@ type AgentLetterProps = {
   classPriceUsd: number;
   signals: { energy?: string; budget?: string; social?: string };
   sessionId?: string;
+  userId?: string;
 };
 
 export default function AgentLetter({
   orbSize = 56,
   lines,
   cta,
+  recognitionLineCount = 0,
   retreatRootHash,
   retreatTitle,
   depositUsd,
@@ -40,6 +46,7 @@ export default function AgentLetter({
   classPriceUsd,
   signals,
   sessionId,
+  userId,
 }: AgentLetterProps) {
   const [bookingOpen, setBookingOpen] = useState(false);
   const [classOpen, setClassOpen] = useState(false);
@@ -75,16 +82,26 @@ export default function AgentLetter({
         </div>
       </div>
 
-      {/* The letter — staggered lines */}
+      {/* The letter — staggered lines. Recognition lines (from Cognee
+          memory) are styled distinctly: italic, accent-colored, with a
+          subtle left border. This visually separates "I remember you"
+          from "here's your match." */}
       <div className="space-y-4 mb-8 max-w-prose">
-        {lines.map((line, i) => (
-          <p
-            key={i}
-            className={`text-lg leading-relaxed text-foreground mira-line mira-line-${Math.min(i + 1, 5)}`}
-          >
-            {line}
-          </p>
-        ))}
+        {lines.map((line, i) => {
+          const isRecognition = i < recognitionLineCount;
+          return (
+            <p
+              key={i}
+              className={
+                isRecognition
+                  ? "text-lg leading-relaxed text-[color:var(--accent-ink)] italic border-l-2 border-[color:var(--accent-soft)] pl-4 mira-line mira-line-1"
+                  : `text-lg leading-relaxed text-foreground mira-line mira-line-${Math.min(i + 1 - recognitionLineCount, 5)}`
+              }
+            >
+              {line}
+            </p>
+          );
+        })}
         {/* Aesthetic observation — woven in from the journey */}
         {aestheticLines.map((line, i) => (
           <p
@@ -131,6 +148,7 @@ export default function AgentLetter({
             depositUsd={depositUsd}
             operatorAddress={operatorAddress}
             signals={signals}
+            userId={userId}
             onClose={() => setBookingOpen(false)}
           />
         </BookingProviders>
