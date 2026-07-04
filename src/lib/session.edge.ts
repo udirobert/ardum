@@ -58,17 +58,23 @@ export async function getProfile(
   if (!hasSupabase()) {
     return memSessions.get(id)?.profile;
   }
-  const url =
-    restUrl(`/${TABLE}`) +
-    `?id=eq.${encodeURIComponent(id)}&select=profile&limit=1`;
-  const res = await fetch(url, { headers: restHeaders() });
-  if (!res.ok) {
-    throw new Error(
-      `Supabase getProfile failed: HTTP ${res.status} ${await res.text().catch(() => "")}`
-    );
+  try {
+    const url =
+      restUrl(`/${TABLE}`) +
+      `?id=eq.${encodeURIComponent(id)}&select=profile&limit=1`;
+    const res = await fetch(url, { headers: restHeaders() });
+    if (!res.ok) {
+      // Network error or Supabase down — return undefined so
+      // waitForProfile can keep polling or the caller can fall back.
+      return undefined;
+    }
+    const rows = (await res.json()) as Array<{ profile: PractitionerProfile | null }>;
+    return rows[0]?.profile ?? undefined;
+  } catch {
+    // fetch itself threw (DNS failure, connection refused, etc.) —
+    // treat as "not found" rather than 500ing the stream route.
+    return undefined;
   }
-  const rows = (await res.json()) as Array<{ profile: PractitionerProfile | null }>;
-  return rows[0]?.profile ?? undefined;
 }
 
 export async function saveMatchRun(id: string, run: MatchRun): Promise<void> {

@@ -108,6 +108,7 @@ function MatchFlow() {
   const router = useRouter();
   const sessionId = sp.get("session");
   const userId = sp.get("user");
+  const profileB64 = sp.get("p");
 
   const [steps, setSteps] = useState<ReasoningStep[]>([]);
   const [run, setRun] = useState<MatchRun | null>(null);
@@ -140,7 +141,7 @@ function MatchFlow() {
   useEffect(() => {
     if (!sessionId) return;
 
-    const url = `/api/agent/match/stream?session=${encodeURIComponent(sessionId)}${userId ? `&user=${encodeURIComponent(userId)}` : ""}`;
+    const url = `/api/agent/match/stream?session=${encodeURIComponent(sessionId)}${userId ? `&user=${encodeURIComponent(userId)}` : ""}${profileB64 ? `&p=${encodeURIComponent(profileB64)}` : ""}`;
     const es = new EventSource(url);
 
     es.addEventListener("open", () => setStreamOpen(true));
@@ -233,7 +234,7 @@ function MatchFlow() {
     });
 
     return () => es.close();
-  }, [sessionId, userId, router]);
+  }, [sessionId, userId, profileB64, router]);
 
   if (!sessionId) {
     return (

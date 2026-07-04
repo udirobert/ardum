@@ -3,6 +3,7 @@ import { getProfile, saveMatchRun } from "@/lib/session.edge";
 import { listAttestations } from "@/lib/attestations.edge";
 import { streamMatchAgent } from "@/agent/client";
 import { recallContext, rememberMatch } from "@/lib/cognee";
+import type { PractitionerProfile } from "@/calibration/schema";
 
 // SSE stream of the matching agent's reasoning. Events:
 //   event: memory            — Mira's recalled memory context (emitted first)
@@ -44,10 +45,30 @@ async function waitForProfile(sessionId: string, timeoutMs = 4000) {
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get("session");
   const userId = req.nextUrl.searchParams.get("user");
+  const profileB64 = req.nextUrl.searchParams.get("p");
   if (!sessionId) {
     return NextResponse.json({ error: "Missing session." }, { status: 400 });
   }
-  const practitioner = await waitForProfile(sessionId);
+
+  // Read the profile from the base64 query param first — this is the
+  // reliable path that doesn't depend on Supabase or shared in-memory
+  // state across serverless isolates. Falls back to the session store
+  // for backward compatibility (e.g. when someone navigates to /match
+  // without the `p` param, like the "retry" button).
+  let practitioner: PractitionerProfile | undefined;
+  if (profileB64) {
+    try {
+      const json = decodeURIComponent(atob(profileB64));
+      practitioner = JSON.parse(json) as PractitionerProfile;
+    } catch {
+      // Malformed base64 — fall through to session store lookup.
+    }
+  }
+
+  if (!practitioner) {
+    practitioner = (await waitForProfile(sessionId)) ?? undefined;
+  }
+
   if (!practitioner) {
     return NextResponse.json(
       { error: "Profile not found — complete calibration first." },

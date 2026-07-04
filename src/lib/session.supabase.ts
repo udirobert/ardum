@@ -37,13 +37,20 @@ export async function saveProfile(
 ): Promise<void> {
   const sb = supabaseAdmin();
   if (!sb) return;
-  const { error } = await sb
-    .from(TABLE)
-    .upsert(
-      { id, profile, updated_at: new Date().toISOString() },
-      { onConflict: "id" }
-    );
-  if (error) throw new Error(`Supabase saveProfile failed: ${error.message}`);
+  try {
+    const { error } = await sb
+      .from(TABLE)
+      .upsert(
+        { id, profile, updated_at: new Date().toISOString() },
+        { onConflict: "id" }
+      );
+    if (error) throw new Error(`Supabase saveProfile failed: ${error.message}`);
+  } catch (err) {
+    // Supabase unreachable (paused project, DNS failure, etc.) —
+    // don't 500 the profile POST. The stream reads the profile from
+    // the `p` query param, so persistence here is best-effort.
+    console.warn("saveProfile: Supabase unreachable, skipping:", err);
+  }
 }
 
 export async function saveMatchRun(
@@ -66,13 +73,19 @@ export async function getSession(
 ): Promise<Session | undefined> {
   const sb = supabaseAdmin();
   if (!sb) return;
-  const { data, error } = await sb
-    .from(TABLE)
-    .select("id, profile, match_run, created_at")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new Error(`Supabase getSession failed: ${error.message}`);
-  return data ? rowToSession(data) : undefined;
+  try {
+    const { data, error } = await sb
+      .from(TABLE)
+      .select("id, profile, match_run, created_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(`Supabase getSession failed: ${error.message}`);
+    return data ? rowToSession(data) : undefined;
+  } catch (err) {
+    // Supabase unreachable — return undefined rather than 500ing.
+    console.warn("getSession: Supabase unreachable:", err);
+    return undefined;
+  }
 }
 
 export async function getProfile(

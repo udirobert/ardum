@@ -184,15 +184,23 @@ export default function Intake() {
 
     // Optimistic navigation: generate the sessionId on the client,
     // push the route immediately, and POST the profile in the
-    // background. The /api/agent/match/stream endpoint waits a few
-    // seconds for the profile to land before erroring, so the GET can
-    // race the POST without breaking the flow. Visible savings on first
-    // paint of the match page: ~500–1500ms.
+    // background. The stream route reads the profile from the `p`
+    // query param (base64-encoded) so it doesn't depend on the
+    // session store being available — Supabase may be down or the
+    // Edge/Node isolates may not share in-memory state. The POST
+    // is still fired for persistence/recall, but the stream doesn't
+    // wait on it.
     const sessionId =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : `s-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    router.push(`/match?session=${sessionId}&user=${userId}`);
+    const profileB64 =
+      typeof btoa !== "undefined"
+        ? btoa(encodeURIComponent(JSON.stringify(profile)))
+        : "";
+    router.push(
+      `/match?session=${sessionId}&user=${userId}${profileB64 ? `&p=${profileB64}` : ""}`,
+    );
 
     try {
       const profRes = await fetch("/api/profile", {
@@ -200,27 +208,14 @@ export default function Intake() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ sessionId, userId, profile }),
       });
+      // Best-effort — the stream doesn't depend on this succeeding
+      // because the profile is passed via the `p` query param.
       if (!profRes.ok) {
-        const body = await profRes.text();
-        let message = `The session store didn't accept the profile (HTTP ${profRes.status}).`;
-        try {
-          const parsed = JSON.parse(body) as { error?: string };
-          if (parsed.error) message = parsed.error;
-        } catch {
-          /* body wasn't JSON — fall back to the generic message */
-        }
-        throw new Error(message);
+        console.warn(`Profile POST returned ${profRes.status} — stream will use query param fallback.`);
       }
     } catch (err) {
-      console.error(err);
-      // Best-effort: surface inline. The user is already on the match
-      // page; the stream will eventually 404 and show its own error UI.
-      setSubmitError(
-        err instanceof Error
-          ? err.message
-          : "Something went wrong starting the match."
-      );
-      setSubmitting(false);
+      // Non-fatal — the stream reads the profile from the URL param.
+      console.warn("Profile POST failed — stream will use query param fallback.", err);
     }
   }
 
