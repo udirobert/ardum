@@ -251,11 +251,16 @@ export async function improve(
   if (!hasCognee()) return;
   const dataset = opts?.dataset ?? userDataset(userId);
   try {
-    const res = await cogneeFetch("/api/v1/improve", {
+    // Cognee's enrichment endpoint is POST /api/v1/cognify (there is no
+    // /api/v1/improve — "improve"/"memify" maps to cognify, the graph-
+    // building pipeline that extracts entities/relationships and prunes
+    // stale nodes). The body takes `datasets` (array of names), not
+    // `datasetName`.
+    const res = await cogneeFetch("/api/v1/cognify", {
       method: "POST",
       body: {
-        datasetName: dataset,
-        // Run enrichment asynchronously — the improve call is
+        datasets: [dataset],
+        // Run enrichment asynchronously — the cognify call is
         // fire-and-forget from every call site (feedback loops, the
         // memory page button). Blocking would add latency the user
         // doesn't need to wait for.
@@ -294,9 +299,13 @@ export async function forget(
   if (!hasCognee()) return;
   try {
     if (opts?.everything) {
-      // DELETE /api/v1/datasets — deletes all datasets for the user.
-      const res = await cogneeFetch("/api/v1/datasets", {
-        method: "DELETE",
+      // POST /api/v1/forget with everything=true wipes ALL datasets the
+      // user owns (relational records, graph, vector embeddings, session
+      // cache). There is no DELETE /api/v1/datasets (collection) endpoint
+      // — only DELETE /api/v1/datasets/{id} for a single dataset.
+      const res = await cogneeFetch("/api/v1/forget", {
+        method: "POST",
+        body: { everything: true },
         signal: opts?.signal,
       });
       if (!res.ok) {
@@ -352,7 +361,7 @@ export async function listDatasets(
 ): Promise<DatasetInfo[]> {
   if (!hasCognee()) return [];
   try {
-    const res = await cogneeFetch("/api/v1/datasets", {
+    const res = await cogneeFetch("/api/v1/datasets/", {
       method: "GET",
       signal: opts?.signal,
     });

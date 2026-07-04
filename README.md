@@ -247,7 +247,7 @@ layers you want to enable. Each one is independent:
 | `NEXT_PUBLIC_OPENFORT_PUBLIC_KEY` + `NEXT_PUBLIC_OPENFORT_POLICY_ID` [+ `OPENFORT_SECRET_KEY`] | Openfort embedded wallet + x402 micropayments for drop-in classes. Settles on Base Sepolia (testnet). Secret key enables server-side account creation + sponsored transactions. |
 | `NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS` | The deployed `RetreatDepositEscrow` address on Arbitrum Sepolia (`0xBEe032998c7A1d9268075Dfc2061514143d5B796`). Set `NEXT_PUBLIC_USE_TESTNET=true` to target Sepolia. |
 | `FAL_KEY` | fal.ai generative imagery for the retreat vision (Tier 2). If not set, falls back to curated Unsplash images matched to the user's dominant aesthetic quality. 1 call per match — token-efficient. |
-| `COGNEE_BASE_URL` + `COGNEE_API_KEY` | Mira's persistent memory layer. Self-hosted (`http://localhost:8000`) for the Open Source track, or Cognee Cloud (`https://your-tenant.aws.cognee.ai`) for the Cloud track. If not set, memory calls are no-ops and the app uses localStorage-only recall. |
+| `COGNEE_BASE_URL` + `COGNEE_API_KEY` | Mira's persistent memory layer. Self-hosted (`http://localhost:8000`) for the Open Source track, or Cognee Cloud (`https://tenant-<uuid>.aws.cognee.ai` — the `<uuid>` is your Tenant ID from the dashboard; the shared `api.aws.cognee.ai` host returns 404) for the Cloud track. If not set, memory calls are no-ops and the app uses localStorage-only recall. |
 
 The adapter at `src/lib/og-storage.ts` lazy-imports the SDK only when
 needed, and the agent at `src/agent/client.ts` falls back gracefully
@@ -304,8 +304,29 @@ Mira can match you.
 |---|---|---|
 | **`remember()`** | After intake, after match, after booking | "Practitioner arrived with energy=low, budget=1k-2k, notes='recovering from burnout'. Matched to Restorative Yin in Ubud, score 0.87." |
 | **`recall()`** | Before match (SSE stream), before Mira's letter | "What do I know about this practitioner?" → past visits, energy trajectory, past matches, bookings, notes |
-| **`improve()`** | User-triggered from `/memory` page | Enrich the graph, prune stale nodes, surface deeper relationships |
-| **`forget()`** | User-triggered from `/memory` page | Surgical wipe of one practitioner's entire memory (right to be forgotten) |
+| **`improve()`** | User-triggered from `/memory` page | Enrich the graph, prune stale nodes, surface deeper relationships. Maps to Cognee's `POST /api/v1/cognify` (there is no `/improve` endpoint — cognify is the graph-building pipeline that does the enrichment/improvement) |
+| **`forget()`** | User-triggered from `/memory` page | Surgical wipe of one practitioner's entire memory via `POST /api/v1/forget` (right to be forgotten) |
+
+### REST API contract
+
+The client in `src/lib/cognee.ts` targets Cognee's REST API directly (no SDK
+dependency). Verified against the live OpenAPI spec at
+`/openapi.json` on the tenant host:
+
+| Verb | Endpoint | Notes |
+|---|---|---|
+| `remember` | `POST /api/v1/remember` | Multipart form: `data` (file blob), `datasetName`, optional `session_id`, `run_in_background` |
+| `recall` | `POST /api/v1/recall` | JSON body: `query`, `datasets` (names), `searchType` (`GRAPH_COMPLETION` \| `CHUNKS` \| `RAG_COMPLETION` \| `SUMMARIES`), `topK` |
+| `improve` | `POST /api/v1/cognify` | JSON body: `datasets` (names array, **not** `datasetName`), `runInBackground` |
+| `forget` | `POST /api/v1/forget` | JSON body: `{ dataset }` (name) or `{ everything: true }` for a full wipe |
+| `listDatasets` | `GET /api/v1/datasets/` | Trailing slash is required — without it the server 307-redirects to an insecure `http://` URL |
+| `getDatasetGraph` | `GET /api/v1/datasets/{id}/graph` | `{id}` is the dataset UUID (looked up by name via `listDatasets`). Returns `{ nodes:[{id,label,type,properties}], edges:[{source,target,label}] }` |
+| `forget` (single) | `DELETE /api/v1/datasets/{id}` | `{id}` is the dataset UUID |
+
+Auth is a single `X-Api-Key` header (apiKey in the `ApiKeyAuth` security
+scheme). The shared `api.aws.cognee.ai` host returns 404 for every
+`/api/v1/*` route — only the tenant-scoped host
+(`https://tenant-<uuid>.aws.cognee.ai`) serves the memory API.
 
 ### Architecture
 
@@ -339,10 +360,16 @@ The base URL is env-gated — one codebase, two tracks:
 | Track | Config | Prize |
 |---|---|---|
 | **Best Use of Open Source** | `COGNEE_BASE_URL=http://localhost:8000` (self-hosted Docker) | Apple MacBook per team member |
-| **Best Use of Cognee Cloud** | `COGNEE_BASE_URL=https://your-tenant.aws.cognee.ai` + `COGNEE_API_KEY` (free Developer plan with code COGNEE-35) | Apple iPhone 17 per team member |
+| **Best Use of Cognee Cloud** | `COGNEE_BASE_URL=https://tenant-<uuid>.aws.cognee.ai` + `COGNEE_API_KEY` (free Developer plan with code COGNEE-35). The `<uuid>` is your Tenant ID from the Cognee Cloud dashboard — the shared `api.aws.cognee.ai` host does **not** serve the memory API. | Apple iPhone 17 per team member |
 
 When neither is set, every Cognee call is a graceful no-op — the app
 runs in demo mode with localStorage-only memory, exactly as before.
+
+> **Verified end-to-end** against a live Cognee Cloud tenant: a full
+> `remember` → `cognify` → `recall` (both `CHUNKS` and `GRAPH_COMPLETION`)
+> → `getDatasetGraph` → `forget` round-trip returns the expected results,
+> and the graph endpoint returns `{nodes, edges}` in the shape the
+> `MemoryGraph` visualization consumes directly.
 
 ### Persistent user identity
 
