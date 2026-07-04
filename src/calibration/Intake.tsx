@@ -82,6 +82,14 @@ export default function Intake() {
   );
   const [recallDismissed, setRecallDismissed] = useState(false);
 
+  // The slide container holds absolutely-positioned step pages. Without a
+  // dynamic height, the container collapses to its min-h-[60vh] and the
+  // active step's content overflows below it — past the footer. We measure
+  // the active step's scrollHeight and set the container to match, so the
+  // document flow accounts for the real content height.
+  const slideRef = useRef<HTMLDivElement>(null);
+  const [slideHeight, setSlideHeight] = useState<number | null>(null);
+
   // Cognee memory — fetched on mount. If Mira has persistent memory of
   // this practitioner, we show a richer welcome-back banner that
   // references past matches, bookings, and notes. Falls back to the
@@ -101,6 +109,19 @@ export default function Intake() {
   const hasCogneeMemory =
     cogneeMemory?.isReturning && cogneeMemory.provider !== "none";
   const recallVisible = (fingerprint || hasCogneeMemory) && !recallDismissed;
+
+  // Measure the active step's content height so the slide container
+  // (which holds absolutely-positioned steps) grows to fit — otherwise
+  // the content overflows below the container and past the footer.
+  useEffect(() => {
+    const el = slideRef.current;
+    if (!el) return;
+    const active = el.querySelector<HTMLElement>(
+      `.t-page[data-page-id="${pageIndex + 1}"]`,
+    );
+    if (!active) return;
+    setSlideHeight(active.scrollHeight);
+  }, [pageIndex, recallVisible, cogneeMemory]);
 
   const currentStep = INTAKE_STEPS[pageIndex];
   const isFinal = pageIndex === INTAKE_STEPS.length;
@@ -299,7 +320,12 @@ export default function Intake() {
         <FirstVisitIntro configured={cogneeMemory.configured} />
       )}
 
-      <div className="t-page-slide relative min-h-[60vh]" data-page={pageIndex + 1}>
+      <div
+        ref={slideRef}
+        className="t-page-slide relative min-h-[60vh]"
+        data-page={pageIndex + 1}
+        style={slideHeight ? { minHeight: `${slideHeight}px` } : undefined}
+      >
         {INTAKE_STEPS.map((step, i) => (
           <div key={step.id} className="t-page" data-page-id={i + 1}>
             {/* Mira — the guide present at every step */}
