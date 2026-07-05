@@ -88,7 +88,6 @@ export default function ConversationalBooking({
   const [error, setError] = useState<string | null>(null);
   const [depositTxId, setDepositTxId] = useState<string | null>(null);
   const [bookingRootHash, setBookingRootHash] = useState<string | null>(null);
-  const [prepPlanShown, setPrepPlanShown] = useState(false);
 
   // Fetch Mira's memory for this practitioner so the preparation plan
   // can weave in past notes. Fire-and-forget — the plan works without it.
@@ -232,7 +231,12 @@ export default function ConversationalBooking({
     signPersonalMessage,
   ]);
 
-  // ── Done phase: show preparation plan ──────────────────────────────
+  // ── Done phase: the commitment ────────────────────────────────────
+  // The booking is complete. This is not a receipt — it's Mira's
+  // closing lines, the preparation plan shown by default (it's the
+  // payoff, not an optional extra), and the provenance collapsed to a
+  // single quiet line. The share/referral is a sentence in Mira's
+  // voice, not a card with a button.
   if (effectivePhase === "done") {
     const plan = preparationPlan(
       {
@@ -268,10 +272,10 @@ export default function ConversationalBooking({
 
     return (
       <div className="mt-8 fade-in-up">
-        {/* Mira's closing lines */}
-        <div className="flex items-center gap-4 mb-6">
-          <MiraOrb size={48} state="calm" />
-          <div className="space-y-2 flex-1">
+        {/* Mira's closing lines — the letter continues */}
+        <div className="flex items-start gap-4 mb-8">
+          <MiraOrb size={48} state="calm" className="flex-shrink-0 mt-1" />
+          <div className="space-y-3 flex-1">
             {dialogue.done.map((line, i) => (
               <p
                 key={i}
@@ -283,71 +287,60 @@ export default function ConversationalBooking({
           </div>
         </div>
 
-        {/* Transaction details — collapsed, not the hero */}
-        {depositTxId && (
-          <p className="tag break-all opacity-60 mb-2 ml-16">
-            tx: {depositTxId}
-          </p>
-        )}
-        {bookingRootHash && (
-          <p className="tag break-all opacity-50 mb-6 ml-16">
-            0G: {bookingRootHash}
-          </p>
-        )}
+        {/* Provenance — a single quiet line, not the hero */}
+        <p className="tag opacity-50 mb-8 ml-16 break-all">
+          deposit held in escrow on Arbitrum
+          {depositTxId ? ` · tx ${depositTxId.slice(0, 18)}…` : ""}
+          {bookingRootHash ? ` · 0G ${bookingRootHash.slice(0, 22)}…` : ""}
+        </p>
 
-        {/* Preparation plan — the reason the booking isn't the end */}
-        <div className="ml-16 border border-[color:var(--accent-soft)] rounded-sm bg-[color:var(--surface)] p-6 surface-card">
-          <div className="flex items-baseline justify-between mb-6">
-            <p className="font-serif text-2xl tracking-tight">{plan.title}</p>
-            <button
-              type="button"
-              onClick={() => setPrepPlanShown(!prepPlanShown)}
-              className="tag hover:text-foreground transition-colors"
-            >
-              {prepPlanShown ? "hide" : "show"}
-            </button>
-          </div>
-
-          {prepPlanShown && (
-            <ol className="space-y-4">
-              {plan.days.map((day) => (
-                <li
-                  key={day.day}
-                  className="flex gap-4 mira-line mira-line-2"
-                >
-                  <span className="font-serif text-2xl text-[color:var(--accent-soft)] leading-none w-8 flex-shrink-0">
-                    {day.day}
-                  </span>
-                  <div className="flex-1">
-                    <div className="flex items-baseline justify-between gap-3 mb-1">
-                      <p className="font-serif text-lg tracking-tight">{day.title}</p>
-                      <span className="tag opacity-60 flex-shrink-0">{day.duration}</span>
-                    </div>
-                    <p className="text-sm text-[color:var(--muted)] leading-relaxed">
-                      {day.description}
-                    </p>
+        {/* Preparation plan — shown by default, woven into the letter */}
+        <div className="ml-16 mb-8">
+          <p className="font-serif text-2xl tracking-tight mb-1 mira-line">
+            {plan.title}
+          </p>
+          <p className="text-sm text-[color:var(--muted)] mb-6">
+            Five minutes a day. Start tonight.
+          </p>
+          <ol className="space-y-5">
+            {plan.days.map((day, i) => (
+              <li
+                key={day.day}
+                className="flex gap-4 mira-line"
+                style={{ animationDelay: `${200 + i * 100}ms` }}
+              >
+                <span className="font-serif text-3xl text-[color:var(--accent-soft)] leading-none w-10 flex-shrink-0">
+                  {day.day}
+                </span>
+                <div className="flex-1">
+                  <div className="flex items-baseline justify-between gap-3 mb-1">
+                    <p className="font-serif text-lg tracking-tight">{day.title}</p>
+                    <span className="tag opacity-60 flex-shrink-0">{day.duration}</span>
                   </div>
-                </li>
-              ))}
-            </ol>
-          )}
+                  <p className="text-sm text-[color:var(--muted)] leading-relaxed">
+                    {day.description}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
         </div>
 
         {/* Mira checks in — post-booking follow-up timeline */}
-        <div className="mt-6 ml-16">
+        <div className="ml-16 mb-8">
           <MiraCheckIn retreatTitle={retreatTitle} signals={signals} />
         </div>
 
-        {/* Share + referral — the viral loop closes here */}
-        <div className="mt-6 ml-16 border border-[color:var(--accent-soft)] rounded-sm bg-[color:var(--surface)] p-6 surface-card">
-          <div className="flex items-start gap-3 mb-4">
-            <MiraOrb size={32} state="speaking" className="flex-shrink-0 mt-0.5" />
-            <p className="text-sm leading-relaxed">
+        {/* Share — woven into Mira's voice, not a card */}
+        <div className="ml-16 mb-8">
+          <div className="flex items-start gap-3 mb-3">
+            <MiraOrb size={28} state="speaking" className="flex-shrink-0 mt-0.5" />
+            <p className="text-sm leading-relaxed max-w-prose">
               Your spot is held. If a friend books through your link, you both
-              get $50 off your next retreat. Want to share?
+              get $50 off. Want to share?
             </p>
           </div>
-          <div className="flex flex-wrap gap-3 ml-11">
+          <div className="flex flex-wrap gap-3 ml-10">
             <button
               type="button"
               onClick={() => {
@@ -364,25 +357,26 @@ export default function ConversationalBooking({
                   nav.clipboard?.writeText(text).catch(() => {});
                 }
               }}
-              className="px-4 py-2 rounded-sm bg-[color:var(--accent)] text-background hover:bg-[color:var(--accent-ink)] transition-colors text-sm"
+              className="text-sm font-serif text-[color:var(--accent)] hover:text-[color:var(--accent-ink)] transition-colors text-left"
             >
               Share with a friend →
             </button>
             <Link
               href={`/match/${retreatRootHash}`}
-              className="px-4 py-2 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
+              className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
             >
               View your retreat →
             </Link>
           </div>
         </div>
 
+        {/* Close — quiet, not a button. The vision continues below. */}
         <button
           type="button"
           onClick={onClose}
-          className="mt-6 ml-16 text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
+          className="ml-16 text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
         >
-          Close
+          ↓
         </button>
       </div>
     );

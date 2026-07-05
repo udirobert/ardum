@@ -178,9 +178,11 @@ export default function MatchVision({
           </div>
         )}
 
-        {/* Booking flow opens inline — the letter continues */}
+        {/* Booking flow opens inline — the letter continues.
+            A cream surface makes the booking text readable over the
+            cloud field. Rounded edges echo the vision's softness. */}
         {bookingOpen && (
-          <div className="max-w-prose mx-auto mt-8">
+          <div className="max-w-prose mx-auto mt-8 bg-[color:var(--background)] rounded-sm p-6 sm:p-8 border border-[color:var(--hairline)]">
             <BookingProviders>
               <ConversationalBooking
                 retreatRootHash={match.retreatRootHash}
@@ -197,7 +199,7 @@ export default function MatchVision({
 
         {/* Class invitation opens inline */}
         {classOpen && (
-          <div className="max-w-prose mx-auto mt-8">
+          <div className="max-w-prose mx-auto mt-8 bg-[color:var(--background)] rounded-sm p-6 sm:p-8 border border-[color:var(--hairline)]">
             <BookingProviders>
               <ClassInvitation
                 retreatRootHash={match.retreatRootHash}
