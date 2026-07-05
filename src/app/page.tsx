@@ -1,19 +1,15 @@
 "use client";
 
-// Home page — the new arrival-first structure.
-//
-// Old structure: hero → "how it works" explainer → Intake form
-// New structure: ArrivalScreen (Mira orb + cloud field + one question) → Intake
-//
-// The "how it works" explainer is gone. Trust is earned by doing, not reading.
-// The practitioner arrives to Mira, not to copy about Mira.
+// Home page — the arrival-first structure.
 //
 // State machine:
-//   "arriving"  — ArrivalScreen is visible; Intake is hidden below
-//   "intake"    — ArrivalScreen fades out; Intake slides up and becomes active
+//   "arriving"  — ArrivalScreen is visible (Mira orb + cloud field + question)
+//   "intake"    — ArrivalScreen unmounts; Intake slides up with its own cloud
+//                 atmosphere (The Reading) that shifts as answers arrive.
 //
-// The Intake is mounted immediately (for perf / fingerprint access) but
-// visually hidden until the practitioner clicks "Begin" on the arrival screen.
+// The Intake is mounted immediately (for fingerprint / Cognee access) but
+// its cloud field only activates when it becomes the active phase — avoids a
+// second WebGL context running during the arrival screen.
 
 import { useState } from "react";
 import Intake from "@/calibration/Intake";
@@ -27,13 +23,9 @@ export default function Home() {
   return (
     <div className="relative">
       {/* ── Arrival screen ───────────────────────────────────────────── */}
-      {/* Hidden once the practitioner clicks Begin, not unmounted — keeps
-          the cloud WebGL context warm and avoids a layout jump. */}
-      <div
-        style={{
-          display: phase === "intake" ? "none" : "block",
-        }}
-      >
+      {/* Unmounted once the practitioner clicks Begin — its cloud context
+          is released and the Intake's own atmosphere takes over. */}
+      {phase === "arriving" && (
         <ArrivalScreen
           onBegin={() => {
             setPhase("intake");
@@ -44,11 +36,12 @@ export default function Home() {
             });
           }}
         />
-      </div>
+      )}
 
       {/* ── Intake ───────────────────────────────────────────────────── */}
       {/* Always mounted so fingerprint reads and Cognee fetch happen early.
-          Slides in from below when phase === "intake". */}
+          Slides in from below when phase === "intake". The `active` prop
+          gates the cloud field so it only mounts when the intake is visible. */}
       <div
         id="intake"
         style={
@@ -71,7 +64,7 @@ export default function Home() {
         }
         aria-hidden={phase === "arriving"}
       >
-        <Intake />
+        <Intake active={phase === "intake"} />
       </div>
     </div>
   );

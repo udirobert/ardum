@@ -111,3 +111,8 @@ feels nourishing or draining — and it's the one most filters get wrong.`,
 // into the optional posture sample. Replaces the old "step 4 of 4" framing.
 export const CLOSING_LINE =
   "I have what I need. This last step is optional — a five-second posture sample gives me a real baseline to reason from. Your camera frames never leave this browser tab.";
+
+// The reading moment — shown once, after all three answers are in, before
+// the final step. The clouds deepen and Mira speaks this line as the
+// atmosphere settles into the shape of the practitioner's practice.
+export const READING_LINE = "I'm reading the shape of your practice.";

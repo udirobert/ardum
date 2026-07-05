@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-import { INTAKE_STEPS, CLOSING_LINE } from "./intakeSteps";
+import { INTAKE_STEPS, CLOSING_LINE, READING_LINE } from "./intakeSteps";
 import type {
   EnergyState,
   BudgetBand,
@@ -15,6 +15,7 @@ import type {
 import PoseCheck from "./PoseCheck";
 import MiraOrb from "@/components/MiraOrb";
 import GooeyFilter from "@/components/GooeyFilter";
+import CloudField from "@/aesthetics/CloudField";
 import { poseForEnergy } from "@/lib/yoga-poses";
 import type { AestheticVector } from "@/aesthetics/image-pool";
 import {
@@ -107,7 +108,7 @@ function intakeAnswersToVector(
   return base;
 }
 
-export default function Intake() {
+export default function Intake({ active = true }: { active?: boolean }) {
   const router = useRouter();
   const [pageIndex, setPageIndex] = useState(0);
   const [answers, setAnswers] = useState<IntakeAnswers>({});
@@ -117,6 +118,12 @@ export default function Intake() {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // The reading moment — a one-time ceremonial pause after all three
+  // answers are in. The clouds deepen and Mira speaks before the final
+  // step arrives. readingShown prevents it from re-triggering if the
+  // user goes back to change an answer.
+  const [readingActive, setReadingActive] = useState(false);
+  const [readingShown, setReadingShown] = useState(false);
   // The recall banner is shown if a stored fingerprint falls inside the
   // 1-30 day window. Read via useSyncExternalStore so localStorage access
   // is registered as external state, not an effect-time side effect.
@@ -153,28 +160,57 @@ export default function Intake() {
   const recallVisible = (fingerprint || hasCogneeMemory) && !recallDismissed;
 
   // Auto-scroll the latest turn into view when the conversation advances.
-  // Accounts for the fixed 56px header so the turn isn't hidden beneath it.
+  // Skipped during the reading moment (the overlay holds the viewport) and
+  // when the intake isn't the active phase. Accounts for the header offset.
   useEffect(() => {
+    if (readingActive || !active) return;
     const el = latestTurnRef.current;
     if (!el) return;
     const top = el.getBoundingClientRect().top + window.scrollY - 80;
     window.scrollTo({ top, behavior: "smooth" });
-  }, [pageIndex]);
+  }, [pageIndex, readingActive, active]);
 
   const currentStep = INTAKE_STEPS[pageIndex];
   const isFinal = pageIndex === INTAKE_STEPS.length;
 
   // Live aesthetic vector from intake answers — drives the orb's marble
-  // vein colour so audio and visual share one signal.
+  // veins AND the cloud field atmosphere. One signal, sound and vision.
   const liveVector = useMemo(
     () => intakeAnswersToVector(answers),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [answers.energy, answers.social]
   );
 
+  // During the reading moment, deepen the vector — push darker, more
+  // intimate, calmer — so the clouds visibly settle as Mira reads.
+  const atmosphereVector = useMemo<AestheticVector>(() => {
+    if (!readingActive) return liveVector;
+    return {
+      ...liveVector,
+      dark: Math.min(1, liveVector.dark + 0.22),
+      light: Math.max(0, liveVector.light - 0.22),
+      intimate: Math.min(1, liveVector.intimate + 0.18),
+      expansive: Math.max(0, liveVector.expansive - 0.18),
+      calming: Math.min(1, liveVector.calming + 0.12),
+      energizing: Math.max(0, liveVector.energizing - 0.12),
+    };
+  }, [readingActive, liveVector]);
+
+  // The reading moment auto-dismisses after ~4.2s — the clouds ease back
+  // and the final step (pose/notes/begin) arrives.
+  useEffect(() => {
+    if (!readingActive) return;
+    const tid = setTimeout(() => {
+      setReadingActive(false);
+      setPageIndex(INTAKE_STEPS.length);
+    }, 4200);
+    return () => clearTimeout(tid);
+  }, [readingActive]);
+
   // Picking an answer is itself the continuation — no separate "continue"
   // button. The answer is set and the conversation advances to the next
-  // unanswered step, or to the final step once all three are answered.
+  // unanswered step. When all three are answered for the first time, the
+  // reading moment triggers instead of jumping straight to the final step.
   // The next-step computation uses the synchronously-built newAnswers so it
   // sees the fresh value without waiting for state to flush.
   function pick(value: string) {
@@ -188,6 +224,14 @@ export default function Intake() {
     } else if (currentStep.id === "social") {
       newAnswers = { ...answers, social: value as SocialComfort };
       setAnswers(newAnswers);
+    }
+    const allThree =
+      newAnswers.energy && newAnswers.budget && newAnswers.social;
+    // First time all three are answered → the reading moment.
+    if (allThree && !readingShown) {
+      setReadingShown(true);
+      setReadingActive(true);
+      return;
     }
     const nextUnanswered = INTAKE_STEPS.findIndex(
       (s, i) => i > pageIndex && !newAnswers[s.id]
@@ -334,7 +378,81 @@ export default function Intake() {
   }, []);
 
   return (
-    <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 sm:pt-20 pb-24">
+    <div className="relative w-full">
+      {/*
+        The Reading — a continuous cloud atmosphere behind the conversation,
+        driven by the same preference vector that drives the orb's marble
+        veins. The atmosphere shifts as each answer arrives; the reading
+        happens in the air, not as a separate detour. Only mounted when the
+        intake is the active phase (avoids a wasted WebGL context during
+        the arrival screen).
+      */}
+      {active && (
+        <>
+          <div className="absolute inset-0 z-0 overflow-hidden" aria-hidden>
+            <CloudField
+              vector={atmosphereVector}
+              variant="backdrop"
+              className="w-full h-full"
+            />
+          </div>
+          {/* Cream wash for content readability — stronger behind the text
+              column, fading at the edges so the clouds remain visible. */}
+          <div
+            className="absolute inset-0 z-0 pointer-events-none"
+            aria-hidden
+            style={{
+              background:
+                "radial-gradient(ellipse 70% 80% at 50% 30%, rgba(246,241,231,0.72) 0%, rgba(246,241,231,0.42) 45%, rgba(246,241,231,0.18) 80%)",
+            }}
+          />
+        </>
+      )}
+
+      {/*
+        The reading moment — a one-time ceremonial overlay after all three
+        answers. The clouds have deepened (atmosphereVector); Mira's orb is
+        centered and her line fades in. Holds for ~4s before the final step.
+      */}
+      {readingActive && (
+        <div
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center min-h-[70vh] px-6"
+          style={{ animation: "fade-in-up 600ms var(--ease-ardum) both" }}
+        >
+          <div
+            className="absolute inset-0 bg-[color:var(--background)]/30"
+            aria-hidden
+          />
+          <div className="relative z-10 flex flex-col items-center text-center">
+            <div
+              className="mb-8"
+              style={{
+                filter: "drop-shadow(0 0 48px rgba(168,90,58,0.28))",
+              }}
+            >
+              <MiraOrb
+                size={88}
+                state="thinking"
+                aestheticVector={atmosphereVector}
+              />
+            </div>
+            <p
+              className="font-serif text-2xl sm:text-3xl leading-[1.3] tracking-tight text-foreground max-w-md mira-line"
+            >
+              {READING_LINE}
+            </p>
+            <div className="flex items-center gap-2 mt-8">
+              <span
+                aria-hidden
+                className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft"
+              />
+              <span className="tag">reading…</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+    <section className="relative z-10 mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 sm:pt-20 pb-24">
       {/* Gooey SVG filter def — hidden, referenced by the option list container */}
       <GooeyFilter id="intake" blur={6} threshold={16} />
 
@@ -591,6 +709,7 @@ export default function Intake() {
         )}
       </div>
     </section>
+    </div>
   );
 }
 
