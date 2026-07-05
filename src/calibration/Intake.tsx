@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-import { INTAKE_STEPS } from "./intakeSteps";
+import { INTAKE_STEPS, CLOSING_LINE } from "./intakeSteps";
 import type {
   EnergyState,
   BudgetBand,
@@ -127,13 +127,10 @@ export default function Intake() {
   );
   const [recallDismissed, setRecallDismissed] = useState(false);
 
-  // The slide container holds absolutely-positioned step pages. Without a
-  // dynamic height, the container collapses to its min-h-[60vh] and the
-  // active step's content overflows below it — past the footer. We measure
-  // the active step's scrollHeight and set the container to match, so the
-  // document flow accounts for the real content height.
-  const slideRef = useRef<HTMLDivElement>(null);
-  const [slideHeight, setSlideHeight] = useState<number | null>(null);
+  // The transcript flows naturally — no absolutely-positioned pages, so no
+  // height measurement is needed. This ref pins the latest turn so we can
+  // scroll it into view as the conversation advances.
+  const latestTurnRef = useRef<HTMLDivElement>(null);
 
   // Cognee memory — fetched on mount. If Mira has persistent memory of
   // this practitioner, we show a richer welcome-back banner that
@@ -155,34 +152,17 @@ export default function Intake() {
     cogneeMemory?.isReturning && cogneeMemory.provider !== "none";
   const recallVisible = (fingerprint || hasCogneeMemory) && !recallDismissed;
 
-  // Measure the active step's content height so the slide container
-  // (which holds absolutely-positioned steps) grows to fit — otherwise
-  // the content overflows below the container and past the footer.
+  // Auto-scroll the latest turn into view when the conversation advances.
+  // Accounts for the fixed 56px header so the turn isn't hidden beneath it.
   useEffect(() => {
-    const el = slideRef.current;
+    const el = latestTurnRef.current;
     if (!el) return;
-    const active = el.querySelector<HTMLElement>(
-      `.t-page[data-page-id="${pageIndex + 1}"]`,
-    );
-    if (!active) return;
-    setSlideHeight(active.scrollHeight);
-  }, [pageIndex, recallVisible, cogneeMemory]);
+    const top = el.getBoundingClientRect().top + window.scrollY - 80;
+    window.scrollTo({ top, behavior: "smooth" });
+  }, [pageIndex]);
 
   const currentStep = INTAKE_STEPS[pageIndex];
   const isFinal = pageIndex === INTAKE_STEPS.length;
-  const canAdvance =
-    isFinal ||
-    (currentStep.id === "energy" && answers.energy) ||
-    (currentStep.id === "budget" && answers.budget) ||
-    (currentStep.id === "social" && answers.social);
-
-  const progress = useMemo(
-    () => ({
-      current: Math.min(pageIndex + 1, INTAKE_STEPS.length),
-      total: INTAKE_STEPS.length + 1, // +1 for the pose/begin step
-    }),
-    [pageIndex]
-  );
 
   // Live aesthetic vector from intake answers — drives the orb's marble
   // vein colour so audio and visual share one signal.
@@ -192,18 +172,32 @@ export default function Intake() {
     [answers.energy, answers.social]
   );
 
+  // Picking an answer is itself the continuation — no separate "continue"
+  // button. The answer is set and the conversation advances to the next
+  // unanswered step, or to the final step once all three are answered.
+  // The next-step computation uses the synchronously-built newAnswers so it
+  // sees the fresh value without waiting for state to flush.
   function pick(value: string) {
+    let newAnswers = answers;
     if (currentStep.id === "energy") {
-      setAnswers((a) => ({ ...a, energy: value as EnergyState }));
+      newAnswers = { ...answers, energy: value as EnergyState };
+      setAnswers(newAnswers);
     } else if (currentStep.id === "budget") {
-      setAnswers((a) => ({ ...a, budget: value as BudgetBand }));
+      newAnswers = { ...answers, budget: value as BudgetBand };
+      setAnswers(newAnswers);
     } else if (currentStep.id === "social") {
-      setAnswers((a) => ({ ...a, social: value as SocialComfort }));
+      newAnswers = { ...answers, social: value as SocialComfort };
+      setAnswers(newAnswers);
     }
-  }  function next() {
-    if (pageIndex < INTAKE_STEPS.length) {
-      setPageIndex(pageIndex + 1);
-    }
+    const nextUnanswered = INTAKE_STEPS.findIndex(
+      (s, i) => i > pageIndex && !newAnswers[s.id]
+    );
+    setPageIndex(nextUnanswered === -1 ? INTAKE_STEPS.length : nextUnanswered);
+  }
+
+  // Jump back to a past step to re-answer it. Later answers stay visible.
+  function goToStep(i: number) {
+    setPageIndex(i);
   }
 
   function back() {
@@ -296,41 +290,41 @@ export default function Intake() {
     setRecallDismissed(true);
   }
 
-  // Keyboard: 1-4 picks an option, Enter advances, Backspace goes back.
-  // We attach the listener ONCE and keep the latest values in refs so the
-  // handler always sees fresh state without re-subscribing every render.
+  // Keyboard: 1-4 picks an option (which auto-advances the conversation),
+  // Backspace goes back to re-answer the previous step, Enter on the final
+  // step begins matching. We attach the listener ONCE and keep the latest
+  // values in refs so the handler always sees fresh state.
   const stepRef = useRef(currentStep);
-  const canAdvanceRef = useRef(canAdvance);
   const pageIndexRef = useRef(pageIndex);
-  const isFinalRef = useRef(isFinal);
   const pickRef = useRef(pick);
-  const nextRef = useRef(next);
   const backRef = useRef(back);
+  const beginRef = useRef(beginMatching);
   useEffect(() => {
     stepRef.current = currentStep;
-    canAdvanceRef.current = canAdvance;
     pageIndexRef.current = pageIndex;
-    isFinalRef.current = isFinal;
     pickRef.current = pick;
-    nextRef.current = next;
     backRef.current = back;
+    beginRef.current = beginMatching;
   });
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      // Global shortcuts (number-key pick, Enter, Backspace) only operate
-      // on the discrete-question steps. The final step has a free-form
-      // notes textarea and an explicit "begin matching" button, so we
-      // intentionally leave the keys to native behavior there.
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
-      if (pageIndexRef.current >= INTAKE_STEPS.length) return;
+      // Final step: Enter begins matching, Backspace goes back.
+      if (pageIndexRef.current >= INTAKE_STEPS.length) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          beginRef.current();
+        } else if (e.key === "Backspace") {
+          backRef.current();
+        }
+        return;
+      }
       const step = stepRef.current;
       if (e.key >= "1" && e.key <= "4") {
         const idx = Number(e.key) - 1;
         const opt = step.options[idx];
         if (opt) pickRef.current(opt.value);
-      } else if (e.key === "Enter" && canAdvanceRef.current) {
-        nextRef.current();
       } else if (e.key === "Backspace" && pageIndexRef.current > 0) {
         backRef.current();
       }
@@ -343,7 +337,6 @@ export default function Intake() {
     <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 sm:pt-20 pb-24">
       {/* Gooey SVG filter def — hidden, referenced by the option list container */}
       <GooeyFilter id="intake" blur={6} threshold={16} />
-      <ProgressBar current={progress.current} total={progress.total} />
 
       {recallVisible && hasCogneeMemory && cogneeMemory && (
         <CogneeRecallBanner
@@ -365,228 +358,239 @@ export default function Intake() {
       )}
 
       {/* First-visit intro — Mira sets the expectation that she remembers.
-          Shown only when there's no recall banner and we're on step 1. */}
+          Shown only when there's no recall banner and we're at the start. */}
       {!recallVisible && !hasCogneeMemory && pageIndex === 0 && cogneeMemory && (
         <FirstVisitIntro configured={cogneeMemory.configured} />
       )}
 
-      <div
-        ref={slideRef}
-        className="t-page-slide relative min-h-[60vh]"
-        data-page={pageIndex + 1}
-        style={slideHeight ? { minHeight: `${slideHeight}px` } : undefined}
-      >
-        {INTAKE_STEPS.map((step, i) => (
-          <div key={step.id} className="t-page" data-page-id={i + 1}>
-            {/* Mira — the guide present at every step */}
-            <div className="flex items-center gap-4 mb-8">
-              <MiraOrb size={44} state="speaking" aestheticVector={liveVector} />
-              <div>
-                <p className="font-serif text-xl tracking-tight">Mira</p>
-                <p className="tag">your guide</p>
-              </div>
-            </div>
-            <p className="text-lg leading-relaxed text-foreground mb-8 max-w-prose mira-line">
-              {step.mira}
-            </p>
+      {/*
+        The conversation transcript. Completed turns (Mira's question, your
+        answer, Mira's acknowledgement) stay visible and accumulate; the
+        active question sits at the bottom. No step counter, no progress
+        bar — Mira knows where you are.
+      */}
+      <div className="mt-4">
+        {INTAKE_STEPS.map((step, i) => {
+          const isAnswered = !!answers[step.id];
+          const isActive = i === pageIndex;
+          // A step renders if it's been answered OR it's the active step.
+          // Future unanswered steps stay hidden until the conversation
+          // reaches them. When the user goes back to re-answer an earlier
+          // step, later answered steps stay visible with their answer cards.
+          if (!isAnswered && !isActive) return null;
+          // The active step shows its option list (for first answer or
+          // re-answer). Answered non-active steps show the answer card +
+          // Mira's acknowledgement + a "change this answer" link.
+          const showOptions = isActive;
+          const showAnswered = isAnswered && !isActive;
+          const selectedOpt = step.options.find((o) => o.value === answers[step.id]);
 
-            <p className="tag mb-6">
-              step {i + 1} of {INTAKE_STEPS.length + 1}
-            </p>
-
-            {/* Question heading + ambient pose illustration side by side */}
-            <div className="flex items-start gap-6 mb-3">
-              <div className="flex-1">
-                <h1 className="font-serif text-4xl sm:text-5xl leading-[1.05] tracking-tight">
-                  {step.prompt}
-                </h1>
-              </div>
-              {step.id === "energy" && (
-                <div
-                  aria-hidden
-                  className="hidden sm:block flex-shrink-0 w-24 h-24 opacity-30 mix-blend-multiply"
-                  style={{ filter: "sepia(60%) hue-rotate(-10deg)" }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={poseForEnergy("settled").svgUrl}
-                    alt=""
-                    className="w-full h-full object-contain"
-                    loading="lazy"
-                  />
+          return (
+            <div key={step.id} className="mb-14 last:mb-0">
+              {/* Mira's question turn — orb + her setup line */}
+              <div
+                ref={isActive && !isFinal ? latestTurnRef : undefined}
+                className="flex items-start gap-3 mb-5 fade-in-up"
+              >
+                <div className="flex-shrink-0 pt-1">
+                  <MiraOrb size={36} state="speaking" aestheticVector={liveVector} />
                 </div>
-              )}
-            </div>
+                <div className="flex-1 pt-0.5">
+                  <p className="text-lg leading-relaxed text-foreground max-w-prose mira-line">
+                    {step.mira}
+                  </p>
+                </div>
+              </div>
 
-            <p className="text-[color:var(--muted)] text-lg mb-10">
-              {step.sub}
-            </p>
-            <p className="why mb-10 max-w-prose">{step.why}</p>
+              {/* The question + options/answer, indented under Mira's turn */}
+              <div className="ml-12 sm:ml-14">
+                <div className="flex items-start gap-4 mb-3">
+                  <h2 className="flex-1 font-serif text-2xl sm:text-3xl leading-[1.15] tracking-tight">
+                    {step.prompt}
+                  </h2>
+                  {step.id === "energy" && (
+                    <div
+                      aria-hidden
+                      className="hidden sm:block flex-shrink-0 w-16 h-16 opacity-25 mix-blend-multiply"
+                      style={{ filter: "sepia(60%) hue-rotate(-10deg)" }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={poseForEnergy("settled").svgUrl}
+                        alt=""
+                        className="w-full h-full object-contain"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                </div>
+                <p className="text-[color:var(--muted)] text-base mb-4">{step.sub}</p>
 
-            {/*
-              Gooey option list — the SVG filter makes buttons
-              that are close to each other (or being hovered/selected)
-              appear to merge into a single organic shape.
-              We apply filter via inline style because Tailwind cannot
-              reference SVG filter IDs dynamically.
-            */}
-            <ul
-              className="flex flex-col gap-2"
-              style={{ filter: "url('#gooey-intake')" }}
-            >
-              {step.options.map((opt, j) => {
-                const selected = answers[step.id] === opt.value;
-                return (
-                  <li key={opt.value}>
+                {/* The "why" as a quiet collapsible — present but not loud. */}
+                <details className="mb-6 max-w-prose">
+                  <summary className="why cursor-pointer list-none inline hover:text-foreground transition-colors">
+                    why I&apos;m asking this
+                  </summary>
+                  <p className="why mt-2 not-italic">{step.why}</p>
+                </details>
+
+                {/* Answered turn: the answer card + Mira's acknowledgement +
+                    a quiet "change this answer" link. */}
+                {showAnswered && selectedOpt && (
+                  <div className="fade-in-up">
+                    <div className="border-l-2 border-[color:var(--accent)] pl-4 py-2 mb-5 bg-[color:var(--surface)] rounded-r-sm">
+                      <p className="tag mb-0.5">you said</p>
+                      <p className="font-serif text-lg tracking-tight">
+                        {selectedOpt.label}
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-3 mb-5">
+                      <div className="flex-shrink-0 pt-1">
+                        <MiraOrb size={28} state="calm" aestheticVector={liveVector} />
+                      </div>
+                      <p className="text-base leading-relaxed text-[color:var(--muted)] max-w-prose pt-0.5">
+                        {selectedOpt.ack}
+                      </p>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => pick(opt.value)}
-                      className={`w-full text-left px-5 py-4 rounded-sm border transition-all duration-200 hover-lift ${
-                        selected
-                          ? "border-[color:var(--accent)] bg-[color:var(--surface)] scale-[1.01]"
-                          : "border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] hover:bg-[color:var(--surface)]"
-                      }`}
+                      onClick={() => goToStep(i)}
+                      className="tag hover:text-foreground transition-colors hover:underline underline-offset-2"
                     >
-                      <span className="font-serif text-xl mr-4 text-[color:var(--muted)]">
-                        {j + 1}
-                      </span>
-                      <span className="text-lg">{opt.label}</span>
+                      change this answer
                     </button>
-                  </li>
-                );
-              })}
-            </ul>
+                  </div>
+                )}
 
-            <div className="flex items-center justify-between mt-12">
-              <button
-                type="button"
-                onClick={back}
-                disabled={i === 0}
-                className="text-[color:var(--muted)] disabled:opacity-30 hover:text-foreground transition-colors"
-              >
-                ← back
-              </button>
-              <button
-                type="button"
-                onClick={next}
-                disabled={!answers[step.id]}
-                className="px-6 py-3 rounded-sm bg-foreground text-background disabled:opacity-30 hover:bg-[color:var(--accent-ink)] transition-colors"
-              >
-                continue →
-              </button>
+                {/* Active turn: the gooey option list. Picking auto-advances. */}
+                {showOptions && (
+                  <ul
+                    className="flex flex-col gap-2"
+                    style={{ filter: "url('#gooey-intake')" }}
+                  >
+                    {step.options.map((opt, j) => {
+                      const selected = answers[step.id] === opt.value;
+                      return (
+                        <li key={opt.value}>
+                          <button
+                            type="button"
+                            onClick={() => pick(opt.value)}
+                            className={`w-full text-left px-5 py-4 rounded-sm border transition-all duration-200 hover-lift ${
+                              selected
+                                ? "border-[color:var(--accent)] bg-[color:var(--surface)] scale-[1.01]"
+                                : "border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] hover:bg-[color:var(--surface)]"
+                            }`}
+                          >
+                            <span className="font-serif text-xl mr-4 text-[color:var(--muted)]">
+                              {j + 1}
+                            </span>
+                            <span className="text-lg">{opt.label}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </div>
-            <p className="tag mt-6">
-              press 1–4 to choose · enter to continue
-            </p>
-          </div>
-        ))}
+          );
+        })}
 
-        <div className="t-page" data-page-id={INTAKE_STEPS.length + 1}>
-          {/* Mira — guiding the final step */}
-          <div className="flex items-center gap-4 mb-8">
-            <MiraOrb size={44} state="calm" aestheticVector={liveVector} />
-            <div>
-              <p className="font-serif text-xl tracking-tight">Mira</p>
-              <p className="tag">your guide</p>
+        {/* The final turn — pose sample + notes + begin matching. */}
+        {isFinal && (
+          <div ref={latestTurnRef} className="mb-0 fade-in-up">
+            <div className="flex items-start gap-3 mb-5">
+              <div className="flex-shrink-0 pt-1">
+                <MiraOrb size={36} state="calm" aestheticVector={liveVector} />
+              </div>
+              <div className="flex-1 pt-0.5">
+                <p className="text-lg leading-relaxed text-foreground max-w-prose mira-line">
+                  {CLOSING_LINE}
+                </p>
+              </div>
+            </div>
+
+            <div className="ml-12 sm:ml-14">
+              <h2 className="font-serif text-2xl sm:text-3xl leading-[1.15] tracking-tight mb-3">
+                One last thing — optional.
+              </h2>
+              <p className="text-[color:var(--muted)] text-base mb-10 max-w-prose">
+                A five-second posture sample gives the matching agent a real
+                baseline to reason from. Your camera frames never leave this
+                browser tab — only the derived signals are sent.
+              </p>
+
+              <PoseCheck
+                enabled={runPose}
+                skipped={skippedPose}
+                onEnable={() => {
+                  setRunPose(true);
+                  setSkippedPose(false);
+                }}
+                onComplete={(baseline) => {
+                  setPose(baseline);
+                  setRunPose(false);
+                  setSkippedPose(false);
+                }}
+                onSkip={() => {
+                  setRunPose(false);
+                  setSkippedPose(true);
+                }}
+                onUndoSkip={() => setSkippedPose(false)}
+                baseline={pose}
+              />
+
+              <label className="block mt-10">
+                <span className="tag block mb-2">
+                  anything else worth saying? (optional)
+                </span>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={3}
+                  placeholder="a teacher you've worked with, a practice you want to go deeper into, a constraint…"
+                  className="w-full bg-transparent border border-[color:var(--hairline)] rounded-sm px-4 py-3 focus:border-[color:var(--accent)] outline-none resize-y"
+                />
+              </label>
+
+              {submitError && (
+                <p
+                  role="alert"
+                  className="mt-8 text-sm text-[color:var(--accent-ink)] fade-in-up max-w-prose"
+                >
+                  {submitError}
+                </p>
+              )}
+
+              <div className="flex items-center justify-between mt-12">
+                <button
+                  type="button"
+                  onClick={back}
+                  className="text-[color:var(--muted)] hover:text-foreground transition-colors"
+                >
+                  ← back
+                </button>
+                <button
+                  type="button"
+                  onClick={beginMatching}
+                  disabled={submitting}
+                  className="px-6 py-3 rounded-sm bg-[color:var(--accent)] text-background disabled:opacity-50 hover:bg-[color:var(--accent-ink)] transition-colors"
+                >
+                  {submitting ? "I'm reasoning…" : submitError ? "try again →" : "find my retreat →"}
+                </button>
+              </div>
             </div>
           </div>
-          <p className="text-lg leading-relaxed text-foreground mb-8 max-w-prose mira-line">
-            I have what I need. This last step is optional — a five-second
-            posture sample gives me a real baseline to reason from. Your
-            camera frames never leave this browser tab.
+        )}
+
+        {/* Keyboard hint — quiet, only at the very start of the conversation. */}
+        {pageIndex === 0 && !answers.energy && (
+          <p className="tag mt-10 opacity-60">
+            press 1–4 to choose · backspace to go back
           </p>
-
-          <p className="tag mb-6">
-            step {INTAKE_STEPS.length + 1} of {INTAKE_STEPS.length + 1}
-          </p>
-          <h1 className="font-serif text-4xl sm:text-5xl leading-[1.05] tracking-tight mb-3">
-            One last thing — optional.
-          </h1>
-          <p className="text-[color:var(--muted)] text-lg mb-10 max-w-prose">
-            A five-second posture sample gives the matching agent a real
-            baseline to reason from. Your camera frames never leave this
-            browser tab — only the derived signals are sent.
-          </p>
-
-          <PoseCheck
-            enabled={runPose}
-            skipped={skippedPose}
-            onEnable={() => {
-              setRunPose(true);
-              setSkippedPose(false);
-            }}
-            onComplete={(baseline) => {
-              setPose(baseline);
-              setRunPose(false);
-              setSkippedPose(false);
-            }}
-            onSkip={() => {
-              setRunPose(false);
-              setSkippedPose(true);
-            }}
-            onUndoSkip={() => setSkippedPose(false)}
-            baseline={pose}
-          />
-
-          <label className="block mt-10">
-            <span className="tag block mb-2">
-              anything else worth saying? (optional)
-            </span>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="a teacher you've worked with, a practice you want to go deeper into, a constraint…"
-              className="w-full bg-transparent border border-[color:var(--hairline)] rounded-sm px-4 py-3 focus:border-[color:var(--accent)] outline-none resize-y"
-            />
-          </label>
-
-          {submitError && (
-            <p
-              role="alert"
-              className="mt-8 text-sm text-[color:var(--accent-ink)] fade-in-up max-w-prose"
-            >
-              {submitError}
-            </p>
-          )}
-
-          <div className="flex items-center justify-between mt-12">
-            <button
-              type="button"
-              onClick={back}
-              className="text-[color:var(--muted)] hover:text-foreground transition-colors"
-            >
-              ← back
-            </button>
-            <button
-              type="button"
-              onClick={beginMatching}
-              disabled={submitting}
-              className="px-6 py-3 rounded-sm bg-[color:var(--accent)] text-background disabled:opacity-50 hover:bg-[color:var(--accent-ink)] transition-colors"
-            >
-              {submitting ? "I'm reasoning…" : submitError ? "try again →" : "find my retreat →"}
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     </section>
-  );
-}
-
-function ProgressBar({ current, total }: { current: number; total: number }) {
-  return (
-    <div className="flex items-center gap-2 mb-16">
-      {Array.from({ length: total }).map((_, i) => (
-        <span
-          key={i}
-          className={`h-px flex-1 transition-colors ${
-            i < current
-              ? "bg-[color:var(--accent)]"
-              : "bg-[color:var(--hairline)]"
-          }`}
-        />
-      ))}
-    </div>
   );
 }
 
