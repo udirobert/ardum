@@ -19,7 +19,7 @@ import AestheticJourney from "@/aesthetics/AestheticJourney";
 import { saveMatchResult } from "@/lib/client-session";
 import { clearFingerprint } from "@/lib/fingerprint";
 import type { MatchRun, ReasoningStep } from "@/matching/types";
-import type { UserPreference } from "@/aesthetics/image-pool";
+import type { UserPreference, AestheticVector } from "@/aesthetics/image-pool";
 
 // Memory context received from the SSE stream's first event. Mirrors the
 // MemoryContext shape from src/lib/cognee.ts but client-safe (no rawRecall).
@@ -313,9 +313,12 @@ function MatchFlow() {
 
         {/* Memory banner — if Mira remembers this practitioner from Cognee,
             show a recognition line while the agent reasons. This is the
-            "AI that doesn't forget" moment, visible before the match lands. */}
+            "AI that doesn't forget" moment, visible before the match lands.
+            Pass the live aesthetic vector so the orb's marble veins already
+            reflect the user's aesthetic (warm, cool, light, dark) even during
+            the reasoning phase. */}
         {memory && memory.isReturning && memory.provider !== "none" && (
-          <MemoryBanner memory={memory} />
+          <MemoryBanner memory={memory} aestheticVector={aestheticPref?.vector ?? null} />
         )}
 
         {/* Aesthetic journey — runs alongside the reasoning stream.
@@ -502,7 +505,9 @@ function MatchFlow() {
 // Memory banner — shown while the agent reasons, if Mira has memory of
 // this practitioner from Cognee. The "AI that doesn't forget" moment.
 // Uses the "thinking" orb state to signal Mira is actively recalling.
-function MemoryBanner({ memory }: { memory: StreamMemory }) {
+// The aestheticVector (if available) tints the marble veins so the orb
+// already reflects the user's aesthetic even before the journey completes.
+function MemoryBanner({ memory, aestheticVector }: { memory: StreamMemory; aestheticVector?: AestheticVector | null }) {
   const lastBooking = memory.pastBookings[0];
   const lastMatch = memory.pastMatches[0];
   const lastEnergy = memory.energyHistory[memory.energyHistory.length - 1];
@@ -522,7 +527,7 @@ function MemoryBanner({ memory }: { memory: StreamMemory }) {
   return (
     <aside className="mt-6 mb-6 border border-[color:var(--accent-soft)] rounded-sm bg-[color:var(--surface)] p-5 fade-in-up surface-card">
       <div className="flex items-start gap-4">
-        <MiraOrb size={36} state="thinking" />
+        <MiraOrb size={36} state="thinking" aestheticVector={aestheticVector} />
         <div className="flex-1">
           <p className="tag mb-1 flex items-center gap-2">
             <span

@@ -80,8 +80,8 @@ export default function Home() {
           <MaskReveal>
             <div className="grid sm:grid-cols-2 gap-8 sm:gap-16 items-center">
               <div>
-                <span className="font-serif text-6xl text-[color:var(--accent-soft)] leading-none">01</span>
-                <h3 className="font-serif text-3xl tracking-tight mt-2 mb-4">Calibrate</h3>
+                <span className="text-6xl tabular-nums text-[color:var(--accent-soft)] leading-none font-light tracking-tight">01</span>
+                <h3 className="text-xl font-medium tracking-wide uppercase text-[color:var(--muted)] mt-2 mb-4">Calibrate</h3>
                 <p className="text-[color:var(--muted)] leading-relaxed">
                   Three questions about your energy, budget, and social comfort —
                   not categories, honest signals. Optionally, a five-second posture
@@ -112,8 +112,8 @@ export default function Home() {
           <MaskReveal>
             <div className="grid sm:grid-cols-2 gap-8 sm:gap-16 items-center">
               <div className="order-last sm:order-first">
-                <span className="font-serif text-6xl text-[color:var(--accent-soft)] leading-none">02</span>
-                <h3 className="font-serif text-3xl tracking-tight mt-2 mb-4">Reason</h3>
+                <span className="text-6xl tabular-nums text-[color:var(--accent-soft)] leading-none font-light tracking-tight">02</span>
+                <h3 className="text-xl font-medium tracking-wide uppercase text-[color:var(--muted)] mt-2 mb-4">Reason</h3>
                 <p className="text-[color:var(--muted)] leading-relaxed">
                   An agent searches the attestation pool — verified retreat reviews
                   stored on 0G Storage — and thinks out loud in Gherkin steps.
@@ -150,8 +150,8 @@ export default function Home() {
           <MaskReveal>
             <div className="grid sm:grid-cols-2 gap-8 sm:gap-16 items-center">
               <div>
-                <span className="font-serif text-6xl text-[color:var(--accent-soft)] leading-none">03</span>
-                <h3 className="font-serif text-3xl tracking-tight mt-2 mb-4">Match</h3>
+                <span className="text-6xl tabular-nums text-[color:var(--accent-soft)] leading-none font-light tracking-tight">03</span>
+                <h3 className="text-xl font-medium tracking-wide uppercase text-[color:var(--muted)] mt-2 mb-4">Match</h3>
                 <p className="text-[color:var(--muted)] leading-relaxed">
                   A ranked recommendation with full reasoning attached. Every
                   signal the agent considered is visible. You can disagree with
@@ -196,8 +196,8 @@ export default function Home() {
           <MaskReveal>
             <div className="grid sm:grid-cols-2 gap-8 sm:gap-16 items-center">
               <div className="order-last sm:order-first">
-                <span className="font-serif text-6xl text-[color:var(--accent-soft)] leading-none">04</span>
-                <h3 className="font-serif text-3xl tracking-tight mt-2 mb-4">Book</h3>
+                <span className="text-6xl tabular-nums text-[color:var(--accent-soft)] leading-none font-light tracking-tight">04</span>
+                <h3 className="text-xl font-medium tracking-wide uppercase text-[color:var(--muted)] mt-2 mb-4">Book</h3>
                 <p className="text-[color:var(--muted)] leading-relaxed">
                   Sign in with Google. No MetaMask, no seed phrase, no gas.
                   A Universal Account upgrades your wallet via EIP-7702,
