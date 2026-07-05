@@ -16,6 +16,7 @@ import PoseCheck from "./PoseCheck";
 import MiraOrb from "@/components/MiraOrb";
 import GooeyFilter from "@/components/GooeyFilter";
 import { poseForEnergy } from "@/lib/yoga-poses";
+import type { AestheticVector } from "@/aesthetics/image-pool";
 import {
   clearFingerprint,
   getFingerprint,
@@ -63,6 +64,48 @@ const getFingerprintServerSnapshot = (): Fingerprint | null => null;
 type IntakeAnswers = Partial<
   Pick<PractitionerProfile, "energy" | "budget" | "social">
 >;
+
+// ── Intake answer → approximate aesthetic vector ──────────────────
+// Used to tint the Mira orb's marble veins as the practitioner
+// answers each question — one cohesive signal from both audio and visual.
+function intakeAnswersToVector(
+  answers: Partial<Pick<PractitionerProfile, "energy" | "budget" | "social">>
+): AestheticVector {
+  const base: AestheticVector = {
+    ocean: 0.5, mountain: 0.5, jungle: 0.5, desert: 0.5, forest: 0.5,
+    warm: 0.5, cool: 0.5, minimal: 0.5, ornate: 0.5,
+    light: 0.5, dark: 0.5,
+    calming: 0.5, energizing: 0.5, expansive: 0.5, intimate: 0.5,
+  };
+  // Energy answer drives warm/cool/calming/energizing/light/dark
+  if (answers.energy === "settled") {
+    base.warm = 0.75; base.cool = 0.25;
+    base.calming = 0.8; base.energizing = 0.2;
+    base.dark = 0.4; base.light = 0.6;
+  } else if (answers.energy === "in-movement") {
+    base.warm = 0.7; base.cool = 0.3;
+    base.energizing = 0.7; base.calming = 0.3;
+    base.expansive = 0.65; base.intimate = 0.35;
+  } else if (answers.energy === "low") {
+    base.cool = 0.6; base.warm = 0.4;
+    base.calming = 0.85; base.energizing = 0.15;
+    base.dark = 0.55; base.light = 0.45;
+    base.intimate = 0.65; base.expansive = 0.35;
+  } else if (answers.energy === "sharp") {
+    base.light = 0.75; base.dark = 0.25;
+    base.energizing = 0.8; base.calming = 0.2;
+    base.cool = 0.55; base.warm = 0.45;
+  }
+  // Social comfort nudges expansive/intimate axis
+  if (answers.social === "solo") {
+    base.intimate = Math.min(1, base.intimate + 0.2);
+    base.expansive = Math.max(0, base.expansive - 0.2);
+  } else if (answers.social === "communal") {
+    base.expansive = Math.min(1, base.expansive + 0.2);
+    base.intimate = Math.max(0, base.intimate - 0.2);
+  }
+  return base;
+}
 
 export default function Intake() {
   const router = useRouter();
@@ -139,6 +182,14 @@ export default function Intake() {
       total: INTAKE_STEPS.length + 1, // +1 for the pose/begin step
     }),
     [pageIndex]
+  );
+
+  // Live aesthetic vector from intake answers — drives the orb's marble
+  // vein colour so audio and visual share one signal.
+  const liveVector = useMemo(
+    () => intakeAnswersToVector(answers),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [answers.energy, answers.social]
   );
 
   function pick(value: string) {
@@ -329,7 +380,7 @@ export default function Intake() {
           <div key={step.id} className="t-page" data-page-id={i + 1}>
             {/* Mira — the guide present at every step */}
             <div className="flex items-center gap-4 mb-8">
-              <MiraOrb size={44} state="speaking" />
+              <MiraOrb size={44} state="speaking" aestheticVector={liveVector} />
               <div>
                 <p className="font-serif text-xl tracking-tight">Mira</p>
                 <p className="tag">your guide</p>
@@ -433,7 +484,7 @@ export default function Intake() {
         <div className="t-page" data-page-id={INTAKE_STEPS.length + 1}>
           {/* Mira — guiding the final step */}
           <div className="flex items-center gap-4 mb-8">
-            <MiraOrb size={44} state="calm" />
+            <MiraOrb size={44} state="calm" aestheticVector={liveVector} />
             <div>
               <p className="font-serif text-xl tracking-tight">Mira</p>
               <p className="tag">your guide</p>

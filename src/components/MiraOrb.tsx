@@ -41,6 +41,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import type { AestheticVector } from "@/aesthetics/image-pool";
 
 type OrbState = "calm" | "thinking" | "speaking";
 
@@ -52,6 +53,13 @@ type MiraOrbProps = {
   /** Optional children rendered below the orb (e.g. a label) */
   children?: ReactNode;
   className?: string;
+  /**
+   * Optional preference vector from the aesthetic journey.
+   * When supplied, vein colours shift to reflect the practitioner's
+   * stated aesthetic — warm → deeper terracotta, cool → cooler greys,
+   * light → more cream, dark → deeper ink.
+   */
+  aestheticVector?: AestheticVector | null;
 };
 
 // ── Shader-driven marble ─────────────────────────────────────────────
@@ -66,11 +74,66 @@ const STATE_PARAMS: Record<OrbState, MarbleParams> = {
   speaking: { speed: 0.26, turbulence: 1.0, brightness: 1.15 },
 };
 
-// Ardum palette (sRGB 0–1). Ink → terracotta → warm sand, cream highlight.
-const COL_DARK = [0.431, 0.224, 0.145]; // accent-ink  #6e3925
-const COL_WARM = [0.659, 0.353, 0.227]; // accent      #a85a3a
-const COL_LIGHT = [0.847, 0.659, 0.573]; // accent-soft #d8a892
-const COL_CREAM = [0.965, 0.945, 0.906]; // background  #f6f1e7
+// Ardum base palette (sRGB 0–1). Ink → terracotta → warm sand → cream.
+const COL_DARK  = [0.431, 0.224, 0.145] as const; // accent-ink  #6e3925
+const COL_WARM  = [0.659, 0.353, 0.227] as const; // accent      #a85a3a
+const COL_LIGHT = [0.847, 0.659, 0.573] as const; // accent-soft #d8a892
+const COL_CREAM = [0.965, 0.945, 0.906] as const; // background  #f6f1e7
+
+type RGB = [number, number, number];
+
+/**
+ * Shift the four palette entries based on the preference vector.
+ * Warm → push R up, G down slightly (terracotta deepens).
+ * Cool → push B up, R down (marble cools toward grey-blue).
+ * Light → lift all channels toward cream.
+ * Dark  → pull all channels toward ink.
+ * Each shift is ±0.18 max so the result always reads as marble.
+ */
+function vectorToPalette(v: AestheticVector | null | undefined): {
+  dark: RGB; warm: RGB; light: RGB; cream: RGB;
+} {
+  if (!v) return {
+    dark:  [...COL_DARK]  as RGB,
+    warm:  [...COL_WARM]  as RGB,
+    light: [...COL_LIGHT] as RGB,
+    cream: [...COL_CREAM] as RGB,
+  };
+
+  const warmth    = (v.warm  - v.cool)      * 0.18; // +warm = more red/terra
+  const darkness  = (v.dark  - v.light)     * 0.12; // +dark = pull toward ink
+  const expansion = (v.expansive - v.intimate) * 0.04; // +expansive = slight lift
+  const cool      = (v.cool  - v.warm)      * 0.10; // +cool = push toward blue-grey
+
+  const shift = (base: readonly number[], r: number, g: number, b: number): RGB => [
+    Math.max(0, Math.min(1, base[0] + r)),
+    Math.max(0, Math.min(1, base[1] + g)),
+    Math.max(0, Math.min(1, base[2] + b)),
+  ];
+
+  return {
+    // Ink base: warm → deeper red-brown, cool → cooler grey-green, dark → even darker
+    dark: shift(COL_DARK,
+      warmth * 0.6 - cool * 0.5,
+      -warmth * 0.2 + cool * 0.1 - darkness * 0.3,
+      -warmth * 0.3 + cool * 0.4),
+    // Terracotta body: warm → richer, cool → desaturated, dark → pulls down
+    warm: shift(COL_WARM,
+      warmth * 0.5 - cool * 0.4 - darkness * 0.2,
+      -warmth * 0.15 - darkness * 0.1,
+      -warmth * 0.25 + cool * 0.35),
+    // Sand highlight: warm → golden, cool → silver-grey, light → lifts
+    light: shift(COL_LIGHT,
+      warmth * 0.3 - cool * 0.2 - darkness * 0.15 + expansion * 0.05,
+      warmth * 0.1 - darkness * 0.1 + expansion * 0.05,
+      -warmth * 0.1 + cool * 0.25 + expansion * 0.05),
+    // Cream vein: barely affected — stays light but slightly golden/cool
+    cream: shift(COL_CREAM,
+      warmth * 0.05 - cool * 0.04 - darkness * 0.08,
+      -cool * 0.02 - darkness * 0.06,
+      cool * 0.05 - darkness * 0.05),
+  };
+}
 
 const VERT_SRC = `
 attribute vec2 a_pos;
@@ -176,15 +239,23 @@ export default function MiraOrb({
   size = 48,
   children,
   className,
+  aestheticVector,
 }: MiraOrbProps) {
   const orbRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<OrbState>(state);
   const reduced = useReducedMotion();
+  // Target palette derived from the preference vector. Updated whenever
+  // the vector prop changes — the draw loop lerps toward it each frame.
+  const paletteRef = useRef(vectorToPalette(aestheticVector));
 
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    paletteRef.current = vectorToPalette(aestheticVector);
+  }, [aestheticVector]);
 
   // Sync the CSS breathing-scale animation speed to the state.
   useEffect(() => {
@@ -233,20 +304,29 @@ export default function MiraOrb({
     gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
     const u = {
-      res: gl.getUniformLocation(prog, "u_res"),
-      time: gl.getUniformLocation(prog, "u_time"),
+      res:   gl.getUniformLocation(prog, "u_res"),
+      time:  gl.getUniformLocation(prog, "u_time"),
       speed: gl.getUniformLocation(prog, "u_speed"),
-      turb: gl.getUniformLocation(prog, "u_turb"),
-      bright: gl.getUniformLocation(prog, "u_bright"),
-      dark: gl.getUniformLocation(prog, "u_dark"),
-      warm: gl.getUniformLocation(prog, "u_warm"),
+      turb:  gl.getUniformLocation(prog, "u_turb"),
+      bright:gl.getUniformLocation(prog, "u_bright"),
+      dark:  gl.getUniformLocation(prog, "u_dark"),
+      warm:  gl.getUniformLocation(prog, "u_warm"),
       light: gl.getUniformLocation(prog, "u_light"),
       cream: gl.getUniformLocation(prog, "u_cream"),
     };
-    gl.uniform3fv(u.dark, COL_DARK);
-    gl.uniform3fv(u.warm, COL_WARM);
-    gl.uniform3fv(u.light, COL_LIGHT);
-    gl.uniform3fv(u.cream, COL_CREAM);
+    // Initialise palette from the current vector (may already be non-neutral).
+    const initPal = paletteRef.current;
+    gl.uniform3fv(u.dark,  initPal.dark);
+    gl.uniform3fv(u.warm,  initPal.warm);
+    gl.uniform3fv(u.light, initPal.light);
+    gl.uniform3fv(u.cream, initPal.cream);
+    // Live palette state — lerped toward paletteRef each frame.
+    const curPal = {
+      dark:  [...initPal.dark]  as RGB,
+      warm:  [...initPal.warm]  as RGB,
+      light: [...initPal.light] as RGB,
+      cream: [...initPal.cream] as RGB,
+    };
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const px = Math.round(size * dpr);
@@ -264,13 +344,27 @@ export default function MiraOrb({
 
     const draw = (now: number) => {
       const target = STATE_PARAMS[stateRef.current];
-      cur.speed = lerp(cur.speed, target.speed, 0.04);
+      cur.speed      = lerp(cur.speed,      target.speed,      0.04);
       cur.turbulence = lerp(cur.turbulence, target.turbulence, 0.04);
       cur.brightness = lerp(cur.brightness, target.brightness, 0.04);
 
-      gl.uniform1f(u.time, (now - start) / 1000);
-      gl.uniform1f(u.speed, cur.speed);
-      gl.uniform1f(u.turb, cur.turbulence);
+      // Ease palette toward the vector-derived target (same cadence as params).
+      const tpal = paletteRef.current;
+      const PALR = 0.025; // slower than flow — colour shift is contemplative
+      for (let i = 0; i < 3; i++) {
+        curPal.dark[i]  = lerp(curPal.dark[i],  tpal.dark[i],  PALR);
+        curPal.warm[i]  = lerp(curPal.warm[i],  tpal.warm[i],  PALR);
+        curPal.light[i] = lerp(curPal.light[i], tpal.light[i], PALR);
+        curPal.cream[i] = lerp(curPal.cream[i], tpal.cream[i], PALR);
+      }
+      gl.uniform3fv(u.dark,  curPal.dark);
+      gl.uniform3fv(u.warm,  curPal.warm);
+      gl.uniform3fv(u.light, curPal.light);
+      gl.uniform3fv(u.cream, curPal.cream);
+
+      gl.uniform1f(u.time,  (now - start) / 1000);
+      gl.uniform1f(u.speed,  cur.speed);
+      gl.uniform1f(u.turb,   cur.turbulence);
       gl.uniform1f(u.bright, cur.brightness);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
