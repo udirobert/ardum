@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 import ReasoningList from "@/matching/ReasoningList";
 import StreamProgress from "@/matching/StreamProgress";
 import MatchCard from "@/matching/MatchCard";
+import MatchVision from "@/matching/MatchVision";
 import Counterfactual from "@/matching/Counterfactual";
 import LensComparison from "@/matching/LensComparison";
 import ClearHistoryLink from "@/matching/ClearHistoryLink";
@@ -20,6 +21,8 @@ import { saveMatchResult } from "@/lib/client-session";
 import { clearFingerprint } from "@/lib/fingerprint";
 import type { MatchRun, ReasoningStep } from "@/matching/types";
 import type { UserPreference, AestheticVector } from "@/aesthetics/image-pool";
+import type { PractitionerProfile } from "@/calibration/schema";
+import type { MemoryContext } from "@/lib/cognee";
 
 // Memory context received from the SSE stream's first event. Mirrors the
 // MemoryContext shape from src/lib/cognee.ts but client-safe (no rawRecall).
@@ -122,6 +125,36 @@ function MatchFlow() {
   const [aestheticPref, setAestheticPref] = useState<UserPreference | null>(null);
   const [journeyActive, setJourneyActive] = useState(true);
   const [memory, setMemory] = useState<StreamMemory | null>(null);
+
+  // Decode the practitioner profile from the URL so we can pass signals
+  // (energy, budget, social) to Mira's match letter. The profile is
+  // base64-encoded in the query param `p`.
+  const signals = useMemo<{ energy?: string; budget?: string; social?: string }>(() => {
+    if (!profileB64 || typeof atob === "undefined") return {};
+    try {
+      const json = decodeURIComponent(atob(profileB64));
+      const profile = JSON.parse(json) as PractitionerProfile;
+      return { energy: profile.energy, budget: profile.budget, social: profile.social };
+    } catch {
+      return {};
+    }
+  }, [profileB64]);
+
+  // Convert the stream memory to a full MemoryContext for the match letter.
+  // StreamMemory lacks rawRecall (which is server-only); we add an empty
+  // array so the type is satisfied.
+  const memoryContext = useMemo<MemoryContext | undefined>(() => {
+    if (!memory) return undefined;
+    return {
+      ...memory,
+      provider: memory.provider as MemoryContext["provider"],
+      rawRecall: [],
+    };
+  }, [memory]);
+
+  // Ref for the reasoning section — the vision's "see the full reasoning"
+  // link scrolls here.
+  const reasoningRef = useRef<HTMLDivElement>(null);
 
   // Keep latest state visible inside the EventSource handlers without
   // re-subscribing on every render.
@@ -384,8 +417,8 @@ function MatchFlow() {
 
   return (
     <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
-      <MaskReveal>
-        <div className="flex items-baseline justify-between mb-3 drop-in">
+      {/* Quiet session metadata — above the vision, not competing with it */}
+      <div className="flex items-baseline justify-between mb-3 drop-in">
         <p className="tag">session {run.practitionerId.slice(0, 8)}&hellip;</p>
         <p className="tag flex items-center gap-2 drop-in">
           <span
@@ -395,108 +428,124 @@ function MatchFlow() {
           matched
         </p>
       </div>
-      <h1 className="font-serif text-5xl sm:text-6xl leading-[1.02] tracking-tight mb-6 drop-in">
-        Your match
-      </h1>
-      <p className="text-lg text-[color:var(--muted)] max-w-prose mb-6 leading-relaxed drop-in">
-        Here&rsquo;s how the agent thought about your practice. Each step is
-        a separate signal &mdash; you can disagree with any of them.
-      </p>
-      <ZeroGProvenance trace={run.agentTrace} />
 
-      <div className="mb-16">
-        <ReasoningList steps={steps} />
-      </div>
+      <MaskReveal>
+        {/*
+          The Vision — Mira speaks the match as a letter over a living
+          cloud field. The retreat emerges from the atmosphere she read.
+          This replaces the old "Your match" heading + expanded MatchCard.
+        */}
+        <MatchVision
+          match={top}
+          signals={signals}
+          memory={memoryContext}
+          aestheticVector={aestheticPref?.vector ?? null}
+          sessionId={sessionId ?? undefined}
+          userId={userId ?? undefined}
+          onSeeReasoning={() => {
+            reasoningRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        />
 
-      <div className="h-px bg-[color:var(--hairline)] mb-12 drop-in" />
+        {/* ── The reasoning ────────────────────────────────────────── */}
+        <div ref={reasoningRef} className="mt-16 pt-12 border-t border-[color:var(--hairline)]">
+          <ZeroGProvenance trace={run.agentTrace} />
 
-      <div className="space-y-6">
-        <p className="tag drop-in-1">recommended</p>
-        <div className="drop-in-1">
-          <MatchCard
-            result={top}
-            rank={1}
-            attestationCount={top.attestationCount}
-            attestor={top.attestor}
-            attestedAt={top.attestedAt}
-          />
+          <h2 className="font-serif text-3xl tracking-tight mb-4 mt-8 drop-in">
+            How I reasoned
+          </h2>
+          <p className="text-[color:var(--muted)] max-w-prose mb-8 leading-relaxed drop-in">
+            Each step is a separate signal. You can disagree with any of them.
+          </p>
+          <div className="mb-16">
+            <ReasoningList steps={steps} />
+          </div>
         </div>
 
+        {/* ── Alternatives ─────────────────────────────────────────── */}
+        {run.results.length > 1 && (
+          <>
+            <div className="h-px bg-[color:var(--hairline)] mb-12 drop-in" />
+            <div className="space-y-6">
+              <p className="tag drop-in-1">other possibilities</p>
+              {run.results.slice(1, 3).map((r, i) => (
+                <div key={r.id} className={i === 0 ? "drop-in-2" : "drop-in-3"}>
+                  <MatchCard
+                    result={r}
+                    rank={i + 2}
+                    attestationCount={r.attestationCount}
+                    attestor={r.attestor}
+                    attestedAt={r.attestedAt}
+                    compact
+                  />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
         {/* Share your match — the viral loop entry point */}
-        <div className="drop-in-2">
+        <div className="mt-8 drop-in-2">
           <ShareMatch match={top} />
         </div>
 
-        {run.results.slice(1, 3).map((r, i) => (
-          <div key={r.id} className={i === 0 ? "drop-in-2" : "drop-in-3"}>
-            <MatchCard
-              result={r}
-              rank={i + 2}
-              attestationCount={r.attestationCount}
-              attestor={r.attestor}
-              attestedAt={r.attestedAt}
-              compact
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* I changed my mind — agent-mediated re-matching */}
-      <div className="drop-in-3">
-        <ChangedMyMind sessionId={run.practitionerId} userId={userId ?? undefined} />
-      </div>
-
-      {/* Why not this one? — interactive counterfactual via Mira */}
-      <div className="drop-in-3">
-        <WhyNotThisOne
-          topMatch={top}
-          otherRetreats={run.results.slice(1)}
-          sessionId={run.practitionerId}
-          userId={userId ?? undefined}
-        />
-      </div>
-
-      <div className="drop-in-3">
-        <Counterfactual
-          sessionId={run.practitionerId}
-          currentTopId={top.id}
-          currentTopScore={top.score}
-          userId={userId ?? undefined}
-        />
-      </div>
-
-      <div className="drop-in-3">
-        <LensComparison
-          sessionId={run.practitionerId}
-          currentTopId={top.id}
-          userId={userId ?? undefined}
-        />
-      </div>
-
-      <p className="tag mt-16 text-center drop-in-3">
-        {run.agentTrace.attestationsConsidered} retreats verified on{" "}
-        <span className="text-foreground">0G Storage</span> &middot;
-        reasoned by{" "}
-        <span className="text-foreground">0G Compute Router</span>
-        {run.agentTrace.model ? ` · ${run.agentTrace.model}` : ""} &middot;
-        prompt {run.agentTrace.promptVersion}
-      </p>
-
-      <div className="mt-6 text-center drop-in-3">
-        <ClearHistoryLink onClear={clearFingerprint} />
-      </div>
-
-      {/* Link to the memory transparency page */}
-      {memory && memory.isReturning && memory.provider !== "none" && (
-        <div className="mt-4 text-center drop-in-3">
-          <Link
-            href="/memory"
-            className="tag hover:text-foreground transition-colors"
-          >
-            what does Mira remember about me? →
-          </Link>
+        {/* ── Interactive tools ────────────────────────────────────── */}
+        {/* I changed my mind — agent-mediated re-matching */}
+        <div className="drop-in-3 mt-12">
+          <ChangedMyMind sessionId={run.practitionerId} userId={userId ?? undefined} />
         </div>
-      )}
+
+        {/* Why not this one? — interactive counterfactual via Mira */}
+        <div className="drop-in-3">
+          <WhyNotThisOne
+            topMatch={top}
+            otherRetreats={run.results.slice(1)}
+            sessionId={run.practitionerId}
+            userId={userId ?? undefined}
+          />
+        </div>
+
+        <div className="drop-in-3">
+          <Counterfactual
+            sessionId={run.practitionerId}
+            currentTopId={top.id}
+            currentTopScore={top.score}
+            userId={userId ?? undefined}
+          />
+        </div>
+
+        <div className="drop-in-3">
+          <LensComparison
+            sessionId={run.practitionerId}
+            currentTopId={top.id}
+            userId={userId ?? undefined}
+          />
+        </div>
+
+        <p className="tag mt-16 text-center drop-in-3">
+          {run.agentTrace.attestationsConsidered} retreats verified on{" "}
+          <span className="text-foreground">0G Storage</span> &middot;
+          reasoned by{" "}
+          <span className="text-foreground">0G Compute Router</span>
+          {run.agentTrace.model ? ` · ${run.agentTrace.model}` : ""} &middot;
+          prompt {run.agentTrace.promptVersion}
+        </p>
+
+        <div className="mt-6 text-center drop-in-3">
+          <ClearHistoryLink onClear={clearFingerprint} />
+        </div>
+
+        {/* Link to the memory transparency page */}
+        {memory && memory.isReturning && memory.provider !== "none" && (
+          <div className="mt-4 text-center drop-in-3">
+            <Link
+              href="/memory"
+              className="tag hover:text-foreground transition-colors"
+            >
+              what does Mira remember about me? →
+            </Link>
+          </div>
+        )}
       </MaskReveal>
     </section>
   );
