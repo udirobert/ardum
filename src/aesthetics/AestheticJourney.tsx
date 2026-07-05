@@ -22,10 +22,12 @@ import {
   pickNextImage,
   updatePreference,
   emptyPreference,
+  describePreferences,
   type PoolImage,
   type UserPreference,
 } from "./image-pool";
 import { AmbientDrone, vectorToDroneParams } from "./AmbientDrone";
+import CloudField from "./CloudField";
 
 type AestheticJourneyProps = {
   /** Called when the user has interacted with enough images (or all are shown) */
@@ -44,6 +46,7 @@ export default function AestheticJourney({
   const [imagePhase, setImagePhase] = useState<"entering" | "settled" | "leaving">("entering");
   const [started, setStarted] = useState(false);
   const [interactions, setInteractions] = useState(0);
+  const [visionActive, setVisionActive] = useState(false);
 
   const droneRef = useRef<AmbientDrone | null>(null);
   const imageStartRef = useRef<number>(0);
@@ -92,10 +95,15 @@ export default function AestheticJourney({
           setImagePhase("entering");
           imageStartRef.current = performance.now();
         } else {
-          // Journey complete
+          // Learning complete — hold on a generative "vision": the clouds
+          // expand to fill and settle into the atmosphere Mira read from
+          // the practitioner. The drone keeps playing through the payoff.
           setCurrentImage(null);
-          droneRef.current?.stop();
-          onCompleteRef.current(newPref);
+          setVisionActive(true);
+          setTimeout(() => {
+            droneRef.current?.stop();
+            onCompleteRef.current(newPref);
+          }, 3800);
         }
       }, 600);
     },
@@ -153,14 +161,36 @@ export default function AestheticJourney({
     );
   }
 
-  // ── Journey complete (waiting for parent to transition) ────────────
-  if (!currentImage && started) {
+  // ── Vision — the generative payoff ─────────────────────────────────
+  // The reaction images gave way to the atmosphere they described. The
+  // clouds fill the frame, coloured and paced by the final preference
+  // vector — the same vector the drone is voicing right now.
+  if (visionActive || (!currentImage && started)) {
+    const qualities = describePreferences(pref);
     return (
-      <div className="flex flex-col items-center justify-center py-20 fade-in-up">
-        <MiraOrb size={56} state="thinking" className="mb-6" />
-        <p className="text-lg leading-relaxed text-center mira-line">
-          I have what I need. Reasoning now…
-        </p>
+      <div className="w-full fade-in-up">
+        <div className="relative w-full aspect-[16/9] overflow-hidden rounded-sm border border-[color:var(--hairline)]">
+          <CloudField vector={pref.vector} variant="vision" className="absolute inset-0" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+            <MiraOrb size={48} state="speaking" className="mb-5" />
+            <p className="font-serif text-2xl sm:text-3xl text-white mira-line" style={{ textShadow: "0 1px 12px rgba(0,0,0,0.4)" }}>
+              This is the atmosphere I read in you.
+            </p>
+            {qualities.length > 0 && (
+              <p
+                className="text-sm text-white/90 mt-3 mira-line mira-line-2"
+                style={{ textShadow: "0 1px 8px rgba(0,0,0,0.4)" }}
+              >
+                Drawn to {qualities.join(" · ")}.
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-center gap-3 mt-6">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft" />
+          <span className="tag">weaving this into your match…</span>
+        </div>
       </div>
     );
   }
@@ -168,11 +198,16 @@ export default function AestheticJourney({
   // ── Active image display ───────────────────────────────────────────
   return (
     <div className="relative w-full">
-      {/* Image stage */}
-      <div className="relative w-full aspect-[16/9] overflow-hidden rounded-sm border border-[color:var(--hairline)] bg-[color:var(--surface)]">
+      {/* Image stage — a living cloud field (driven by the evolving
+          preference vector, in lockstep with the drone) with the current
+          reaction image floating within it as a card. */}
+      <div className="relative w-full aspect-[16/9] overflow-hidden rounded-sm border border-[color:var(--hairline)]">
+        {/* Procedural atmosphere — recolours and drifts with each reaction */}
+        <CloudField vector={pref.vector} variant="backdrop" className="absolute inset-0" />
+
         {currentImage && (
           <div
-            className={`absolute inset-0 transition-all duration-700 ${
+            className={`absolute inset-0 flex items-center justify-center p-8 sm:p-10 transition-all duration-700 ${
               imagePhase === "entering"
                 ? "opacity-0 scale-105"
                 : imagePhase === "leaving"
@@ -180,16 +215,18 @@ export default function AestheticJourney({
                   : "opacity-100 scale-100"
             }`}
           >
-            <Image
-              src={currentImage.src}
-              alt={currentImage.alt}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 100vw, 768px"
-              priority
-            />
-            {/* Soft gradient overlay for text legibility */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+            <div className="relative w-[58%] max-w-[240px] aspect-[4/5] rounded-sm overflow-hidden shadow-2xl ring-1 ring-black/10">
+              <Image
+                src={currentImage.src}
+                alt={currentImage.alt}
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 60vw, 240px"
+                priority
+              />
+              {/* Soft gradient overlay for depth */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+            </div>
           </div>
         )}
 
