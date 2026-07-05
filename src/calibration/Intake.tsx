@@ -14,6 +14,8 @@ import type {
 } from "./schema";
 import PoseCheck from "./PoseCheck";
 import MiraOrb from "@/components/MiraOrb";
+import GooeyFilter from "@/components/GooeyFilter";
+import { poseForEnergy } from "@/lib/yoga-poses";
 import {
   clearFingerprint,
   getFingerprint,
@@ -288,6 +290,8 @@ export default function Intake() {
 
   return (
     <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 sm:pt-20 pb-24">
+      {/* Gooey SVG filter def — hidden, referenced by the option list container */}
+      <GooeyFilter id="intake" blur={6} threshold={16} />
       <ProgressBar current={progress.current} total={progress.total} />
 
       {recallVisible && hasCogneeMemory && cogneeMemory && (
@@ -338,15 +342,47 @@ export default function Intake() {
             <p className="tag mb-6">
               step {i + 1} of {INTAKE_STEPS.length + 1}
             </p>
-            <h1 className="font-serif text-4xl sm:text-5xl leading-[1.05] tracking-tight mb-3">
-              {step.prompt}
-            </h1>
+
+            {/* Question heading + ambient pose illustration side by side */}
+            <div className="flex items-start gap-6 mb-3">
+              <div className="flex-1">
+                <h1 className="font-serif text-4xl sm:text-5xl leading-[1.05] tracking-tight">
+                  {step.prompt}
+                </h1>
+              </div>
+              {step.id === "energy" && (
+                <div
+                  aria-hidden
+                  className="hidden sm:block flex-shrink-0 w-24 h-24 opacity-30 mix-blend-multiply"
+                  style={{ filter: "sepia(60%) hue-rotate(-10deg)" }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={poseForEnergy("settled").svgUrl}
+                    alt=""
+                    className="w-full h-full object-contain"
+                    loading="lazy"
+                  />
+                </div>
+              )}
+            </div>
+
             <p className="text-[color:var(--muted)] text-lg mb-10">
               {step.sub}
             </p>
             <p className="why mb-10 max-w-prose">{step.why}</p>
 
-            <ul className="flex flex-col gap-2">
+            {/*
+              Gooey option list — the SVG filter makes buttons
+              that are close to each other (or being hovered/selected)
+              appear to merge into a single organic shape.
+              We apply filter via inline style because Tailwind cannot
+              reference SVG filter IDs dynamically.
+            */}
+            <ul
+              className="flex flex-col gap-2"
+              style={{ filter: "url('#gooey-intake')" }}
+            >
               {step.options.map((opt, j) => {
                 const selected = answers[step.id] === opt.value;
                 return (
@@ -354,9 +390,9 @@ export default function Intake() {
                     <button
                       type="button"
                       onClick={() => pick(opt.value)}
-                      className={`w-full text-left px-5 py-4 rounded-sm border transition-colors hover-lift ${
+                      className={`w-full text-left px-5 py-4 rounded-sm border transition-all duration-200 hover-lift ${
                         selected
-                          ? "border-[color:var(--accent)] bg-[color:var(--surface)]"
+                          ? "border-[color:var(--accent)] bg-[color:var(--surface)] scale-[1.01]"
                           : "border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] hover:bg-[color:var(--surface)]"
                       }`}
                     >

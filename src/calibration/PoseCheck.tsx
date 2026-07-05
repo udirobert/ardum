@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PoseBaseline } from "./schema";
+import { posesForBaseline } from "@/lib/yoga-poses";
 
 // MediaPipe-based pose sample. Runs entirely client-side — video frames never
 // leave the browser tab. The component is opt-in: if the user skips, the
@@ -227,11 +228,48 @@ export default function PoseCheck({
         )}
         {status === "done" && baseline && (
           <div className="fade-in-up">
-            <p className="why mb-3">
-              Baseline captured. Only the derived signals are sent — the
+            <p className="why mb-5">
+              Baseline captured. Only the derived signals are sent— the
               frames stay on this device.
             </p>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+
+            {/* Matched pose illustrations — the payoff moment */}
+            <div className="grid grid-cols-3 gap-3 mb-5">
+              {posesForBaseline(baseline).map((pose) => (
+                <div
+                  key={pose.id}
+                  className="flex flex-col items-center gap-2 p-3 rounded-sm border border-[color:var(--hairline)] bg-[color:var(--surface)] hover:border-[color:var(--accent-soft)] transition-colors"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={pose.svgUrl}
+                    alt={pose.english}
+                    className="w-20 h-20 object-contain opacity-80"
+                    style={{
+                      filter:
+                        "sepia(40%) saturate(1.3) hue-rotate(-15deg) brightness(0.9)",
+                    }}
+                    loading="lazy"
+                  />
+                  <div className="text-center">
+                    <p className="text-xs font-medium leading-tight">
+                      {pose.english}
+                    </p>
+                    <p className="tag opacity-60 text-[10px] leading-tight mt-0.5">
+                      {pose.sanskrit}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Benefit copy of first matched pose */}
+            <p className="why text-sm opacity-70 mb-4 max-w-prose">
+              {posesForBaseline(baseline)[0]?.benefit}
+            </p>
+
+            {/* Raw baseline signals as quiet secondary detail */}
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs opacity-60">
               <dt className="text-[color:var(--muted)]">shoulder</dt>
               <dd>{baseline.shoulderMobility}</dd>
               <dt className="text-[color:var(--muted)]">hip</dt>
