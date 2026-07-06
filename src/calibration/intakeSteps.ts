@@ -21,7 +21,7 @@ export const INTAKE_STEPS: IntakeStep[] = [
     sub: "Right now, this week — wherever is more honest.",
     why: `Matching on energy rather than category is what lets the agent
 reason about the kind of practice that will actually meet you.`,
-    mira: `Let's start with where you are. Not where you want to be — where you actually are, right now.`,
+    mira: `I'm going to find you the right yoga retreat. Three questions — let's start with where you are. Not where you want to be, where you actually are right now.`,
     options: [
       {
         value: "settled",

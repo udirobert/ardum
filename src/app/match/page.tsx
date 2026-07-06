@@ -63,12 +63,11 @@ function ComputeChip({
   const tokens = progress?.tokens ?? 0;
   const elapsed = progress?.elapsedMs ?? 0;
   const seconds = (elapsed / 1000).toFixed(1);
-  const model = progress?.model;
   const stage = !streamOpen
-    ? "opening stream…"
+    ? "connecting…"
     : tokens === 0
-      ? "connected · awaiting tokens…"
-      : `${tokens.toLocaleString()} tokens · ${seconds}s`;
+      ? "reading your profile…"
+      : `${tokens.toLocaleString()} words considered · ${seconds}s`;
   return (
     <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 border border-[color:var(--hairline)] rounded-sm px-3 py-2 bg-[color:var(--surface)] surface-card">
       <span
@@ -76,8 +75,7 @@ function ComputeChip({
         className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft"
       />
       <span className="tag">
-        <span className="text-foreground">0G Compute Router</span>
-        {model ? ` · ${model}` : ""}
+        <span className="text-foreground">Mira is thinking</span>
       </span>
       <span aria-hidden className="text-[color:var(--hairline)]">|</span>
       <span className="tag tabular-nums">{stage}</span>
@@ -93,15 +91,11 @@ function ZeroGProvenance({ trace }: { trace: MatchRun["agentTrace"] }) {
         className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)]"
       />
       <span className="tag">
-        <span className="text-foreground">0G Compute Router</span>
-        {trace.model ? ` · ${trace.model}` : ""}
+        <span className="text-foreground">{trace.attestationsConsidered}</span> retreat{trace.attestationsConsidered === 1 ? "" : "s"} verified
       </span>
       <span aria-hidden className="text-[color:var(--hairline)]">|</span>
       <span className="tag">
-        <span className="text-foreground">0G Storage</span>
-        {" · "}
-        {trace.attestationsConsidered} retreat
-        {trace.attestationsConsidered === 1 ? "" : "s"} considered
+        each step reasoned, each claim <span className="text-foreground">attested</span>
       </span>
     </div>
   );
@@ -451,6 +445,9 @@ function MatchFlow() {
           <p className="text-[color:var(--muted)] max-w-prose mb-8 leading-relaxed drop-in">
             Each step is a separate signal. You can disagree with any of them.
           </p>
+          <blockquote className="font-serif text-lg italic text-[color:var(--muted)] border-l-2 border-[color:var(--accent-soft)] pl-4 mb-10 max-w-prose drop-in">
+            The right retreat doesn&apos;t ask you to be different. It meets you where you are.
+          </blockquote>
           <div className="mb-16">
             <ReasoningList steps={steps} />
           </div>
@@ -517,12 +514,8 @@ function MatchFlow() {
         </div>
 
         <p className="tag mt-16 text-center drop-in-3">
-          {run.agentTrace.attestationsConsidered} retreats verified on{" "}
-          <span className="text-foreground">0G Storage</span> &middot;
-          reasoned by{" "}
-          <span className="text-foreground">0G Compute Router</span>
-          {run.agentTrace.model ? ` · ${run.agentTrace.model}` : ""} &middot;
-          prompt {run.agentTrace.promptVersion}
+          {run.agentTrace.attestationsConsidered} retreats verified &middot;
+          each match reasoned, each claim attested
         </p>
 
         <div className="mt-6 text-center drop-in-3">

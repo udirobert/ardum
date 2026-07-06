@@ -87,13 +87,13 @@ export default function RootLayout({
         <footer className="px-6 sm:px-10 py-6 rule border-t mt-12">
           <div className="flex flex-wrap items-baseline justify-between gap-4">
             <div>
-              <p className="text-sm text-[color:var(--muted)]">
-                Built on 0G Storage + 0G Compute · MediaPipe runs in your
-                browser · booking powered by Magic + Particle UA + Arbitrum +
-                ZeroDev + Openfort + x402
+              <p className="font-serif text-lg tracking-tight">
+                Ardum is <span className="italic">mudra</span> reversed.
               </p>
-              <p className="text-xs text-[color:var(--muted)] opacity-60 mt-2">
-                Ardum is <span className="font-serif italic">mudra</span> reversed. A mudra seals your practice. Ardum finds it.
+              <p className="text-sm text-[color:var(--muted)] mt-1 max-w-md leading-relaxed">
+                A mudra seals your practice. Ardum finds it — an agent that
+                reads where you are and matches you to the retreat that meets
+                you there.
               </p>
             </div>
             <nav className="flex gap-5 text-sm">

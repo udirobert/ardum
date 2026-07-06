@@ -75,19 +75,22 @@ export default function MatchVision({
   const classPriceUsd = Math.max(25, Math.round(match.priceUsd / 20));
 
   return (
-    <div className="relative w-full -mx-6 sm:-mx-10">
+    <div className="relative w-full -mx-6 sm:-mx-10 grid">
       {/*
         The cloud field — the same atmosphere from the intake, now
         resolved into the shape of the practitioner's match. The vector
         from the journey (or the intake answers) drives the palette.
+        Using CSS grid stacking (all children in cell 1,1) so the cloud
+        field fills the full content height — more robust than absolute
+        positioning which can miscompute height with negative margins.
       */}
-      <div className="absolute inset-0 z-0 overflow-hidden" aria-hidden>
+      <div className="col-start-1 row-start-1 z-0 overflow-hidden" aria-hidden>
         <CloudField vector={vector} variant="vision" className="w-full h-full" />
       </div>
       {/* Dark wash for text readability over the cloud field — the
           vision is moodier than the intake so the letter carries weight. */}
       <div
-        className="absolute inset-0 z-0 pointer-events-none"
+        className="col-start-1 row-start-1 z-0 pointer-events-none"
         aria-hidden
         style={{
           background:
@@ -95,7 +98,7 @@ export default function MatchVision({
         }}
       />
 
-      <div className="relative z-10 px-6 sm:px-10 py-20 sm:py-28">
+      <div className="col-start-1 row-start-1 z-10 px-6 sm:px-10 py-20 sm:py-28">
         {/* Mira — centered, large, speaking the letter */}
         <div
           className="flex flex-col items-center text-center mb-12"

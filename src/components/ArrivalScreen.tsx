@@ -229,17 +229,21 @@ export default function ArrivalScreen({ onBegin }: ArrivalScreenProps) {
           />
         </p>
 
-        {/* Sub-line for new visitors */}
+        {/* Sub-line for new visitors — establishes what Ardum is */}
         {!isReturning && (
-          <p
-            className="text-[color:var(--muted)] mt-4 text-base leading-relaxed"
+          <div
             style={{
               opacity: 0,
               animation: `fade-in-up 480ms cubic-bezier(0.22,1,0.36,1) ${duration + 300}ms forwards`,
             }}
           >
-            Right now, this moment — wherever is more honest.
-          </p>
+            <p className="text-[color:var(--muted)] mt-4 text-base leading-relaxed">
+              Ardum finds your yoga retreat.
+            </p>
+            <p className="text-[color:var(--muted)] mt-1 text-sm leading-relaxed opacity-70">
+              Three questions. No filters. An agent that reads where you are.
+            </p>
+          </div>
         )}
 
         {/* CTA buttons */}
