@@ -76,10 +76,33 @@ export type MemoryContext = {
   pastBookings: { title: string; location: string }[];
   // Free-text notes the practitioner has shared across sessions.
   pastNotes: string[];
+  // Prior MiraCheckIn responses, sorted latest-day first so the
+  // match letter can pull the most recent (deepest) insight. The
+  // agent writes these via /api/prep-checkin in a known shape; the
+  // parser in buildMemoryContext() extracts them.
+  priorCheckIns: PriorCheckIn[];
   // The raw recall text, for the transparency page.
   rawRecall: RecallResult[];
   // Which provider served this recall (for the agent trace).
   provider: "cognee" | "none";
+};
+
+// One response from the post-booking MiraCheckIn flow. Carries just
+// enough structure for the match letter to weave a recognition line.
+export type PriorCheckIn = {
+  retreat: string;
+  /** Day number from the check-in schedule (1, 3, or 5). */
+  day: number;
+  /** The label of the option the practitioner chose. */
+  answer: string;
+  /**
+   * ISO timestamp the practitioner gave this response. The /api/prep-checkin
+   * endpoint writes `MiraCheckIn response on <ISO>.` as the first line of
+   * each block; the parser here captures it so the match letter can
+   * anchor recognition with a temporal phrase ("Last time, three days
+   * ago, you told me…").
+   */
+  answeredAt: string;
 };
 
 export const EMPTY_MEMORY: MemoryContext = {
@@ -88,6 +111,7 @@ export const EMPTY_MEMORY: MemoryContext = {
   pastMatches: [],
   pastBookings: [],
   pastNotes: [],
+  priorCheckIns: [],
   rawRecall: [],
   provider: "none",
 };
@@ -544,9 +568,60 @@ export function buildMemoryContext(
     pastMatches: pastMatches.slice(0, 5),
     pastBookings: pastBookings.slice(0, 5),
     pastNotes: pastNotes.slice(0, 10),
+    priorCheckIns: parsePriorCheckIns(results).slice(0, 10),
     rawRecall: results,
     provider,
   };
+}
+
+// Parse post-booking MiraCheckIn responses from raw recall text.
+// Matches the text shape written by /api/prep-checkin (each response is
+// a multi-line block that begins with an ISO timestamp):
+//
+//   MiraCheckIn response on <ISO>.
+//   Retreat: <title>.
+//   Day <day>.
+//   Practitioner said: "<answer>".
+//   Mira adapted the preparation plan: "<plan>".
+//
+// We split on block boundaries first so the ISO timestamp and its
+// associated retreat/day/answer triple stay together even when Cognee
+// returns chunks out of order or interleaves other memory text.
+//
+// Tolerant: a block missing its timestamp OR trailing fields is dropped.
+// The matched timestamp classes are tight — digits, T, Z, colon, period,
+// hyphen — so an obvious non-date line cannot false-match.
+function parsePriorCheckIns(results: RecallResult[]): PriorCheckIn[] {
+  if (results.length === 0) return [];
+  const fullText = results.map((r) => r.text).join("\n");
+  const blocks = fullText.split(/\n(?=MiraCheckIn response on )/i);
+  const out: PriorCheckIn[] = [];
+  // Pre-compile the per-field regexes so we don't re-pay per block.
+  const tsPattern = /MiraCheckIn response on\s+([0-9TZ:.\-]+)\./i;
+  const rowPattern =
+    /Retreat:\s+([^\n]+?)\s+Day\s+(\d+)\.\s+Practitioner said:\s+"([^"\n]+?)"/i;
+  for (const block of blocks) {
+    const ts = block.match(tsPattern);
+    const row = block.match(rowPattern);
+    if (!ts || !row) continue;
+    const answeredAt = (ts[1] ?? "").trim();
+    const retreat = (row[1] ?? "").trim();
+    const day = parseInt(row[2] ?? "0", 10);
+    const answer = (row[3] ?? "").trim();
+    if (!answeredAt || !retreat || !day || !answer) continue;
+    out.push({ retreat, day, answer, answeredAt });
+  }
+  // Most-recently-answered first. A Day-1 answer from yesterday is more
+  // temporally current than a Day-5 answer from two weeks ago, and the
+  // recognition copy cares about recency more than depth.
+  out.sort((a, b) => {
+    const ta = Date.parse(a.answeredAt);
+    const tb = Date.parse(b.answeredAt);
+    return (
+      (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0)
+    );
+  });
+  return out;
 }
 
 /**
@@ -569,7 +644,11 @@ export async function recallContext(
   try {
     const results = await recall(
       userId,
-      "What do I know about this practitioner? Their past visits, energy, matches, bookings, and notes.",
+      // The query intentionally spans every Mira-recalled facet so a
+      // single recall() pulls structured memory + MiraCheckIn responses
+      // + intake notes. Adding "MiraCheckIn prep responses" teaches the
+      // graph to surface check-in text in the same chunk.
+      "What do I know about this practitioner? Their past visits, energy, matches, bookings, notes, and MiraCheckIn prep responses.",
       opts,
     );
     return buildMemoryContext(results, "cognee");

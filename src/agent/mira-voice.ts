@@ -9,6 +9,7 @@
 
 import type { MatchResult } from "@/matching/types";
 import type { MemoryContext } from "@/lib/cognee";
+import { humanizeAgo } from "@/lib/time";
 
 type PractitionerSignals = {
   energy?: string;
@@ -72,8 +73,45 @@ export function matchLetter(
     }
     recognitionLineCount++;
 
-    if (memory.pastNotes.length > 0) {
+    // Prior MiraCheckIns take precedence over legacy pastNotes — they
+    // are the freshest, most specific thing Mira has on this person.
+    const hasPriorCheckIn = !!memory.priorCheckIns?.[0];
+    if (memory.pastNotes.length > 0 && !hasPriorCheckIn) {
       lines.push(`You mentioned: "${memory.pastNotes[0]}". I've kept that with me.`);
+      recognitionLineCount++;
+    }
+
+    // Prior MiraCheckIn answers — the post-booking loop. We weave the
+    // most-recently-answered response so the recognition line names
+    // something specific the practitioner actually said, anchored to
+    // the date they said it. Day-5 answers ("Work stress", "A
+    // relationship", "I feel ready") are the most narratable; earlier
+    // days read as energy/temperament. Different copy for each band so
+    // the letter doesn't sound templated. The temporal phrase sits
+    // between "Last time" and the spoken answer — "Last time, three
+    // days ago, you told me…" — so the compounding loop has both
+    // content and timing as proof.
+    const latestCheckIn = memory.priorCheckIns?.[0];
+    if (latestCheckIn) {
+      const ago = humanizeAgo(latestCheckIn.answeredAt);
+      // Fall back to a temporal-less "Last time" if the timestamp
+      // couldn't be parsed — don't drop the recognition entirely.
+      const temporal =
+        ago === null ? "Last time" : `Last time, ${ago},`;
+      if (latestCheckIn.day >= 4) {
+        const a = latestCheckIn.answer.toLowerCase();
+        lines.push(
+          `${temporal} you told me you were ready to let go of ${a} — let's see if that's shifted.`,
+        );
+      } else if (latestCheckIn.day === 3) {
+        lines.push(
+          `${temporal} your energy was "${latestCheckIn.answer.toLowerCase()}". I'll hold that as we reason about this one.`,
+        );
+      } else {
+        lines.push(
+          `${temporal} you said you felt "${latestCheckIn.answer.toLowerCase()}". I remember.`,
+        );
+      }
       recognitionLineCount++;
     }
   }

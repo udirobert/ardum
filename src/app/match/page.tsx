@@ -19,6 +19,7 @@ import MiraOrb from "@/components/MiraOrb";
 import CloudField from "@/aesthetics/CloudField";
 import { saveMatchResult } from "@/lib/client-session";
 import { clearFingerprint } from "@/lib/fingerprint";
+import { humanizeAgo } from "@/lib/time";
 import { intakeAnswersToVector } from "@/calibration/vector";
 import type { MatchRun, ReasoningStep } from "@/matching/types";
 import type { AestheticVector } from "@/aesthetics/image-pool";
@@ -27,14 +28,61 @@ import type { MemoryContext } from "@/lib/cognee";
 
 // Memory context received from the SSE stream's first event. Mirrors the
 // MemoryContext shape from src/lib/cognee.ts but client-safe (no rawRecall).
+// priorCheckIns surfaces the practitioner's most-recent MiraCheckIn
+// answers (Day 1/3/5) so the in-stream banner can name what they've
+// already told Mira — making the compounding loop legible before the
+// match even lands. answeredAt pairs ISO timestamps with each
+// check-in so the banner can attach a temporal anchor ("three days
+// ago") to the recognition content.
 type StreamMemory = {
   isReturning: boolean;
   energyHistory: string[];
   pastMatches: { title: string; location: string; score: number }[];
   pastBookings: { title: string; location: string }[];
   pastNotes: string[];
+  priorCheckIns: {
+    retreat: string;
+    day: number;
+    answer: string;
+    answeredAt: string;
+  }[];
   provider: string;
 };
+
+// Local helper: render a check-in answer in Mira's recognition register
+// for a specific day. Mirrors the day-branching in matchLetter() so the
+// in-stream banner doesn't read "you told me you were ready to let go of
+// excited" when the underlying answer is a Day-1 "Excited" sentiment.
+function checkInQuote(
+  latestCheckIn: { day: number; answer: string },
+  ago: string | null,
+) {
+  const temporal = ago === null ? "Last time" : `Last time, ${ago},`;
+  if (latestCheckIn.day >= 4) {
+    const a = latestCheckIn.answer.toLowerCase();
+    return (
+      <>
+        {temporal} you told me you were ready to let go of{" "}
+        <em>&ldquo;{a}&rdquo;</em>. Let&rsquo;s see if that&rsquo;s shifted.
+      </>
+    );
+  }
+  if (latestCheckIn.day === 3) {
+    return (
+      <>
+        {temporal} your energy was{" "}
+        <em>&ldquo;{latestCheckIn.answer.toLowerCase()}&rdquo;</em>. I&rsquo;ll hold that
+        as we reason about this one.
+      </>
+    );
+  }
+  return (
+    <>
+      {temporal} you said you felt{" "}
+      <em>&ldquo;{latestCheckIn.answer.toLowerCase()}&rdquo;</em>. I remember.
+    </>
+  );
+}
 
 export default function MatchPage() {
   return (
@@ -477,7 +525,11 @@ function MatchFlow() {
 
         {/* Share your match — the viral loop entry point */}
         <div className="mt-8 drop-in-2">
-          <ShareMatch match={top} />
+          <ShareMatch
+            match={top}
+            aestheticVector={liveVector}
+            sessionId={sessionId ?? undefined}
+          />
         </div>
 
         {/* ── Interactive tools ────────────────────────────────────── */}
@@ -548,6 +600,14 @@ function MemoryBanner({ memory, aestheticVector }: { memory: StreamMemory; aesth
   const lastMatch = memory.pastMatches[0];
   const lastEnergy = memory.energyHistory[memory.energyHistory.length - 1];
   const lastNote = memory.pastNotes[0];
+  // The most-recent MiraCheckIn answer the practitioner gave after a
+  // previous booking. We sort by answeredAt descending server-side, so
+  // [0] is the freshest entry. The temporal anchor ("three days ago")
+  // comes from the shared humanizeAgo() helper in src/lib/time.ts.
+  const latestCheckIn = memory.priorCheckIns?.[0];
+  const latestCheckInAgo = latestCheckIn
+    ? humanizeAgo(latestCheckIn.answeredAt)
+    : null;
 
   let recognition = "I remember you from a previous visit.";
   if (lastBooking) {
@@ -556,7 +616,11 @@ function MemoryBanner({ memory, aestheticVector }: { memory: StreamMemory; aesth
     recognition = `Last time I recommended ${lastMatch.title} in ${lastMatch.location}.`;
   }
 
-  if (lastEnergy) {
+  // Skip the standalone energy sentence when a check-in carries the same
+  // signal — the day-3 branch already names it ("your energy was X"),
+  // so adding it again would have Mira say "your energy was X. Last
+  // time, three days ago, your energy was X."
+  if (lastEnergy && latestCheckIn?.day !== 3) {
     recognition += ` Your energy was ${lastEnergy} then.`;
   }
 
@@ -574,11 +638,24 @@ function MemoryBanner({ memory, aestheticVector }: { memory: StreamMemory; aesth
           </p>
           <p className="text-sm leading-relaxed max-w-prose">
             {recognition}
-            {lastNote && (
+            {/* Render the fragment directly — never string-coerce a
+                React.Fragment via template literal (renders
+                "[object Object]"). This is where the compound-loop
+                content actually lives: what the practitioner told
+                Mira on a previous visit, named inline plus a temporal
+                anchor so it feels like recall, not flattery. */}
+            {latestCheckIn ? (
               <>
                 {" "}
-                You mentioned: <em>&ldquo;{lastNote}&rdquo;</em>
+                {checkInQuote(latestCheckIn, latestCheckInAgo)}
               </>
+            ) : (
+              lastNote && (
+                <>
+                  {" "}
+                  You mentioned: <em>&ldquo;{lastNote}&rdquo;</em>
+                </>
+              )
             )}
           </p>
           {memory.pastMatches.length > 1 && (
@@ -588,7 +665,7 @@ function MemoryBanner({ memory, aestheticVector }: { memory: StreamMemory; aesth
             </p>
           )}
           <p className="tag mt-2 opacity-60">
-            powered by Cognee · hybrid graph-vector memory
+            Mira remembers. Each visit, I reason with what I already know.
           </p>
         </div>
       </div>

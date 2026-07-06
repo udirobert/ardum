@@ -174,7 +174,11 @@ export default async function MatchDetail({
       {sessionId && (
         <RevealSection delay={500}>
           <div className="mt-8">
-            <ShareMatch match={matchForLetter} />
+            <ShareMatch
+              match={matchForLetter}
+              aestheticVector={aestheticVector}
+              sessionId={sessionId}
+            />
           </div>
         </RevealSection>
       )}

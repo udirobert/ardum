@@ -93,6 +93,9 @@ export async function GET(req: NextRequest) {
       try {
         // Emit the memory event first — the frontend uses this to render
         // the welcome-back banner and weave memory into Mira's letter.
+        // priorCheckIns surfaces the practitioner's most-recent prep
+        // responses (Day 1/3/5 answers) so even the in-stream
+        // recognition banner names what they've told Mira before.
         controller.enqueue(
           encoder.encode(
             sseEncode("memory", {
@@ -101,6 +104,7 @@ export async function GET(req: NextRequest) {
               pastMatches: memory.pastMatches,
               pastBookings: memory.pastBookings,
               pastNotes: memory.pastNotes,
+              priorCheckIns: memory.priorCheckIns,
               provider: memory.provider,
             })
           )

@@ -35,6 +35,12 @@ type BookingMemory = {
   pastMatches: { title: string; location: string; score: number }[];
   pastBookings: { title: string; location: string }[];
   pastNotes: string[];
+  priorCheckIns: {
+    retreat: string;
+    day: number;
+    answer: string;
+    answeredAt: string;
+  }[];
   provider: string;
 };
 
@@ -264,6 +270,9 @@ export default function ConversationalBooking({
             pastMatches: memory.pastMatches,
             pastBookings: memory.pastBookings,
             pastNotes: memory.pastNotes,
+            // The streaming endpoint always emits priorCheckIns; spread
+            // it through so the prep plan can pick up cross-session recall.
+            priorCheckIns: memory.priorCheckIns ?? [],
             rawRecall: [],
             provider: memory.provider as "cognee" | "none",
           }
@@ -328,7 +337,11 @@ export default function ConversationalBooking({
 
         {/* Mira checks in — post-booking follow-up timeline */}
         <div className="ml-16 mb-8">
-          <MiraCheckIn retreatTitle={retreatTitle} signals={signals} />
+          <MiraCheckIn
+            retreatTitle={retreatTitle}
+            retreatRootHash={retreatRootHash}
+            signals={signals}
+          />
         </div>
 
         {/* Share — woven into Mira's voice, not a card */}

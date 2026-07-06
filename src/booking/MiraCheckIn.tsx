@@ -1,21 +1,32 @@
 "use client";
 
-// MiraCheckIn — post-booking scheduled follow-ups.
+// MiraCheckIn — post-booking scheduled follow-ups, with persistence.
 //
-// After booking, Mira sends timed check-in messages. The user can
-// respond, and Mira adapts the preparation plan based on their
-// responses. This turns a booking into a relationship.
+// After booking, Mira sends timed check-in messages. The user responds,
+// and Mira adapts the preparation plan. This component now:
 //
-// For the hackathon demo, we simulate the timeline — the user can
-// step through each check-in day and see how Mira's guidance
-// adapts. In production, these would be triggered by a cron job
-// or scheduled task.
+//   1. Hydrates any prior responses from localStorage (per-retreat key),
+//      so closing the browser and coming back resumes from where the
+//      user stopped instead of restarting.
+//   2. POSTs each new response to /api/prep-checkin, which writes it
+//      to Cognee via cognee.remember() — fueling cross-session recall.
+//   3. Surfaces a "you've already told me" recap for returning users.
+//
+// The localStorage shape never includes user-identifying free text
+// beyond Mira's answer options. Each Option is in on a lookup the
+// server already knows; the persistence is for UX state, not data
+// mining.
+//
+// In demo mode (no userId, no env), the POST is a graceful no-op and
+// localStorage is the source of truth.
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import MiraOrb from "@/components/MiraOrb";
+import { getOrCreateUserId } from "@/lib/fingerprint";
 
 type MiraCheckInProps = {
   retreatTitle: string;
+  retreatRootHash?: string;
   signals: { energy?: string; budget?: string; social?: string };
 };
 
@@ -30,7 +41,42 @@ type Response = {
   day: number;
   answer: string;
   adaptedPlan: string;
+  /** ISO timestamp of when the response was given. */
+  answeredAt: string;
 };
+
+type StoredCheckIns = {
+  retreatRootHash: string;
+  retreatTitle: string;
+  responses: Response[];
+};
+
+// localStorage key per retreat — keeps state scoped to the booking.
+function storageKey(retreatRootHash: string): string {
+  return `ardum:prep-checkin:${retreatRootHash}`;
+}
+
+function readStored(key: string): StoredCheckIns | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredCheckIns;
+    if (!parsed.responses || !Array.isArray(parsed.responses)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(key: string, value: StoredCheckIns): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* swallow — localStorage may be full or unavailable */
+  }
+}
 
 function buildCheckIns(retreatTitle: string, signals: { energy?: string }): CheckIn[] {
   const energy = signals.energy ?? "settled";
@@ -71,21 +117,96 @@ function buildCheckIns(retreatTitle: string, signals: { energy?: string }): Chec
   ];
 }
 
-export default function MiraCheckIn({ retreatTitle, signals }: MiraCheckInProps) {
-  const checkIns = buildCheckIns(retreatTitle, signals);
-  const [currentDay, setCurrentDay] = useState(0);
-  const [responses, setResponses] = useState<Response[]>([]);
+export default function MiraCheckIn({
+  retreatTitle,
+  retreatRootHash,
+  signals,
+}: MiraCheckInProps) {
+  const checkIns = useMemo(
+    () => buildCheckIns(retreatTitle, signals),
+    // buildCheckIns only reads signals.energy; depending on the whole
+    // object would invalidate every parent render that re-creates the
+    // signals object literal.
+    [retreatTitle, signals.energy],
+  );
 
-  const currentCheckIn = checkIns[currentDay];
+  // `responses` initial state is read synchronously from localStorage
+  // on the very first client render. On SSR (no `window`) we return
+  // []; the next client render fills it in. This avoids a two-render
+  // "Day 1 → recap" flicker for returning users because there is no
+  // useEffect + setState round-trip — by the time the panel paints,
+  // the data is already in state.
+  const [responses, setResponses] = useState<Response[]>(() => {
+    if (typeof window === "undefined") return [];
+    if (!retreatRootHash) return [];
+    return readStored(storageKey(retreatRootHash))?.responses ?? [];
+  });
 
-  function respond(answer: string, adaptsTo: string) {
-    setResponses([...responses, { day: currentCheckIn.day, answer, adaptedPlan: adaptsTo }]);
-    if (currentDay < checkIns.length - 1) {
-      setCurrentDay(currentDay + 1);
+  // Persist on every change. localStorage.setItem with identical
+  // content is cheap enough that we don't gate the first write even
+  // though it round-trips the value we just read.
+  useEffect(() => {
+    if (!retreatRootHash) return;
+    if (responses.length === 0) return;
+    const record: StoredCheckIns = {
+      retreatRootHash,
+      retreatTitle,
+      responses,
+    };
+    writeStored(storageKey(retreatRootHash), record);
+  }, [responses, retreatRootHash, retreatTitle]);
+
+  const answeredDays = useMemo(
+    () => new Set(responses.map((r) => r.day)),
+    [responses],
+  );
+  const currentDay = useMemo(() => {
+    for (const ci of checkIns) {
+      if (!answeredDays.has(ci.day)) return ci.day;
+    }
+    return null; // all answered
+  }, [checkIns, answeredDays]);
+
+  const isComplete = responses.length === checkIns.length;
+  const currentCheckIn =
+    currentDay !== null
+      ? checkIns.find((ci) => ci.day === currentDay) ?? null
+      : null;
+
+  async function persistToCognee(response: Response) {
+    if (!retreatRootHash) return;
+    try {
+      const userId = getOrCreateUserId();
+      if (!userId) return;
+      await fetch("/api/prep-checkin", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          retreatRootHash,
+          retreatTitle,
+          day: response.day,
+          answer: response.answer,
+          adaptedPlan: response.adaptedPlan,
+        }),
+      });
+    } catch {
+      /* no-op; localStorage is the source of truth */
     }
   }
 
-  const isComplete = responses.length === checkIns.length;
+  function respond(answer: string, adaptsTo: string) {
+    if (!currentCheckIn) return;
+    const response: Response = {
+      day: currentCheckIn.day,
+      answer,
+      adaptedPlan: adaptsTo,
+      answeredAt: new Date().toISOString(),
+    };
+    const next = [...responses, response];
+    setResponses(next);
+    void persistToCognee(response);
+  }
 
   return (
     <div className="mt-8 border border-[color:var(--accent-soft)] rounded-sm bg-[color:var(--surface)] p-6 surface-card">
@@ -100,21 +221,49 @@ export default function MiraCheckIn({ retreatTitle, signals }: MiraCheckInProps)
 
       {/* Timeline progress */}
       <div className="flex items-center gap-2 mb-8 ml-14">
-        {checkIns.map((ci, i) => (
-          <span
-            key={ci.day}
-            className={`h-px flex-1 transition-colors ${
-              i < currentDay || (isComplete && i === currentDay)
-                ? "bg-[color:var(--accent)]"
-                : i === currentDay
+        {checkIns.map((ci) => {
+          const done = answeredDays.has(ci.day);
+          const active = ci.day === currentDay;
+          return (
+            <span
+              key={ci.day}
+              className={`h-px flex-1 transition-colors ${
+                done || active
                   ? "bg-[color:var(--accent)]"
                   : "bg-[color:var(--hairline)]"
-            }`}
-          />
-        ))}
+              }`}
+            />
+          );
+        })}
       </div>
 
-      {/* Complete state — summary of adapted plan */}
+      {/* Welcome back banner — only show when we have prior responses
+          and the full set isn't complete. Tells the user the loop
+          compounds: "this is the magic they came back for." */}
+      {!isComplete &&
+        responses.length > 0 &&
+        currentCheckIn !== null && (
+          <div className="ml-14 mb-6 fade-in-up">
+            <p className="text-xs text-[color:var(--muted)] mb-3 leading-relaxed italic max-w-prose">
+              You&apos;ve already told me {responses.length === 1 ? "once" : `${responses.length} things`}.
+              I&apos;ve kept them with me. Pick up where you left off.
+            </p>
+            <ul className="space-y-1.5 mb-1">
+              {responses.map((r) => (
+                <li
+                  key={r.day}
+                  className="text-xs text-[color:var(--muted)] flex items-center gap-2"
+                >
+                  <span className="tag">Day {r.day}</span>
+                  <span>→</span>
+                  <span>{r.answer}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+      {/* Complete state — full recap of adapted plan */}
       {isComplete ? (
         <div className="ml-14 fade-in-up">
           <div className="flex items-start gap-3 mb-6">
@@ -151,7 +300,7 @@ export default function MiraCheckIn({ retreatTitle, signals }: MiraCheckInProps)
             </p>
           </div>
         </div>
-      ) : (
+      ) : currentCheckIn ? (
         /* Active check-in */
         <div className="ml-14">
           <p className="tag mb-2">{currentCheckIn.label}</p>
@@ -175,21 +324,8 @@ export default function MiraCheckIn({ retreatTitle, signals }: MiraCheckInProps)
               </button>
             ))}
           </div>
-
-          {/* Previous responses */}
-          {responses.length > 0 && (
-            <div className="mt-6 space-y-2">
-              {responses.map((r) => (
-                <div key={r.day} className="flex items-center gap-2 text-xs text-[color:var(--muted)]">
-                  <span className="tag">Day {r.day}</span>
-                  <span>→</span>
-                  <span>{r.answer}</span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
