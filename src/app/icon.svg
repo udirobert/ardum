@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="orb" cx="38%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#f6f1e7"/>
+      <stop offset="35%" stop-color="#e8d5b8"/>
+      <stop offset="70%" stop-color="#a85a3a"/>
+      <stop offset="100%" stop-color="#5a2e1c"/>
+    </radialGradient>
+    <radialGradient id="vein" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#c28560" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#c28560" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="50" cy="50" r="44" fill="url(#orb)"/>
+  <ellipse cx="42" cy="40" rx="18" ry="12" fill="url(#vein)" transform="rotate(-25 42 40)"/>
+  <ellipse cx="58" cy="62" rx="14" ry="8" fill="url(#vein)" transform="rotate(20 58 62)"/>
+  <circle cx="50" cy="50" r="44" fill="none" stroke="#5a2e1c" stroke-opacity="0.15" stroke-width="1"/>
+</svg>

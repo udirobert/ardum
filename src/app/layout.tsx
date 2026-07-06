@@ -28,21 +28,13 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://ardum.vercel.app"),
   title: "Ardum — the shape of your practice",
   description:
-    "Agentic yoga retreat matching built on verified attestations. In-browser " +
-    "pose calibration. Reasoning visible at every step.",
-  icons: {
-    icon: [
-      {
-        url: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧘</text></svg>",
-        type: "image/svg+xml",
-      },
-    ],
-  },
+    "An agent that reads where you are and matches you to the yoga retreat " +
+    "that meets you there. Three questions, no filters, reasoning visible.",
   openGraph: {
     title: "Ardum — the shape of your practice",
     description:
-      "Agentic yoga retreat matching built on verified attestations. " +
-      "In-browser pose calibration. Reasoning visible at every step.",
+      "An agent that reads where you are and matches you to the yoga retreat " +
+      "that meets you there.",
     siteName: "Ardum",
     type: "website",
     locale: "en_US",
@@ -51,8 +43,8 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Ardum — the shape of your practice",
     description:
-      "Agentic yoga retreat matching built on verified attestations. " +
-      "In-browser pose calibration. Reasoning visible at every step.",
+      "An agent that reads where you are and matches you to the yoga retreat " +
+      "that meets you there.",
   },
 };
 

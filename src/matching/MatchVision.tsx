@@ -88,13 +88,24 @@ export default function MatchVision({
         <CloudField vector={vector} variant="vision" className="w-full h-full" />
       </div>
       {/* Dark wash for text readability over the cloud field — the
-          vision is moodier than the intake so the letter carries weight. */}
+          vision is moodier than the intake so the letter carries weight.
+          Stronger than before: a uniform base + radial vignette in the
+          text area ensures the letter is legible regardless of how
+          bright the clouds render behind it. */}
       <div
         className="col-start-1 row-start-1 z-0 pointer-events-none"
         aria-hidden
         style={{
           background:
-            "linear-gradient(to bottom, rgba(20,14,12,0.38) 0%, rgba(20,14,12,0.22) 40%, rgba(20,14,12,0.42) 100%)",
+            "linear-gradient(to bottom, rgba(20,14,12,0.58) 0%, rgba(20,14,12,0.52) 50%, rgba(20,14,12,0.62) 100%)",
+        }}
+      />
+      <div
+        className="col-start-1 row-start-1 z-0 pointer-events-none"
+        aria-hidden
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 80% at 50% 45%, rgba(20,14,12,0.35) 0%, transparent 70%)",
         }}
       />
 
@@ -123,9 +134,9 @@ export default function MatchVision({
                     ? "text-lg leading-relaxed text-[color:var(--accent)] italic border-l-2 border-[color:var(--accent-soft)] pl-4 text-left mira-line"
                     : isRetreatLine
                       ? "font-serif text-2xl sm:text-3xl leading-[1.2] tracking-tight text-white text-left mira-line"
-                      : "text-lg leading-relaxed text-white/90 text-left mira-line"
+                      : "text-lg leading-relaxed text-white text-left mira-line"
                 }
-                style={{ textShadow: "0 1px 12px rgba(0,0,0,0.5)" }}
+                style={{ textShadow: "0 1px 8px rgba(0,0,0,0.7), 0 0 24px rgba(0,0,0,0.4)" }}
               >
                 {line}
               </p>
@@ -136,7 +147,7 @@ export default function MatchVision({
             <p
               key={`aesthetic-${i}`}
               className="text-lg leading-relaxed text-[color:var(--accent)] italic text-left mira-line"
-              style={{ textShadow: "0 1px 10px rgba(0,0,0,0.5)" }}
+              style={{ textShadow: "0 1px 8px rgba(0,0,0,0.7), 0 0 24px rgba(0,0,0,0.4)" }}
             >
               {line}
             </p>
@@ -151,7 +162,7 @@ export default function MatchVision({
                 type="button"
                 onClick={() => setBookingOpen(true)}
                 className="text-lg font-serif text-[color:var(--accent)] hover:text-white transition-colors text-left"
-                style={{ textShadow: "0 1px 10px rgba(0,0,0,0.5)" }}
+                style={{ textShadow: "0 1px 8px rgba(0,0,0,0.7), 0 0 24px rgba(0,0,0,0.4)" }}
               >
                 {letter.cta} →
               </button>
@@ -160,7 +171,8 @@ export default function MatchVision({
               <button
                 type="button"
                 onClick={() => setClassOpen(true)}
-                className="text-sm text-white/60 hover:text-white transition-colors text-left"
+                className="text-sm text-white/75 hover:text-white transition-colors text-left"
+                style={{ textShadow: "0 1px 6px rgba(0,0,0,0.6)" }}
               >
                 Or try a single class first (${classPriceUsd}) →
               </button>
@@ -172,7 +184,8 @@ export default function MatchVision({
                 <button
                   type="button"
                   onClick={onSeeReasoning}
-                  className="text-sm text-white/50 hover:text-white/80 transition-colors text-left"
+                  className="text-sm text-white/65 hover:text-white/90 transition-colors text-left"
+                  style={{ textShadow: "0 1px 6px rgba(0,0,0,0.6)" }}
                 >
                   see the full reasoning ↓
                 </button>

@@ -125,7 +125,7 @@ export default async function Image({
               lineHeight: 1.3,
             }}
           >
-            matching agent · attested on 0G Storage · reasoning visible at every step
+            matched by Mira · each claim verified · reasoning visible
           </div>
           {score !== null && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
