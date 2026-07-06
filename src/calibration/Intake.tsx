@@ -14,7 +14,6 @@ import type {
 } from "./schema";
 import PoseCheck from "./PoseCheck";
 import MiraOrb from "@/components/MiraOrb";
-import GooeyFilter from "@/components/GooeyFilter";
 import CloudField from "@/aesthetics/CloudField";
 import { poseForEnergy } from "@/lib/yoga-poses";
 import type { AestheticVector } from "@/aesthetics/image-pool";
@@ -396,14 +395,15 @@ export default function Intake({ active = true }: { active?: boolean }) {
               className="w-full h-full"
             />
           </div>
-          {/* Cream wash for content readability — stronger behind the text
-              column, fading at the edges so the clouds remain visible. */}
+          {/* Cream wash for content readability — strong behind the text
+              column so buttons and text are always legible, fading only at
+              the far edges so the clouds remain visible. */}
           <div
             className="absolute inset-0 z-0 pointer-events-none"
             aria-hidden
             style={{
               background:
-                "radial-gradient(ellipse 70% 80% at 50% 30%, rgba(246,241,231,0.72) 0%, rgba(246,241,231,0.42) 45%, rgba(246,241,231,0.18) 80%)",
+                "radial-gradient(ellipse 75% 90% at 50% 35%, rgba(246,241,231,0.88) 0%, rgba(246,241,231,0.62) 50%, rgba(246,241,231,0.32) 85%)",
             }}
           />
         </>
@@ -453,8 +453,6 @@ export default function Intake({ active = true }: { active?: boolean }) {
       )}
 
     <section className="relative z-10 mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 sm:pt-20 pb-24">
-      {/* Gooey SVG filter def — hidden, referenced by the option list container */}
-      <GooeyFilter id="intake" blur={6} threshold={16} />
 
       {recallVisible && hasCogneeMemory && cogneeMemory && (
         <CogneeRecallBanner
@@ -580,12 +578,12 @@ export default function Intake({ active = true }: { active?: boolean }) {
                   </div>
                 )}
 
-                {/* Active turn: the gooey option list. Picking auto-advances. */}
+                {/* Active turn: the option list. Picking auto-advances.
+                    Solid background so buttons are readable over the cloud
+                    field. The gooey filter is dropped — it blurred borders
+                    against the clouds and hurt legibility. */}
                 {showOptions && (
-                  <ul
-                    className="flex flex-col gap-2"
-                    style={{ filter: "url('#gooey-intake')" }}
-                  >
+                  <ul className="flex flex-col gap-2">
                     {step.options.map((opt, j) => {
                       const selected = answers[step.id] === opt.value;
                       return (
@@ -596,7 +594,7 @@ export default function Intake({ active = true }: { active?: boolean }) {
                             className={`w-full text-left px-5 py-4 rounded-sm border transition-all duration-200 hover-lift ${
                               selected
                                 ? "border-[color:var(--accent)] bg-[color:var(--surface)] scale-[1.01]"
-                                : "border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] hover:bg-[color:var(--surface)]"
+                                : "border-[color:var(--hairline)] bg-[color:var(--background)] hover:border-[color:var(--accent-soft)] hover:bg-[color:var(--surface)]"
                             }`}
                           >
                             <span className="font-serif text-xl mr-4 text-[color:var(--muted)]">
