@@ -16,11 +16,12 @@ import ChangedMyMind from "@/matching/ChangedMyMind";
 import ShareMatch from "@/matching/ShareMatch";
 import MaskReveal from "@/components/MaskReveal";
 import MiraOrb from "@/components/MiraOrb";
-import AestheticJourney from "@/aesthetics/AestheticJourney";
+import CloudField from "@/aesthetics/CloudField";
 import { saveMatchResult } from "@/lib/client-session";
 import { clearFingerprint } from "@/lib/fingerprint";
+import { intakeAnswersToVector } from "@/calibration/vector";
 import type { MatchRun, ReasoningStep } from "@/matching/types";
-import type { UserPreference, AestheticVector } from "@/aesthetics/image-pool";
+import type { AestheticVector } from "@/aesthetics/image-pool";
 import type { PractitionerProfile } from "@/calibration/schema";
 import type { MemoryContext } from "@/lib/cognee";
 
@@ -122,8 +123,6 @@ function MatchFlow() {
     elapsedMs: number;
     model: string;
   } | null>(null);
-  const [aestheticPref, setAestheticPref] = useState<UserPreference | null>(null);
-  const [journeyActive, setJourneyActive] = useState(true);
   const [memory, setMemory] = useState<StreamMemory | null>(null);
 
   // Decode the practitioner profile from the URL so we can pass signals
@@ -152,6 +151,16 @@ function MatchFlow() {
     };
   }, [memory]);
 
+  // Derive the aesthetic vector from the intake answers (decoded from the
+  // URL profile param). Used to drive the cloud field during the reasoning
+  // phase and as a fallback for the vision if the aesthetic journey hasn't
+  // completed. If the journey has completed, its vector takes precedence.
+  const intakeVector = useMemo<AestheticVector>(
+    () => intakeAnswersToVector({ energy: signals.energy as PractitionerProfile["energy"] | undefined, social: signals.social as PractitionerProfile["social"] | undefined }),
+    [signals.energy, signals.social],
+  );
+  const liveVector = intakeVector;
+
   // Ref for the reasoning section — the vision's "see the full reasoning"
   // link scrolls here.
   const reasoningRef = useRef<HTMLDivElement>(null);
@@ -166,10 +175,6 @@ function MatchFlow() {
   useEffect(() => {
     runRef.current = run;
   }, [run]);
-  const aestheticPrefRef = useRef<UserPreference | null>(null);
-  useEffect(() => {
-    aestheticPrefRef.current = aestheticPref;
-  }, [aestheticPref]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -216,18 +221,6 @@ function MatchFlow() {
         setRun(payload.run);
         if (sessionId) {
           saveMatchResult(sessionId, payload.run, stepsRef.current);
-        }
-        // Save aesthetic preference to sessionStorage for the match
-        // detail page to pick up and weave into Mira's letter.
-        if (aestheticPrefRef.current) {
-          try {
-            sessionStorage.setItem(
-              `aesthetic-pref-${sessionId}`,
-              JSON.stringify(aestheticPrefRef.current),
-            );
-          } catch {
-            /* sessionStorage might be full or unavailable */
-          }
         }
       } catch (parseErr) {
         console.error("bad done event", parseErr);
@@ -341,51 +334,52 @@ function MatchFlow() {
 
   if (!run) {
     return (
-      <section className="mx-auto max-w-2xl px-6 sm:px-10 pt-20">
-        <ComputeChip progress={progress} streamOpen={streamOpen} />
+      <section className="relative mx-auto w-full max-w-2xl px-6 sm:px-10 pt-20 pb-24 min-h-[80vh]">
+        {/* Cloud field — the atmosphere continues from the intake.
+            The same vector that shaped the reading now shapes the
+            reasoning space. Mira is thinking; the clouds move with her. */}
+        <div className="absolute inset-0 z-0 overflow-hidden -mx-6 sm:-mx-10" aria-hidden>
+          <CloudField vector={liveVector} variant="backdrop" className="w-full h-full" />
+        </div>
+        <div
+          className="absolute inset-0 z-0 pointer-events-none -mx-6 sm:-mx-10"
+          aria-hidden
+          style={{
+            background:
+              "radial-gradient(ellipse 75% 90% at 50% 35%, rgba(246,241,231,0.88) 0%, rgba(246,241,231,0.62) 50%, rgba(246,241,231,0.32) 85%)",
+          }}
+        />
 
-        {/* Memory banner — if Mira remembers this practitioner from Cognee,
-            show a recognition line while the agent reasons. This is the
-            "AI that doesn't forget" moment, visible before the match lands.
-            Pass the live aesthetic vector so the orb's marble veins already
-            reflect the user's aesthetic (warm, cool, light, dark) even during
-            the reasoning phase. */}
-        {memory && memory.isReturning && memory.provider !== "none" && (
-          <MemoryBanner memory={memory} aestheticVector={aestheticPref?.vector ?? null} />
-        )}
+        <div className="relative z-10">
+          <ComputeChip progress={progress} streamOpen={streamOpen} />
 
-        {/* Aesthetic journey — runs alongside the reasoning stream.
-            The user interacts with images + sound while the agent
-            thinks. Their reactions build a preference vector that
-            gets woven into Mira's match letter. */}
-        {journeyActive && (
-          <div className="mt-8 mb-8">
-            <AestheticJourney
-              onComplete={(pref) => {
-                setAestheticPref(pref);
-                setJourneyActive(false);
-              }}
-            />
+          {/* Memory banner — if Mira remembers this practitioner from Cognee,
+              show a recognition line while the agent reasons. This is the
+              "AI that doesn't forget" moment, visible before the match lands. */}
+          {memory && memory.isReturning && memory.provider !== "none" && (
+            <MemoryBanner memory={memory} aestheticVector={liveVector} />
+          )}
+
+          {/* Mira thinking — orb centered, breathing, with her line */}
+          <div className="flex flex-col items-center text-center mt-12 mb-10">
+            <div
+              className="mb-5"
+              style={{ filter: "drop-shadow(0 0 48px rgba(168,90,58,0.22))" }}
+            >
+              <MiraOrb size={72} state="thinking" aestheticVector={liveVector} />
+            </div>
+            <h1 className="font-serif text-3xl sm:text-4xl tracking-tight text-foreground">
+              {steps.length === 0
+                ? "Reading your profile…"
+                : "Reasoning out loud…"}
+            </h1>
           </div>
-        )}
 
-        {/* Reasoning stream — visible below the journey, or as the
-            primary view once the journey completes */}
-        <h1 className="font-serif text-4xl tracking-tight mb-6 mt-3">
-          {steps.length === 0
-            ? "Reading your profile…"
-            : "Reasoning out loud…"}
-        </h1>
-        <div className="relative">
-          <div
-            className="absolute -inset-20 rounded-full breathing-glow pointer-events-none"
-            style={{
-              background:
-                "radial-gradient(ellipse 50% 40% at 50% 20%, rgba(168,90,58,0.12) 0%, transparent 70%)",
-            }}
-          />
-          <StreamProgress steps={steps.length} />
-          <ReasoningList steps={steps} isStreaming />
+          {/* Reasoning stream — steps appear as they arrive */}
+          <div className="relative">
+            <StreamProgress steps={steps.length} />
+            <ReasoningList steps={steps} isStreaming />
+          </div>
         </div>
       </section>
     );
@@ -439,7 +433,7 @@ function MatchFlow() {
           match={top}
           signals={signals}
           memory={memoryContext}
-          aestheticVector={aestheticPref?.vector ?? null}
+          aestheticVector={liveVector}
           sessionId={sessionId ?? undefined}
           userId={userId ?? undefined}
           onSeeReasoning={() => {

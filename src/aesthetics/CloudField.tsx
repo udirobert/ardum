@@ -314,7 +314,32 @@ export default function CloudField({
     let raf = 0;
     const start = performance.now();
 
+    // Track visibility — pause the RAF loop when the canvas is off-screen
+    // (e.g. the user has scrolled down to the reasoning section). This
+    // saves GPU cycles without any visible change.
+    let visible = true;
+    const io: IntersectionObserver | null =
+      typeof IntersectionObserver !== "undefined"
+        ? new IntersectionObserver(
+            (entries) => {
+              visible = entries[0]?.isIntersecting ?? true;
+              if (visible && !reduced && !raf) {
+                raf = requestAnimationFrame(draw);
+              } else if (!visible && raf) {
+                cancelAnimationFrame(raf);
+                raf = 0;
+              }
+            },
+            { threshold: 0 },
+          )
+        : null;
+    if (io) io.observe(canvas);
+
     const draw = (now: number) => {
+      if (!visible) {
+        raf = 0;
+        return;
+      }
       const target = vectorToCloudParams(vectorRef.current, variantRef.current);
       const k = 0.03;
       cur.speed = lerp(cur.speed, target.speed, k);
@@ -346,6 +371,7 @@ export default function CloudField({
     return () => {
       if (raf) cancelAnimationFrame(raf);
       ro?.disconnect();
+      io?.disconnect();
       const lose = gl.getExtension("WEBGL_lose_context");
       lose?.loseContext();
     };

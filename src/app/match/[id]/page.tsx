@@ -4,16 +4,15 @@ import Link from "next/link";
 import { getAttestation } from "@/lib/og-storage";
 import { getProfile } from "@/lib/session";
 import { recallContext } from "@/lib/cognee";
-import { RETREAT_PHOTOS, FALLBACK_GRADIENT } from "@/lib/retreat-photos";
 import BreathCycleDiagram from "@/matching/BreathCycleDiagram";
-import ProgressiveBlurImage from "@/components/ProgressiveBlurImage";
 import RevealSection from "@/components/RevealSection";
 import ClientMatchBanner from "@/components/ClientMatchBanner";
-import AgentLetter from "@/components/AgentLetter";
-import { matchLetter } from "@/agent/mira-voice";
+import MatchVision from "@/matching/MatchVision";
+import { intakeAnswersToVector } from "@/calibration/vector";
 import ChangedMyMind from "@/matching/ChangedMyMind";
 import ShareMatch from "@/matching/ShareMatch";
 import type { MatchResult } from "@/matching/types";
+import type { PractitionerProfile } from "@/calibration/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +51,6 @@ export default async function MatchDetail({
   const priceUsd = attestation.claims.priceUsd ?? 0;
   const capacity = attestation.claims.capacity ?? 0;
   const practiceStyle = attestation.claims.practiceStyle ?? [];
-  const photo = RETREAT_PHOTOS[id];
 
   // Build a minimal MatchResult for Mira's letter
   const matchForLetter: MatchResult = {
@@ -73,7 +71,12 @@ export default async function MatchDetail({
     attestedAt: attestation.createdAt,
   };
 
-  const letter = matchLetter(matchForLetter, signals, memory);
+  // Derive the aesthetic vector from the profile signals so the cloud
+  // field matches the practitioner's intake answers.
+  const aestheticVector = intakeAnswersToVector({
+    energy: signals.energy as PractitionerProfile["energy"] | undefined,
+    social: signals.social as PractitionerProfile["social"] | undefined,
+  });
 
   return (
     <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
@@ -84,35 +87,19 @@ export default async function MatchDetail({
         ← all matches
       </Link>
 
-      {photo && (
-        <div className="mt-8 mb-10 -mx-6 sm:-mx-10">
-          <ProgressiveBlurImage
-            src={photo.src}
-            alt={photo.alt}
-            width={1200}
-            height={675}
-            aspectRatio="16/9"
-            fallbackGradient={FALLBACK_GRADIENT}
-            className="rounded-sm"
-          />
-        </div>
-      )}
-
-      {/* Mira's letter — the agent presents the match, not a product listing */}
-      <AgentLetter
-        orbSize={56}
-        lines={letter.lines}
-        cta={letter.cta}
-        recognitionLineCount={letter.recognitionLineCount}
-        retreatRootHash={id}
-        retreatTitle={title}
-        depositUsd={priceUsd}
-        operatorAddress={attestation.attestor}
-        classPriceUsd={Math.max(25, Math.round(priceUsd / 20))}
-        signals={signals}
-        sessionId={sessionId}
-        userId={userId}
-      />
+      {/* The Vision — Mira speaks the match as a letter over the clouds.
+          Same ceremonial reveal as the match page, so shared links and
+          post-booking "View your retreat" get the same experience. */}
+      <div className="mt-8">
+        <MatchVision
+          match={matchForLetter}
+          signals={signals}
+          memory={memory}
+          aestheticVector={aestheticVector}
+          sessionId={sessionId}
+          userId={userId}
+        />
+      </div>
 
       <ClientMatchBanner retreatId={id} />
 
