@@ -163,6 +163,7 @@ src/
     api/generate-vision/ # fal.ai retreat vision generation (Tier 2)
     api/magic/wallet/ # Magic TEE wallet creation (server-side, from JWT)
     api/openfort/account/ # Openfort account creation + sponsored tx
+    api/prep-checkin/  # MiraCheckIn daily prep (POST writes to Cognee, GET recalls)
     match/            # reasoning-reveal + match card + booking CTA
       [id]/           # match detail page — Mira's agent letter
     attest/           # wallet-gated attestation upload (gasless + classic)
@@ -180,6 +181,7 @@ src/
     UniversalAccount.tsx # Particle UA EIP-7702 + cross-chain deposit
     ConversationalBooking.tsx # booking as dialogue with Mira (not wizard)
     ClassInvitation.tsx # drop-in class as agent invitation (not checkout)
+    MiraCheckIn.tsx     # 5-day conversational prep; Mira asks "how do you feel today?" each day
     BookingFlow.tsx     # legacy 4-step booking UI (kept for reference)
     BookButton.tsx      # "Book this retreat" CTA on match detail
     ClassPayment.tsx    # legacy x402 drop-in class payment flow
@@ -195,7 +197,8 @@ src/
     Intake.tsx          # guided introspection with Mira present at each step
     intakeSteps.ts      # 3 questions with Mira's voice + why explanation
     PoseCheck.tsx       # in-browser pose calibration (MediaPipe)
-  matching/           # match result types + reasoning UI
+  matching/           # match result types + reasoning UI + viral share
+    StoryCard.tsx       # 1080×1920 SVG IG-Stories match card (system serif fallback)
   attestation/        # attestation schema + wallet button
   components/         # shared UI
     MiraOrb.tsx         # the breathing orb (calm/thinking/speaking states)
@@ -212,6 +215,7 @@ src/
     session.memory.ts   # in-memory adapter (demo mode)
     session.supabase.ts # Supabase adapter (production)
     fingerprint.ts      # local cross-session memory (browser-only)
+    time.ts             # humanizeAgo(iso) — shared temporal anchor ("three days ago")
 contracts/            # Solidity contracts
   RetreatDepositEscrow.sol # deposit escrow (Arbitrum Sepolia)
 scripts/              # seed + supabase migration + escrow deployment
@@ -302,7 +306,7 @@ Mira can match you.
 
 | Cognee verb | Where it fires | What gets stored/retrieved |
 |---|---|---|
-| **`remember()`** | After intake, after match, after booking | "Practitioner arrived with energy=low, budget=1k-2k, notes='recovering from burnout'. Matched to Restorative Yin in Ubud, score 0.87." |
+| **`remember()`** | After intake, after match, after booking, and after each MiraCheckIn daily-prep answer (Day 1 / 3 / 5) | "Practitioner arrived with energy=low, budget=1k-2k, notes='recovering from burnout'. Matched to Restorative Yin in Ubud, score 0.87." — or — "MiraCheckIn response on 2026-07-07T12:00:00Z. Retreat: Restorative Yin in Ubud. Day 3. Practitioner said: 'Sore but present.'" |
 | **`recall()`** | Before match (SSE stream), before Mira's letter | "What do I know about this practitioner?" → past visits, energy trajectory, past matches, bookings, notes |
 | **`improve()`** | User-triggered from `/memory` page | Enrich the graph, prune stale nodes, surface deeper relationships. Maps to Cognee's `POST /api/v1/cognify` (there is no `/improve` endpoint — cognify is the graph-building pipeline that does the enrichment/improvement) |
 | **`forget()`** | User-triggered from `/memory` page | Surgical wipe of one practitioner's entire memory via `POST /api/v1/forget` (right to be forgotten) |
@@ -410,16 +414,22 @@ so judges can tell which track is active.
 
 | File | Role |
 |---|---|
-| `src/lib/cognee.ts` | Server-only Cognee REST client — the four verbs + structured memory context builder |
+| `src/lib/cognee.ts` | Server-only Cognee REST client — the four verbs + structured memory context builder. Extended with `PriorCheckIn` type + `parsePriorCheckIns()` so the match letter + MemoryBanner can surface a practitioner's most-recent `MiraCheckIn` answers, sorted by recency. |
 | `src/app/api/memory/route.ts` | Frontend API — recall (GET), improve + forget (POST) |
 | `src/app/memory/page.tsx` | "What Mira remembers" transparency page with controls |
-| `src/agent/mira-voice.ts` | `matchLetter()` and `preparationPlan()` accept optional `MemoryContext` |
+| `src/agent/mira-voice.ts` | `matchLetter()` and `preparationPlan()` accept optional `MemoryContext`. `matchLetter()` pastes a recognition block right after the pastNotes paragraph: day-branched ("ready to let go of" / "your energy was" / "you said you felt") and temporally anchored ("three days ago") so returning users see what they told Mira, dated. |
+| `src/lib/time.ts` | Shared temporal helper — `humanizeAgo(iso)` returns "yesterday", "three days ago", "a week ago". Imported by both `src/agent/mira-voice.ts` (server-side recognition block) and `src/app/match/page.tsx` (client MemoryBanner) so the temporal anchor reads identically on every Mira surface. |
 | `src/lib/fingerprint.ts` | Added persistent `getOrCreateUserId()` / `clearUserId()` |
 | `src/app/api/profile/route.ts` | Fires `cognee.remember()` after intake |
 | `src/app/api/agent/match/route.ts` | Recalls before match, remembers after |
-| `src/app/api/agent/match/stream/route.ts` | Emits `memory` SSE event, remembers after done |
-| `src/app/match/page.tsx` | Handles `memory` SSE event, shows memory banner |
-| `src/app/match/[id]/page.tsx` | Recalls memory for Mira's letter |
+| `src/app/api/agent/match/stream/route.ts` | Emits `memory` SSE event (now includes `priorCheckIns` from `cognee.recall()`), remembers after done |
+| `src/app/api/prep-checkin/route.ts` | MiraCheckIn daily-prep server (POST: each Day 1 / 3 / 5 answer → `cognee.remember()`; GET: prior responses for a `(userId, retreatRootHash)` pair). Graceful no-op when Cognee env isn't configured. |
+| `src/app/match/page.tsx` | Handles `memory` SSE event + surfaces the compounding loop in the in-stream `MemoryBanner` before the match lands. Day-branched `checkInQuote()` helper keeps the verb register-matched: Day ≥ 4 ("ready to let go of"), Day 3 ("your energy was"), Day 1 ("you said you felt"). |
+| `src/app/match/[id]/page.tsx` | Recalls memory (incl. `priorCheckIns`) for Mira's letter |
+| `src/booking/MiraCheckIn.tsx` | Post-booking daily check-in (Day 1 / 3 / 5). `useState` lazy initializer reads `localStorage` synchronously so returning users don't see a Day-1 re-mount flicker. Persists per-booking, scoped by `retreatRootHash`. Each answer POSTs to `/api/prep-checkin` so Cognee retains the recognition source. |
+| `src/booking/ConversationalBooking.tsx` | Threaded `retreatRootHash` + `priorCheckIns` + `answeredAt` through to the prep plan so post-booking Mira says "right, you told me three days ago." |
+| `src/matching/StoryCard.tsx` | Viral SVG 1080×1920 IG-Stories match card. System serif fallback so it rasterises anywhere without waiting on webfonts. Mira's quote + retreat title wrap via native `<text>+<tspan>`; palette derived from the same `vectorToPalette` arithmetic that drives the MiraOrb marble veins. |
+| `src/matching/ShareMatch.tsx` | Two affordances, side-by-side: "Share your match" (clipboard / native-share) and "Save to Camera Roll" (1080×1920 PNG). The download path runs `renderToStaticMarkup → data URI → Image → canvas → toBlob → <a download>`. A 1100ms `mira-glow` dwell makes the click feel like a small ceremony, not a generic export. URLs carry `?ref=share` for downstream attribution. |
 
 ### Why this scores well
 
@@ -436,6 +446,19 @@ so judges can tell which track is active.
   one-tap forget
 - **Presentation**: The "mudra reversed" concept extends — "A mudra seals.
   Ardum opens. Cognee remembers."
+
+---
+
+### Compounding loop — Mira remembers across bookings
+
+The match doesn't start cold. Returning practitioners see **specific words they typed earlier, dated inline, before the match even lands**. Both surfaces are anchored on the same `(retreat, day, answer, answeredAt)` quad that `parsePriorCheckIns()` extracts from Cognee raw recall and sorts by recency:
+
+- **In-stream `MemoryBanner`** (during SSE reasoning) — *"You were excitable when you last sat with me, three days ago, on Yin Ubud."*
+- **Mira's match letter** (after SSE settles) — *"Last time you told me you were ready to let go of 'sore but present', let's see if that's shifted."*
+
+The temporal anchor (`three days ago`) is produced by the shared `humanizeAgo(iso)` helper in `src/lib/time.ts`. It is imported by both the server-side `matchLetter()` (recognition block) and the client-side `MemoryBanner` (`checkInQuote()`), so the voice reads identically on both surfaces. Day-branching keeps the verb register-matched: Day ≥ 4 = `ready to let go of`, Day 3 = `your energy was`, Day 1 = `you said you felt`. The Day-3 case suppresses the legacy "your energy was X then" sentence so Mira never names the same signal twice in two consecutive clauses.
+
+The loop is closed by the viral artifact: after a match lands, `ShareMatch.tsx` exports an SVG IG-Stories card via `renderToStaticMarkup → data URI → Image → 1080×1920 canvas → toBlob → <a download>`. The card embeds the same Mira quote that the letter is built from, so a practitioner who sees a friend's Story and clicks through lands in a letter that already speaks to them.
 
 ---
 
@@ -569,10 +592,11 @@ years. Three orb states: calm (idle), thinking (reasoning), speaking
 | Touchpoint | Before | After |
 |---|---|---|
 | Onboarding | 3-question form | Mira orb + voice guides each question as a conversation |
-| Match detail | Product listing (photo, title, price, button) | Personal letter from Mira with reasoning woven in |
+| Match detail | Product listing (photo, title, price, button) | Personal letter from Mira with reasoning woven in (and prior-check-in recognition if you're returning) |
 | Booking | 4-step wizard with progress bar | Conversation — Mira narrates each step inline |
-| Post-booking | Success screen with tx hash | 5-day personalized preparation plan based on match signals |
+| Post-booking | Success screen with tx hash | 5-day personalized preparation plan based on match signals, with daily `MiraCheckIn` rounds ("how do you feel today?") that Mira remembers across sessions |
 | Drop-in class | "Drop-in class ($25)" button | Spontaneous invitation from Mira, opened with empathy |
+| Share match | Cold link | "Save to Camera Roll" — a 1080×1920 IG-Stories card drawn from the same palette as Mira's marble veins |
 
 ### Aesthetic journey — the matching phase as experience
 
