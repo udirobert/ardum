@@ -127,6 +127,26 @@ export function parseEpisodeCommand(value: unknown): EpisodeCommand {
         participantName: text(input.participantName, "Participant name", 80),
         sharingConsent: true,
       };
+    case "record-commitment": {
+      const bookingRootHash = text(
+        input.bookingRootHash,
+        "Booking root hash",
+        200,
+      );
+      const depositTxId = text(
+        input.depositTxId,
+        "Deposit transaction id",
+        200,
+      );
+      const bookedAt = text(input.bookedAt, "Booked at", 40);
+      return {
+        type,
+        expectedRevision,
+        bookingRootHash,
+        depositTxId,
+        bookedAt,
+      };
+    }
     default:
       throw new Error("Unknown episode command.");
   }
