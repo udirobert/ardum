@@ -1,0 +1,51 @@
+# Dependabot configuration for Ardum.
+#
+# Weekly auto-PRs keep the CI hardening live and the dependency surface
+# manageable:
+#   - github-actions: bumps SHA-pinned `uses:` references as new
+#     actions/checkout and actions/setup-node releases ship. Once a
+#     workflow has a SHA-pinned `uses:` line, Dependabot will track it
+#     and open a PR when the upstream tag advances.
+#   - npm: bumps package-lock-compatible dependency updates that pass
+#     through the release gate workflow before merge.
+#
+# Both ecosystems target the default `/` directory; group major-version
+# bumps separately from minor + patch so the release gate sees only
+# churn-safe changes by default.
+
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Two groups so a major bump (including CVE fixes that ship as a v4→v5
+    # transition) still surfaces as its own PR for visibility, while
+    # minor and patch bumps batch into the routine weekly PR.
+    groups:
+      github-actions-minor-and-patch:
+        patterns:
+          - "actions/*"
+        update-types:
+          - "minor"
+          - "patch"
+      github-actions-major:
+        patterns:
+          - "actions/*"
+        update-types:
+          - "major"
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    versioning-strategy: increase
+    groups:
+      npm-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+      npm-major:
+        update-types:
+          - "major"

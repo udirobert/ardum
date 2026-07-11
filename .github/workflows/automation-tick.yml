@@ -1,0 +1,63 @@
+name: Automation tick
+
+# Per docs/decisions/0005, the runner is intentionally external so the
+# deploy target and the scheduler can change independently. This workflow
+# is one such external scheduler; cron-job.org or a paid monitor would
+# also work. Tick cadence is hourly by default — adjust `cron:` below if
+# your retention contract needs tighter observation windows.
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  # Never run two ticks in parallel; the runner is idempotent but
+  # keeping one instance at a time keeps the log clean and avoids
+  # contending on the same episodes' optimistic-concurrency filters.
+  group: automation-tick
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    name: Call /api/internal/automation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      AUTOMATION_URL: ${{ secrets.AUTOMATION_URL }}
+      AUTOMATION_SECRET: ${{ secrets.AUTOMATION_SECRET }}
+    steps:
+      - name: Guard against missing configuration
+        # Mask the secret as the first action in the workflow so any
+        # subsequent reference — including the existence check below —
+        # is protected if ACTIONS_STEP_DEBUG is ever enabled.
+        run: |
+          echo "::add-mask::${AUTOMATION_SECRET}"
+          if [ -z "$AUTOMATION_URL" ] || [ -z "$AUTOMATION_SECRET" ]; then
+            echo "AUTOMATION_URL or AUTOMATION_SECRET is not set; skipping tick."
+            echo "Configure both in repo Settings -> Secrets and variables -> Actions."
+            exit 0
+          fi
+          echo "Tick target configured."
+
+      - name: POST to the automation endpoint
+        run: |
+          response_file="$(mktemp)"
+          http_code=$(curl -sS -o "$response_file" -w "%{http_code}" \
+            -X POST "$AUTOMATION_URL/api/internal/automation" \
+            -H "Authorization: Bearer ${AUTOMATION_SECRET}" \
+            -H "Content-Type: application/json")
+
+          body=$(cat "$response_file")
+          rm -f "$response_file"
+
+          echo "Response (status ${http_code}):"
+          echo "${body}"
+
+          if [ "${http_code}" != "200" ]; then
+            echo "Automation tick failed (status ${http_code})."
+            exit 1
+          fi

@@ -10,6 +10,7 @@
     "seed": "tsx scripts/seed-attestations.ts",
     "smoke": "tsx scripts/smoke-signature.ts",
     "smoke:journey": "node scripts/smoke-journey.mjs",
+    "check:supabase": "node scripts/check-supabase.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
