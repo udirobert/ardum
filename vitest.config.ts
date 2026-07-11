@@ -9,6 +9,13 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: [
+      "src/**/*.test.ts",
+      // __mock-supabase.ts houses its own contract test (FK violation
+      // message shape) colocated with the mock implementation, per the
+      // reviewer's regression-guard requirement.
+      "src/episodes/repositories/__mock-supabase.ts",
+    ],
+    setupFiles: ["./vitest.setup.ts"],
   },
 });

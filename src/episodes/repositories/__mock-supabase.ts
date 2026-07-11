@@ -11,6 +11,8 @@
 //      episode_events.episode_id as ON DELETE CASCADE foreign keys to
 //      episodes.id. The mock mirrors those cascades on delete so the
 //      "deleteOwned cascades invites" contract test holds.
+import { describe, expect, it } from "vitest";
+
 type Row = Record<string, unknown>;
 
 type Filter = {
@@ -32,6 +34,25 @@ const PRIMARY_KEYS: Record<string, string> = {
   episodes: "id",
   episode_events: "id",
   coordination_invites: "token_hash",
+};
+
+// FK relationships from scripts/migrations/001-episodes.sql. Mock
+// enforces these on insert and upsert so any future contract test that
+// forgets to pre-create referenced rows is caught at mock-replay time,
+// not just at live-replay time (which is what ADR 0003 implies).
+const FK_CONSTRAINTS: Record<
+  string,
+  Record<string, { table: string; column: string }>
+> = {
+  episodes: {
+    actor_id: { table: "actors", column: "id" },
+  },
+  episode_events: {
+    episode_id: { table: "episodes", column: "id" },
+  },
+  coordination_invites: {
+    episode_id: { table: "episodes", column: "id" },
+  },
 };
 
 export class InMemorySupabaseClient {
@@ -68,6 +89,35 @@ export class InMemorySupabaseClient {
 
   primaryKeyFor(table: string): string | null {
     return PRIMARY_KEYS[table] ?? null;
+  }
+
+  // FK-on-insert enforcement. Returns null if every FK column on the row
+  // resolves to an existing row in the referenced table, or an
+  // error-shaped object mirroring Postgres's standard `insert or update
+  // on table "X" violates foreign key constraint "Y_fkey"` message if
+  // any FK is unsatisfied. The constraint name follows Postgres's
+  // auto-naming convention for unnamed FKs: `<table>_<column>_fkey`,
+  // so future contract tests can assert on the message shape byte-for-byte.
+  // Schema-level NOT NULL is enforced by `actorId` / `episodeId` keys
+  // being absent path, not by this method.
+  checkForeignKeys(
+    tableName: string,
+    row: Row,
+  ): { message: string } | null {
+    const fks = FK_CONSTRAINTS[tableName];
+    if (!fks) return null;
+    for (const [column, ref] of Object.entries(fks)) {
+      const value = row[column];
+      if (value === undefined || value === null) continue;
+      const referencedRows = this.rows(ref.table);
+      const exists = referencedRows.some((r) => r[ref.column] === value);
+      if (!exists) {
+        return {
+          message: `insert or update on table "${tableName}" violates foreign key constraint "${tableName}_${column}_fkey"`,
+        };
+      }
+    }
+    return null;
   }
 
   reset() {
@@ -250,10 +300,28 @@ export class QueryBuilder {
               };
             }
           }
+          const fkError = this.client.checkForeignKeys(
+            this.tableName,
+            this.data as Row,
+          );
+          if (fkError) {
+            return { data: null, error: fkError };
+          }
           this.rows.push(this.data as Row);
           return { data: null, error: null };
         }
         case "upsert": {
+          // Pre-write guard. Real Postgres's ON CONFLICT DO UPDATE re-checks
+          // constraints on every upsert (insert and update paths alike), so
+          // a single FK check before the conflict/push branching mirrors that
+          // semantics for both the Object.assign row and the new push row.
+          const fkError = this.client.checkForeignKeys(
+            this.tableName,
+            this.data as Row,
+          );
+          if (fkError) {
+            return { data: null, error: fkError };
+          }
           if (this.upsertOnConflict) {
             const key = this.upsertOnConflict;
             const i = this.rows.findIndex(
@@ -309,3 +377,121 @@ export class QueryBuilder {
     return Promise.resolve(value).then(onfulfilled, onrejected);
   }
 }
+
+// Contract test for the FK-violation error message shape. Mirrors
+// Postgres's auto-naming convention for unnamed FK constraints:
+// `<table>_<column>_fkey`. Any future divergence between the mock and
+// the live database surfaces here at unit-test time, not in production.
+describe("InMemorySupabaseClient FK violation contract", () => {
+  describe("insert", () => {
+    it("rejects episodes referencing a non-existent actor with the Postgres-canonical constraint name", async () => {
+      const client = new InMemorySupabaseClient();
+      // No actor pre-created — this insert must reject on FK grounds.
+      const result = await client.from("episodes").insert({
+        id: "ep-1",
+        actor_id: "actor-missing",
+        status: "open",
+        revision: 1,
+        state: {},
+      });
+      expect(result.error?.message).toBe(
+        'insert or update on table "episodes" violates foreign key constraint "episodes_actor_id_fkey"',
+      );
+      expect(result.data).toBeNull();
+      // Regression guard: the row must NOT have been written.
+      expect(client.rows("episodes")).toHaveLength(0);
+    });
+
+    it("rejects episode_events referencing a non-existent episode with the canonical constraint name", async () => {
+      const client = new InMemorySupabaseClient();
+      const result = await client.from("episode_events").insert({
+        id: "evt-1",
+        episode_id: "ep-missing",
+        type: "x",
+        summary: "y",
+      });
+      expect(result.error?.message).toBe(
+        'insert or update on table "episode_events" violates foreign key constraint "episode_events_episode_id_fkey"',
+      );
+      expect(result.data).toBeNull();
+      // Regression guard: the row must NOT have been written.
+      expect(client.rows("episode_events")).toHaveLength(0);
+    });
+
+    it("rejects coordination_invites referencing a non-existent episode with the canonical constraint name", async () => {
+      const client = new InMemorySupabaseClient();
+      const result = await client.from("coordination_invites").insert({
+        token_hash: "tok",
+        episode_id: "ep-missing",
+        participant_name: "Sam",
+        expires_at: "2099-01-01T00:00:00.000Z",
+      });
+      expect(result.error?.message).toBe(
+        'insert or update on table "coordination_invites" violates foreign key constraint "coordination_invites_episode_id_fkey"',
+      );
+      expect(result.data).toBeNull();
+      // Regression guard: the row must NOT have been written.
+      expect(client.rows("coordination_invites")).toHaveLength(0);
+    });
+
+    it("accepts an insert whose FK column resolves to a pre-created row (no false-positive rejection)", async () => {
+      const client = new InMemorySupabaseClient();
+      await client.from("actors").insert({ id: "actor-1" });
+      await client.from("episodes").insert({
+        id: "ep-1",
+        actor_id: "actor-1",
+        status: "open",
+        revision: 1,
+        state: {},
+      });
+      const result = await client.from("episode_events").insert({
+        id: "evt-1",
+        episode_id: "ep-1",
+        type: "x",
+        summary: "y",
+      });
+      expect(result.error).toBeNull();
+      expect(client.rows("episode_events")).toHaveLength(1);
+    });
+  });
+
+  describe("upsert", () => {
+    it("rejects an upsert whose FK column points to a non-existent row even when onConflict matches an existing row", async () => {
+      const client = new InMemorySupabaseClient();
+      await client.from("actors").insert({ id: "actor-1" });
+      await client.from("episodes").insert({
+        id: "ep-1",
+        actor_id: "actor-1",
+        status: "open",
+        revision: 1,
+        state: {},
+      });
+      await client.from("coordination_invites").insert({
+        token_hash: "tok-existing",
+        episode_id: "ep-1",
+        participant_name: "Sam",
+        expires_at: "2099-01-01T00:00:00.000Z",
+      });
+      // Upsert with onConflict=token_hash; change episode_id to a non-existent value.
+      const result = await client
+        .from("coordination_invites")
+        .upsert(
+          {
+            token_hash: "tok-existing",
+            episode_id: "ep-missing",
+            participant_name: "Sam",
+            expires_at: "2099-01-01T00:00:00.000Z",
+          },
+          { onConflict: "token_hash" },
+        );
+      expect(result.error?.message).toBe(
+        'insert or update on table "coordination_invites" violates foreign key constraint "coordination_invites_episode_id_fkey"',
+      );
+      // Existing row must NOT have been mutated by the Object.assign path.
+      const stored = client
+        .rows("coordination_invites")
+        .find((r) => r.token_hash === "tok-existing");
+      expect(stored?.episode_id).toBe("ep-1");
+    });
+  });
+});

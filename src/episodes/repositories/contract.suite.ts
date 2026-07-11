@@ -110,6 +110,13 @@ export function runRepositoryContract(
     });
 
     it("stores invites only by tokenHash; raw tokens cannot be retrieved", async () => {
+      // The referenced episode must exist before the invite's FK can be
+      // satisfied against a real relational database. The local in-memory
+      // and mock adapters don't enforce FKs; the suite is intentionally
+      // lenient there. Pre-creating here keeps the contract consistent
+      // across all adapters and matches the storage invariant real DBs
+      // actually enforce.
+      await repo.create(makeEpisode("roundtrip", "owner"));
       const record: InviteRecord = {
         tokenHash: "hash-only",
         episodeId: "roundtrip",
