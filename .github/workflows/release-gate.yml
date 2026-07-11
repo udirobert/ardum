@@ -1,0 +1,97 @@
+name: Release Gate
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  schedule:
+    # Nightly at 08:00 UTC. Uses NIGHTLY_URL secret if set; otherwise
+    # falls back to running the smoke journey against the locally-built
+    # instance inside this workflow run.
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+# Cancel in-progress PR runs so feedback comes from the latest push,
+# but let main and scheduled runs complete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  # Next.js posts anonymous build telemetry by default. Disable it in CI so
+  # the runner spends its network budget on the verification steps only.
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  verify:
+    name: Verify & smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114811956e18413155cc0193437194f475a89 # v4.3.1
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea06b1e5ec60032e56475657876a8d876d7 # v4.4.0
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Clear stale .next/types/validator.ts before typecheck.
+      - name: Typecheck
+        run: |
+          rm -rf .next
+          npm run typecheck
+
+      - name: Test (vitest, both adapters)
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Start Next.js server
+        run: |
+          nohup npm run start > server.log 2>&1 &
+          echo $! > server.pid
+
+      - name: Smoke journey (in-workflow)
+        run: npm run smoke:journey
+
+      - name: Smoke journey (nightly against an external preview)
+        if: github.event_name == 'schedule'
+        env:
+          NIGHTLY_URL: ${{ secrets.NIGHTLY_URL }}
+        run: |
+          # Mask the secret so it never appears in logs even if a future
+          # change expands it in trace mode (ACTIONS_STEP_DEBUG or shell
+          # debugging). See https://docs.github.com/actions/security-guides/security-hardening-for-github-actions#using-secrets
+          echo "::add-mask::${NIGHTLY_URL}"
+          if [ -n "$NIGHTLY_URL" ]; then
+            echo "Running against nightly infra (URL is set)."
+            npm run smoke:journey -- "$NIGHTLY_URL"
+          else
+            echo "NIGHTLY_URL secret not set; in-workflow run already exercised the journey."
+          fi
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill "$(cat server.pid)" || true
+            rm -f server.pid
+          fi
+
+      - name: Dump server logs on failure
+        if: failure()
+        run: |
+          echo "==== Next.js server logs ===="
+          cat server.log || echo "no server.log found"
