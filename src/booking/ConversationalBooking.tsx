@@ -10,7 +10,7 @@
 // they're in a checkout. They're in a conversation with a guide who
 // is handling everything for them.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import MiraOrb from "@/components/MiraOrb";
 import { useMagicAuth } from "./MagicAuth";
@@ -26,31 +26,15 @@ import {
 import { bookingDialogue, preparationPlan } from "@/agent/mira-voice";
 import type { BookingAttestation } from "./types";
 import BreathSync from "./BreathSync";
-import MiraCheckIn from "./MiraCheckIn";
-
-// Client-safe memory context shape (subset of MemoryContext from cognee.ts)
-type BookingMemory = {
-  isReturning: boolean;
-  energyHistory: string[];
-  pastMatches: { title: string; location: string; score: number }[];
-  pastBookings: { title: string; location: string }[];
-  pastNotes: string[];
-  priorCheckIns: {
-    retreat: string;
-    day: number;
-    answer: string;
-    answeredAt: string;
-  }[];
-  provider: string;
-};
 
 type ConversationalBookingProps = {
+  episodeId: string;
+  expectedRevision: number;
   retreatRootHash: string;
   retreatTitle: string;
   depositUsd: number;
   operatorAddress: string;
   signals: { energy?: string; budget?: string; social?: string };
-  userId?: string;
   onClose: () => void;
 };
 
@@ -64,12 +48,13 @@ type Phase =
   | "error";
 
 export default function ConversationalBooking({
+  episodeId,
+  expectedRevision,
   retreatRootHash,
   retreatTitle,
   depositUsd,
   operatorAddress,
   signals,
-  userId,
   onClose,
 }: ConversationalBookingProps) {
   const {
@@ -95,17 +80,6 @@ export default function ConversationalBooking({
   const [depositTxId, setDepositTxId] = useState<string | null>(null);
   const [bookingRootHash, setBookingRootHash] = useState<string | null>(null);
 
-  // Fetch Mira's memory for this practitioner so the preparation plan
-  // can weave in past notes. Fire-and-forget — the plan works without it.
-  const [memory, setMemory] = useState<BookingMemory | null>(null);
-  useEffect(() => {
-    if (!userId) return;
-    fetch(`/api/memory?userId=${encodeURIComponent(userId)}`)
-      .then((r) => r.json())
-      .then((data: BookingMemory) => setMemory(data))
-      .catch(() => {});
-  }, [userId]);
-
   const dialogue = bookingDialogue(depositUsd, retreatTitle);
 
   // Derive the effective phase from underlying auth/UA state.
@@ -122,26 +96,6 @@ export default function ConversationalBooking({
             : !delegated
               ? "upgrading"
               : "depositing";
-
-  // Fire rememberBooking when the deposit confirms (phase transitions
-  // to "done"). This stores the booking in Cognee so future sessions
-  // can recall "you've been to X in Y."
-  const bookingRememberedRef = useRef(false);
-  useEffect(() => {
-    if (effectivePhase === "done" && userId && !bookingRememberedRef.current) {
-      bookingRememberedRef.current = true;
-      fetch("/api/memory/booking", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          retreatTitle,
-          retreatLocation: "",
-          depositUsd,
-        }),
-      }).catch(() => {});
-    }
-  }, [effectivePhase, userId, retreatTitle, depositUsd]);
 
   // Auto-trigger delegation when we reach that phase
   useEffect(() => {
@@ -215,7 +169,12 @@ export default function ConversationalBooking({
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ booking, signature }),
+        body: JSON.stringify({
+          episodeId,
+          expectedRevision,
+          booking,
+          signature,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Booking attestation failed.");
@@ -227,6 +186,8 @@ export default function ConversationalBooking({
       setPhase("error");
     }
   }, [
+    episodeId,
+    expectedRevision,
     address,
     depositUsd,
     operatorAddress,
@@ -263,20 +224,7 @@ export default function ConversationalBooking({
         attestedAt: "",
       },
       signals,
-      memory && memory.provider !== "none"
-        ? {
-            isReturning: memory.isReturning,
-            energyHistory: memory.energyHistory,
-            pastMatches: memory.pastMatches,
-            pastBookings: memory.pastBookings,
-            pastNotes: memory.pastNotes,
-            // The streaming endpoint always emits priorCheckIns; spread
-            // it through so the prep plan can pick up cross-session recall.
-            priorCheckIns: memory.priorCheckIns ?? [],
-            rawRecall: [],
-            provider: memory.provider as "cognee" | "none",
-          }
-        : undefined,
+      undefined,
     );
 
     return (
@@ -333,15 +281,6 @@ export default function ConversationalBooking({
               </li>
             ))}
           </ol>
-        </div>
-
-        {/* Mira checks in — post-booking follow-up timeline */}
-        <div className="ml-16 mb-8">
-          <MiraCheckIn
-            retreatTitle={retreatTitle}
-            retreatRootHash={retreatRootHash}
-            signals={signals}
-          />
         </div>
 
         {/* Share — woven into Mira's voice, not a card */}

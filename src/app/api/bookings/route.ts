@@ -3,6 +3,9 @@ import { verifyMessage } from "ethers";
 import { uploadAttestation } from "@/lib/og-storage";
 import { canonicalBookingMessage } from "@/booking/canonical";
 import type { BookingAttestation } from "@/booking/types";
+import { episodeRepository } from "@/episodes/repository";
+import { applyEpisodeCommand } from "@/episodes/service";
+import { resolveActor } from "@/identity/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -21,14 +24,28 @@ export async function GET() {
 // Requires a wallet signature over the canonical booking payload — the
 // recovered address must equal the booking's practitioner address.
 export async function POST(req: Request) {
-  let body: { booking: BookingAttestation; signature: string };
+  let body: {
+    episodeId: string;
+    expectedRevision: number;
+    booking: BookingAttestation;
+    signature: string;
+  };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { booking, signature } = body;
+  const { episodeId, expectedRevision, booking, signature } = body;
+  const actorId = await resolveActor();
+  if (
+    !actorId ||
+    !episodeId ||
+    !Number.isInteger(expectedRevision) ||
+    !(await episodeRepository.getOwned(actorId, episodeId))
+  ) {
+    return NextResponse.json({ error: "Episode not found." }, { status: 404 });
+  }
   if (!booking?.rootHash || !booking?.claims?.practitionerAddress) {
     return NextResponse.json(
       { error: "Booking missing rootHash or practitionerAddress." },
@@ -68,6 +85,14 @@ export async function POST(req: Request) {
   // with kind "booking". The uploadAttestation function accepts any Attestation
   // shape — we cast since the schema is extended, not replaced.
   const result = await uploadAttestation(booking as unknown as Parameters<typeof uploadAttestation>[0]);
+  await applyEpisodeCommand(actorId, episodeId, {
+    type: "record-commitment",
+    expectedRevision,
+    bookingRootHash: result.rootHash,
+    depositTxId: booking.claims.depositTxId ?? "",
+    bookedAt: booking.claims.bookedAt,
+    idempotencyKey: `booking:${result.rootHash}`,
+  });
   return NextResponse.json({
     ...result,
     signature,

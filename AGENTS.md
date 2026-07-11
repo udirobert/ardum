@@ -3,3 +3,37 @@
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
+
+# Product contract
+
+Read `docs/product-vision.md` and `docs/architecture.md` before changing product
+copy, domain behavior, persistence, recommendation, memory, or booking.
+
+Ardum manages a persistent life intention. Recommendations, holds,
+coordination, and bookings are downstream actions. Do not organize the primary
+experience as a marketplace, ranked-results page, or conversational checkout.
+
+# Core engineering principles
+
+- **Enhancement first:** improve an existing component or boundary before
+  creating another one.
+- **Consolidation:** delete superseded code in the same change; do not preserve
+  legacy implementations for reference.
+- **Prevent bloat:** audit imports, routes, dependencies, and overlapping
+  features before adding behavior.
+- **DRY:** shared logic and contracts have one source of truth.
+- **Clean:** domain dependencies are explicit; provider SDKs stay in adapters.
+- **Modular:** pure, composable modules with independently testable contracts.
+- **Performant:** load expensive visuals and providers only when needed; cache
+  only data whose ownership and invalidation are clear.
+- **Organized:** use predictable domain-driven folders and avoid generic
+  dumping grounds.
+
+# Source-of-truth rules
+
+- The episode repository owns operational state.
+- The deterministic ranking policy owns recommendation ordering.
+- Semantic memory is supplementary and lossy.
+- 0G contains evidence, not journey state.
+- Browser storage is a disposable cache.
+- Client-supplied identifiers never establish ownership.

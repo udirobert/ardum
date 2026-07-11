@@ -13,7 +13,8 @@
 import "server-only";
 
 import { ethers } from "ethers";
-import { SEED_ATTESTATIONS, SEED_ATTESTOR } from "./seed-attestations";
+import { SEED_ATTESTOR } from "./seed-attestations";
+import { localEvidence } from "@/evidence/catalog";
 import type { Attestation, AttestationIndex } from "@/attestation/schema";
 import { has0GStorage } from "./env";
 
@@ -26,7 +27,7 @@ const localStore: Map<string, Attestation> =
   globalThis.__ardumAttestations ?? new Map<string, Attestation>();
 
 if (!globalThis.__ardumAttestations) {
-  for (const a of SEED_ATTESTATIONS) localStore.set(a.rootHash, a);
+  for (const a of localEvidence("retreat")) localStore.set(a.rootHash, a);
   globalThis.__ardumAttestations = localStore;
 }
 

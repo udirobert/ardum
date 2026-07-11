@@ -28,13 +28,12 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://ardum.vercel.app"),
   title: "Ardum — the shape of your practice",
   description:
-    "An agent that reads where you are and matches you to the yoga retreat " +
-    "that meets you there. Three questions, no filters, reasoning visible.",
+    "A persistent guide that carries an intention from uncertainty to " +
+    "a confident next step.",
   openGraph: {
     title: "Ardum — the shape of your practice",
     description:
-      "An agent that reads where you are and matches you to the yoga retreat " +
-      "that meets you there.",
+      "A persistent guide that carries an intention from uncertainty to a confident next step.",
     siteName: "Ardum",
     type: "website",
     locale: "en_US",
@@ -43,8 +42,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Ardum — the shape of your practice",
     description:
-      "An agent that reads where you are and matches you to the yoga retreat " +
-      "that meets you there.",
+      "A persistent guide that carries an intention from uncertainty to a confident next step.",
   },
 };
 
@@ -83,23 +81,16 @@ export default function RootLayout({
                 Ardum is <span className="italic">mudra</span> reversed.
               </p>
               <p className="text-sm text-[color:var(--muted)] mt-1 max-w-md leading-relaxed">
-                A mudra seals your practice. Ardum finds it — an agent that
-                reads where you are and matches you to the retreat that meets
-                you there.
+                A mudra seals your practice. Ardum helps give an intention
+                shape, then carries it quietly toward action.
               </p>
             </div>
             <nav className="flex gap-5 text-sm">
               <Link
-                href="/retreats"
+                href="/memory"
                 className="text-[color:var(--muted)] hover:text-foreground transition-colors"
               >
-                the pool
-              </Link>
-              <Link
-                href="/attest"
-                className="text-[color:var(--muted)] hover:text-foreground transition-colors"
-              >
-                attest
+                your intention &amp; privacy
               </Link>
             </nav>
           </div>

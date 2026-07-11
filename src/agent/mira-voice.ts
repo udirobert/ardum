@@ -8,7 +8,7 @@
 // match detail page, in the booking flow, and in the preparation plan.
 
 import type { MatchResult } from "@/matching/types";
-import type { MemoryContext } from "@/lib/cognee";
+import type { MemoryContext } from "@/memory/semantic-memory";
 import { humanizeAgo } from "@/lib/time";
 
 type PractitionerSignals = {

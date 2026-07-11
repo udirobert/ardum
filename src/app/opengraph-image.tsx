@@ -75,7 +75,7 @@ export default async function Image() {
             opacity: 0.7,
           }}
         >
-          An agent that reads where you are and finds your retreat.
+          A persistent guide from intention to confident action.
         </div>
       </div>
     ),

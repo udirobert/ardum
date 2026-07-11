@@ -1,375 +1,170 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import MiraOrb from "@/components/MiraOrb";
-import EnergyTimeline from "@/components/EnergyTimeline";
-import MemoryGraph from "@/components/MemoryGraph";
-import { getOrCreateUserId, clearUserId, clearFingerprint } from "@/lib/fingerprint";
-
-// Memory transparency page — "What does Mira remember about me?"
-//
-// This is the UX differentiator: the user can see exactly what Mira's
-// Cognee memory holds, run improve() to enrich the graph, and forget()
-// to wipe everything. No black box.
-//
-// The four Cognee lifecycle verbs are all visible here:
-//   recall  → GET /api/memory (shown as the memory list)
-//   improve → POST /api/memory { action: "improve" }
-//   forget  → POST /api/memory { action: "forget" }
-//   remember → happens automatically on intake + match (not user-triggered)
-
-type MemoryData = {
-  isReturning: boolean;
-  energyHistory: string[];
-  pastMatches: { title: string; location: string; score: number }[];
-  pastBookings: { title: string; location: string }[];
-  pastNotes: string[];
-  provider: string;
-  configured: boolean;
-};
+import type { Episode } from "@/episodes/model";
 
 export default function MemoryPage() {
-  const [memory, setMemory] = useState<MemoryData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [action, setAction] = useState<"idle" | "improving" | "forgetting">("idle");
+  const [episodes, setEpisodes] = useState<Episode[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [justEnriched, setJustEnriched] = useState(false);
-  const userIdRef = useRef<string>("");
+
+  async function load() {
+    const response = await fetch("/api/episodes", { cache: "no-store" });
+    const data = (await response.json()) as { episodes?: Episode[] };
+    setEpisodes(data.episodes ?? []);
+  }
 
   useEffect(() => {
-    const id = getOrCreateUserId();
-    userIdRef.current = id;
-    if (!id) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setLoading(false);
-      return;
-    }
-    fetch(`/api/memory?userId=${encodeURIComponent(id)}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setMemory(data);
-        setLoading(false);
-      })
-      .catch(() => {
-        setLoading(false);
-      });
+    fetch("/api/episodes", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data: { episodes?: Episode[] }) => setEpisodes(data.episodes ?? []))
+      .catch(() => setEpisodes([]));
   }, []);
 
-  async function handleImprove() {
-    const uid = userIdRef.current;
-    if (!uid) return;
-    setAction("improving");
-    setMessage(null);
-    try {
-      const res = await fetch("/api/memory", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "improve", userId: uid }),
-      });
-      const data = await res.json();
-      setMessage(data.message ?? "Memory enriched.");
-      setJustEnriched(true);
-      window.setTimeout(() => setJustEnriched(false), 1600);
-    } catch {
-      setMessage("Something went wrong enriching memory.");
+  async function remove(episodeId: string) {
+    if (!window.confirm("Delete this intention and its history? This cannot be undone.")) {
+      return;
     }
-    setAction("idle");
+    await fetch(`/api/episodes/${episodeId}`, { method: "DELETE" });
+    setMessage("The intention and its operational history were deleted.");
+    await load();
   }
 
-  async function handleForget() {
-    const uid = userIdRef.current;
-    if (!uid) return;
-    setAction("forgetting");
-    setMessage(null);
-    try {
-      const res = await fetch("/api/memory", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "forget", userId: uid }),
-      });
-      const data = await res.json();
-      setMessage(data.message ?? "Memory cleared.");
-      // Also clear local memory
-      clearUserId();
-      clearFingerprint();
-      // Update the displayed state
-      setMemory({
-        isReturning: false,
-        energyHistory: [],
-        pastMatches: [],
-        pastBookings: [],
-        pastNotes: [],
-        provider: "none",
-        configured: memory?.configured ?? false,
-      });
-    } catch {
-      setMessage("Something went wrong clearing memory.");
-    }
-    setAction("idle");
-  }
-
-  if (loading) {
-    return (
-      <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-20 pb-24">
-        <div className="flex items-center gap-4 mb-8">
-          <MiraOrb size={44} state="thinking" />
-          <div>
-            <p className="font-serif text-xl tracking-tight">Mira</p>
-            <p className="tag">recalling…</p>
-          </div>
-        </div>
-      </section>
-    );
+  function exportEpisode(episode: Episode) {
+    const blob = new Blob([JSON.stringify(episode, null, 2)], {
+      type: "application/json",
+    });
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = `ardum-intention-${episode.id}.json`;
+    anchor.click();
+    URL.revokeObjectURL(href);
   }
 
   return (
-    <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 sm:pt-20 pb-24">
-      <Link
-        href="/"
-        className="tag hover:text-foreground transition-colors"
-      >
-        ← back to matching
+    <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 py-16">
+      <Link href="/" className="tag hover:text-foreground">
+        ← back
       </Link>
-
-      <div className="flex items-center gap-4 mb-8 mt-8 relative">
-        <div className="relative">
-          <MiraOrb
-            size={56}
-            state={
-              action === "improving"
-                ? "thinking"
-                : action === "forgetting"
-                  ? "calm"
-                  : "calm"
-            }
-          />
-          {justEnriched && (
-            <span
-              aria-hidden
-              className="mira-glow pointer-events-none absolute inset-0 rounded-full"
-              style={{
-                background:
-                  "radial-gradient(circle, var(--accent) 0%, transparent 70%)",
-              }}
-            />
-          )}
-        </div>
+      <div className="flex items-center gap-4 mt-8 mb-8">
+        <MiraOrb size={56} state="calm" />
         <div>
-          <p className="font-serif text-2xl tracking-tight">Mira</p>
-          <p className="tag">
-            {action === "improving"
-              ? "enriching your graph…"
-              : action === "forgetting"
-                ? "letting go…"
-                : justEnriched
-                  ? "your graph just deepened"
-                  : "your guide"}
-          </p>
+          <p className="font-serif text-2xl">Mira</p>
+          <p className="tag">your intention &amp; privacy</p>
         </div>
       </div>
-
-      <h1 className="font-serif text-4xl sm:text-5xl leading-[1.05] tracking-tight mb-4">
-        What I remember about you.
+      <h1 className="font-serif text-4xl sm:text-5xl tracking-tight mb-4">
+        What I am keeping in mind.
       </h1>
-      <p className="text-[color:var(--muted)] text-lg mb-10 max-w-prose leading-relaxed">
-        This is my memory — everything I know about your practice, your
-        preferences, and the retreats we&apos;ve explored together. Stored in
-        a hybrid graph-vector knowledge layer. You can enrich it or wipe it
-        at any time.
+      <p className="text-[color:var(--muted)] text-lg leading-relaxed mb-10">
+        Operational history belongs to each intention. It is stored behind an
+        anonymous ownership cookie, not in a public URL. You can inspect,
+        export, or delete it here.
       </p>
 
-      {/* Welcome-back recognition — the moment that makes memory tangible */}
-      {memory?.isReturning && (
-        <p className="font-serif text-lg italic text-[color:var(--accent-ink)] mb-8 fade-in-up max-w-prose leading-relaxed">
-          You&apos;ve been here before. I remember.
+      {message && (
+        <p className="mb-6 text-sm text-[color:var(--accent-ink)]" role="status">
+          {message}
         </p>
       )}
 
-      {/* Status indicator */}
-      <div className="mb-8 inline-flex items-center gap-2 border border-[color:var(--hairline)] rounded-sm px-3 py-2 bg-[color:var(--surface)] surface-card">
-        <span
-          aria-hidden
-          className={`inline-block w-1.5 h-1.5 rounded-full ${
-            memory?.configured
-              ? "bg-[color:var(--accent)]"
-              : "bg-[color:var(--muted)]"
-          }`}
-        />
-        <span className="tag">
-          {memory?.configured
-            ? "Cognee memory layer · connected"
-            : "Cognee not configured · demo mode"}
-        </span>
-      </div>
-
-      {/* Memory contents */}
-      {memory && memory.isReturning ? (
-        <div className="space-y-8">
-          {/* Energy trajectory — the sparkline */}
-          {memory.energyHistory.length > 0 && (
-            <MemorySection title="Your energy over time">
-              <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 surface-card">
-                <EnergyTimeline energyHistory={memory.energyHistory} />
-              </div>
-              <p className="why mt-3 max-w-prose">
-                I&apos;ve seen your energy {memory.energyHistory.length > 1 ? "shift" : "once"} across {memory.energyHistory.length === 1 ? "one visit" : `${memory.energyHistory.length} visits`}. This helps me
-                recommend retreats that meet you where you are, not where you
-                were.
-              </p>
-            </MemorySection>
-          )}
-
-          {/* Past matches */}
-          {memory.pastMatches.length > 0 && (
-            <MemorySection title="Retreats I&apos;ve recommended">
-              <ul className="space-y-2">
-                {memory.pastMatches.map((m, i) => (
-                  <li
-                    key={i}
-                    className="border border-[color:var(--hairline)] rounded-sm p-4 bg-[color:var(--surface)]"
-                  >
-                    <p className="font-serif text-lg">{m.title}</p>
-                    <p className="tag mt-1">
-                      {m.location} · match score {(m.score * 100).toFixed(0)}%
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </MemorySection>
-          )}
-
-          {/* Past bookings */}
-          {memory.pastBookings.length > 0 && (
-            <MemorySection title="Retreats you&apos;ve booked">
-              <ul className="space-y-2">
-                {memory.pastBookings.map((b, i) => (
-                  <li
-                    key={i}
-                    className="border border-[color:var(--hairline)] rounded-sm p-4 bg-[color:var(--surface)]"
-                  >
-                    <p className="font-serif text-lg">{b.title}</p>
-                    <p className="tag mt-1">{b.location}</p>
-                  </li>
-                ))}
-              </ul>
-            </MemorySection>
-          )}
-
-          {/* Notes */}
-          {memory.pastNotes.length > 0 && (
-            <MemorySection title="Things you&apos;ve told me">
-              <ul className="space-y-2">
-                {memory.pastNotes.map((n, i) => (
-                  <li
-                    key={i}
-                    className="border-l-2 border-[color:var(--accent)] pl-4 py-1"
-                  >
-                    <p className="text-sm italic">&ldquo;{n}&rdquo;</p>
-                  </li>
-                ))}
-              </ul>
-            </MemorySection>
-          )}
-
-          {/* Knowledge graph — the visual that makes Cognee tangible */}
-          <MemorySection title="The knowledge graph">
-            <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 surface-card">
-              <MemoryGraph
-                data={{
-                  energyHistory: memory.energyHistory,
-                  pastMatches: memory.pastMatches,
-                  pastBookings: memory.pastBookings,
-                  pastNotes: memory.pastNotes,
-                }}
-              />
-            </div>
-            <p className="why mt-3 max-w-prose">
-              Your memory lives in a hybrid graph-vector store. Every intake,
-              match, and booking becomes nodes and edges that I can traverse.
-              The more you use Ardum, the richer the graph becomes — and the
-              more precisely I can match you.
-            </p>
-          </MemorySection>
+      {episodes === null ? (
+        <p aria-live="polite">Loading retained intentions…</p>
+      ) : episodes.length === 0 ? (
+        <div className="border border-[color:var(--hairline)] rounded-sm p-6 bg-[color:var(--surface)]">
+          <p className="font-serif text-2xl mb-2">Nothing retained.</p>
+          <p className="text-sm text-[color:var(--muted)]">
+            Mira will ask before giving a new intention a persistent home.
+          </p>
         </div>
       ) : (
-        <div className="border border-[color:var(--hairline)] rounded-sm p-8 bg-[color:var(--surface)] surface-card">
-          <div className="flex items-start gap-4 mb-4">
-            <MiraOrb size={40} state="calm" className="flex-shrink-0 mt-1" />
-            <div>
-              <p className="font-serif text-xl mb-2">
-                I&apos;m ready to learn about your practice.
-              </p>
-              <p className="why max-w-prose">
-                {memory?.configured
-                  ? "I don't have any memories of you yet — and that's okay. Every beginning is a blank graph. Complete the intake and I'll start remembering: your energy, your matches, the things you tell me. Each visit adds nodes and edges, and the graph deepens. Come back tomorrow, and I'll know you better than today."
-                  : "I'm running in demo mode right now — browser-only memory that fades. Connect Cognee (set COGNEE_BASE_URL and COGNEE_API_KEY) and I'll hold your practice journey across infinite sessions, on any device."}
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/"
-            className="inline-block mt-6 px-5 py-2.5 rounded-sm bg-foreground text-background hover:bg-[color:var(--accent-ink)] transition-colors text-sm"
-          >
-            Start your intake →
-          </Link>
+        <div className="space-y-6">
+          {episodes.map((episode) => {
+            const current = episode.intentions.at(-1)!;
+            return (
+              <article
+                key={episode.id}
+                className="border border-[color:var(--hairline)] rounded-sm p-6 bg-[color:var(--surface)]"
+              >
+                <p className="tag mb-2">
+                  {episode.status} · revision {episode.revision}
+                </p>
+                <h2 className="font-serif text-2xl tracking-tight mb-4">
+                  {current.statement}
+                </h2>
+                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm mb-5">
+                  <dt className="text-[color:var(--muted)]">Added</dt>
+                  <dd>{new Date(episode.createdAt).toLocaleString()}</dd>
+                  <dt className="text-[color:var(--muted)]">Used for</dt>
+                  <dd>Clarification, recommendation, monitoring, and coordination</dd>
+                  <dt className="text-[color:var(--muted)]">Constraints</dt>
+                  <dd>
+                    {Object.entries(current.constraints)
+                      .map(([key, value]) => `${key}: ${value}`)
+                      .join(" · ") || "None yet"}
+                  </dd>
+                </dl>
+                <details className="mb-5">
+                  <summary className="tag cursor-pointer">
+                    show intention history and events
+                  </summary>
+                  <div className="mt-4 space-y-4 text-sm">
+                    {episode.intentions.map((revision) => (
+                      <div key={revision.version}>
+                        <p className="font-medium">Revision {revision.version}</p>
+                        <p>{revision.statement}</p>
+                        <p className="text-[color:var(--muted)]">
+                          {revision.changeReason}
+                        </p>
+                      </div>
+                    ))}
+                    {episode.events.map((event) => (
+                      <p key={event.id} className="text-[color:var(--muted)]">
+                        {new Date(event.createdAt).toLocaleDateString()} ·{" "}
+                        {event.summary}
+                      </p>
+                    ))}
+                  </div>
+                </details>
+                <div className="flex flex-wrap gap-4">
+                  <Link
+                    href={`/episode/${episode.id}`}
+                    className="text-sm text-[color:var(--accent)]"
+                  >
+                    Continue →
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => exportEpisode(episode)}
+                    className="text-sm text-[color:var(--muted)]"
+                  >
+                    Export JSON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => remove(episode.id)}
+                    className="text-sm text-[color:var(--muted)]"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
 
-      {/* Actions: improve + forget */}
-      <div className="mt-16 pt-8 border-t border-[color:var(--hairline)]">
-        <h2 className="font-serif text-2xl tracking-tight mb-4">
-          Memory controls
-        </h2>
-        <p className="why max-w-prose mb-6">
-          You own your memory. Enrich it to let me find deeper connections,
-          or wipe it completely — I&apos;ll start fresh, no hard feelings.
-        </p>
-
-        {message && (
-          <p className="text-sm text-[color:var(--accent-ink)] mb-4 fade-in-up max-w-prose">
-            {message}
-          </p>
-        )}
-
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={handleImprove}
-            disabled={action !== "idle" || !memory?.configured}
-            className="px-5 py-2.5 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors text-sm disabled:opacity-40"
-          >
-            {action === "improving" ? "Enriching…" : "Enrich my memory"}
-          </button>
-          <button
-            type="button"
-            onClick={handleForget}
-            disabled={action !== "idle"}
-            className="px-5 py-2.5 rounded-sm border border-dashed border-[color:var(--hairline)] text-[color:var(--muted)] hover:text-foreground hover:border-[color:var(--accent-ink)] transition-colors text-sm disabled:opacity-40"
-          >
-            {action === "forgetting" ? "Forgetting…" : "Forget everything"}
-          </button>
-        </div>
-
-        <p className="tag mt-4 opacity-70">
-          powered by Cognee · remember / recall / improve / forget
-        </p>
+      <div className="mt-12 pt-8 border-t border-[color:var(--hairline)]">
+        <h2 className="font-serif text-2xl mb-3">Boundaries</h2>
+        <ul className="space-y-2 text-sm text-[color:var(--muted)]">
+          <li>Browser data is a cache, not authority.</li>
+          <li>Semantic recall may add context but cannot change episode facts.</li>
+          <li>Invitation links never contain private intention text.</li>
+          <li>Deleting an intention removes its local operational history.</li>
+        </ul>
       </div>
     </section>
-  );
-}
-
-function MemorySection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <p className="tag mb-3">{title}</p>
-      {children}
-    </div>
   );
 }
