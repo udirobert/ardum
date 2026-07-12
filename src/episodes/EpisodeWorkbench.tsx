@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import MiraOrb from "@/components/MiraOrb";
@@ -16,6 +16,7 @@ import type {
   EpisodeCommand,
   NextDecision,
 } from "./model";
+import { createAbortableRunner } from "@/lib/abortableFetch";
 
 type Props = { episodeId: string };
 
@@ -71,6 +72,26 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
   const [lensData, setLensData] = useState<PerspectivesPayload | null>(null);
   const [lensLoading, setLensLoading] = useState(false);
 
+  // One coordinator per derived-view fetcher. Both layers of
+  // defense (AbortController + monotonic epoch) live inside
+  // createAbortableRunner so a slow earlier fetch can never let a
+  // stale body stomp a newer setState. Memoized so every render
+  // sees the same instance — otherwise the abort chain would reset
+  // on every re-render and the defense would be a no-op in
+  // practice. The dispose effect is the setState-after-unmount
+  // guard for the same reason: re-creating the runner on every
+  // render would leak in-flight fetches.
+  const lensRunner = useMemo(() => createAbortableRunner(), []);
+  const bandRunner = useMemo(() => createAbortableRunner(), []);
+  const energyRunner = useMemo(() => createAbortableRunner(), []);
+  useEffect(() => {
+    return () => {
+      lensRunner.dispose();
+      bandRunner.dispose();
+      energyRunner.dispose();
+    };
+  }, [lensRunner, bandRunner, energyRunner]);
+
   const load = useCallback(async () => {
     const response = await fetch(`/api/episodes/${episodeId}`, {
       cache: "no-store",
@@ -87,104 +108,106 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
     if (lensData || lensLoading) return;
     setLensLoading(true);
     try {
-      const response = await fetch(
+      const result = await lensRunner.run(
         `/api/episodes/${episodeId}/perspectives`,
-        { cache: "no-store" },
+        async (response) => {
+          const json = (await response.json()) as {
+            perspectives?: PerspectivesPayload;
+            error?: string;
+          };
+          if (!response.ok || !json.perspectives) {
+            throw new Error(json.error ?? "Could not recompute the fit.");
+          }
+          return json.perspectives;
+        },
       );
-      const json = (await response.json()) as {
-        perspectives?: PerspectivesPayload;
-        error?: string;
-      };
-      if (!response.ok || !json.perspectives) {
-        throw new Error(json.error ?? "Could not recompute the fit.");
+      if (result.ok) {
+        setLensData(result.value);
+      } else if ("error" in result) {
+        setError(result.error.message);
       }
-      setLensData(json.perspectives);
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not recompute.",
-      );
-  } finally {
-    setLensLoading(false);
+      // result.aborted / result.stale: a newer run() supersedes this
+      // one — no setState is the correct outcome.
+    } finally {
+      setLensLoading(false);
+    }
   }
-}
 
 const [activeBand, setActiveBand] = useState<BudgetBand | null>(null);
 const [bandData, setBandData] = useState<CounterfactualResult | null>(null);
-const [bandLoading, setBandLoading] = useState(false);
-
-async function runCounterfactualBudget(
-  band: BudgetBand | null,
-): Promise<void> {
-  setActiveBand(band);
-  if (band === null) {
-    setBandData(null);
-    return;
-  }
-  setBandLoading(true);
-  try {
-    const response = await fetch(
-      `/api/episodes/${episodeId}/counterfactual-budget?band=${encodeURIComponent(band)}`,
-      { cache: "no-store" },
-    );
-    const json = (await response.json()) as {
-      counterfactual?: CounterfactualResult;
-      error?: string;
-    };
-    if (!response.ok || !json.counterfactual) {
-      throw new Error(
-        json.error ?? "Could not run the counterfactual.",
-      );
+const [bandLoading, setBandLoading] = useState(false);async function runCounterfactualBudget(
+    band: BudgetBand | null,
+  ): Promise<void> {
+    setActiveBand(band);
+    if (band === null) {
+      setBandData(null);
+      return;
     }
-    setBandData(json.counterfactual);
-  } catch (caught) {
-    setError(
-      caught instanceof Error
-        ? caught.message
-        : "Could not run the counterfactual.",
-    );
-  } finally {
-    setBandLoading(false);
+    setBandLoading(true);
+    try {
+      const result = await bandRunner.run(
+        `/api/episodes/${episodeId}/counterfactual-budget?band=${encodeURIComponent(band)}`,
+        async (response) => {
+          const json = (await response.json()) as {
+            counterfactual?: CounterfactualResult;
+            error?: string;
+          };
+          if (!response.ok || !json.counterfactual) {
+            throw new Error(
+              json.error ?? "Could not run the counterfactual.",
+            );
+          }
+          return json.counterfactual;
+        },
+      );
+      if (result.ok) {
+        setBandData(result.value);
+      } else if ("error" in result) {
+        setError(result.error.message);
+      }
+      // result.aborted / result.stale: no-op; a newer run supersedes.
+    } finally {
+      setBandLoading(false);
+    }
   }
-}
 
 const [activeEnergy, setActiveEnergy] = useState<EnergyState | null>(null);
 const [energyData, setEnergyData] = useState<CounterfactualResult | null>(null);
-const [energyLoading, setEnergyLoading] = useState(false);
-
-async function runCounterfactualEnergy(
-  energy: EnergyState | null,
-): Promise<void> {
-  setActiveEnergy(energy);
-  if (energy === null) {
-    setEnergyData(null);
-    return;
-  }
-  setEnergyLoading(true);
-  try {
-    const response = await fetch(
-      `/api/episodes/${episodeId}/counterfactual-energy?energy=${encodeURIComponent(energy)}`,
-      { cache: "no-store" },
-    );
-    const json = (await response.json()) as {
-      counterfactual?: CounterfactualResult;
-      error?: string;
-    };
-    if (!response.ok || !json.counterfactual) {
-      throw new Error(
-        json.error ?? "Could not run the counterfactual.",
-      );
+const [energyLoading, setEnergyLoading] = useState(false);async function runCounterfactualEnergy(
+    energy: EnergyState | null,
+  ): Promise<void> {
+    setActiveEnergy(energy);
+    if (energy === null) {
+      setEnergyData(null);
+      return;
     }
-    setEnergyData(json.counterfactual);
-  } catch (caught) {
-    setError(
-      caught instanceof Error
-        ? caught.message
-        : "Could not run the counterfactual.",
-    );
-  } finally {
-    setEnergyLoading(false);
+    setEnergyLoading(true);
+    try {
+      const result = await energyRunner.run(
+        `/api/episodes/${episodeId}/counterfactual-energy?energy=${encodeURIComponent(energy)}`,
+        async (response) => {
+          const json = (await response.json()) as {
+            counterfactual?: CounterfactualResult;
+            error?: string;
+          };
+          if (!response.ok || !json.counterfactual) {
+            throw new Error(
+              json.error ?? "Could not run the counterfactual.",
+            );
+          }
+          return json.counterfactual;
+        },
+      );
+      if (result.ok) {
+        setEnergyData(result.value);
+      } else if ("error" in result) {
+        setError(result.error.message);
+      }
+      // result.aborted / result.stale: no-op; a newer run supersedes.
+    } finally {
+      setEnergyLoading(false);
+    }
   }
-}
 
 useEffect(() => {
     fetch(`/api/episodes/${episodeId}`, { cache: "no-store" })
