@@ -397,6 +397,18 @@ export default function MiraOrb({
         : 0;
   const visibleLength = ringCircumference - gapSize;
 
+  // The orb is decorative — keep aria-hidden — but assistive tech still
+  // needs to hear Mira's posture. A sibling sr-only live region carries the
+  // announcement so the visual remains silent AND the screen reader hears
+  // "Mira is reasoning" / "Mira is speaking" / "Mira is steady." Polite so
+  // it doesn't interrupt a current utterance.
+  const stateAnnouncement =
+    state === "thinking"
+      ? "Mira is reasoning."
+      : state === "speaking"
+        ? "Mira is speaking."
+        : "Mira is steady.";
+
   return (
     <div className={`flex flex-col items-center gap-3 ${className ?? ""}`}>
       <div
@@ -489,6 +501,13 @@ export default function MiraOrb({
           </svg>
         )}
       </div>
+      <span
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {stateAnnouncement}
+      </span>
       {children}
     </div>
   );

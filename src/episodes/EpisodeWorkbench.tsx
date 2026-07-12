@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import MiraOrb from "@/components/MiraOrb";
+import type { MatchResult } from "@/matching/types";
+import type {
+  PerspectiveName,
+} from "./perspectives";
 import type {
   Episode,
   EpisodeCommand,
@@ -23,6 +27,8 @@ type EpisodePayload = {
   shareToken?: string;
   error?: string;
 };
+
+type PerspectivesPayload = Record<PerspectiveName, MatchResult | null>;
 
 type CommandInput = EpisodeCommand extends infer Command
   ? Command extends EpisodeCommand
@@ -58,6 +64,9 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [commitmentOpen, setCommitmentOpen] = useState(false);
+  const [activeLens, setActiveLens] = useState<PerspectiveName>("balanced");
+  const [lensData, setLensData] = useState<PerspectivesPayload | null>(null);
+  const [lensLoading, setLensLoading] = useState(false);
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/episodes/${episodeId}`, {
@@ -67,6 +76,34 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
     if (!response.ok) throw new Error(data.error ?? "Episode not found.");
     setPayload(data);
   }, [episodeId]);
+
+  async function recomputeWithPerspective(
+    lens: PerspectiveName,
+  ): Promise<void> {
+    setActiveLens(lens);
+    if (lensData || lensLoading) return;
+    setLensLoading(true);
+    try {
+      const response = await fetch(
+        `/api/episodes/${episodeId}/perspectives`,
+        { cache: "no-store" },
+      );
+      const json = (await response.json()) as {
+        perspectives?: PerspectivesPayload;
+        error?: string;
+      };
+      if (!response.ok || !json.perspectives) {
+        throw new Error(json.error ?? "Could not recompute the fit.");
+      }
+      setLensData(json.perspectives);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not recompute.",
+      );
+    } finally {
+      setLensLoading(false);
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/episodes/${episodeId}`, { cache: "no-store" })
@@ -159,7 +196,12 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
         </h2>
 
         {nextDecision.kind === "clarify-energy" && (
-          <ChoiceGrid
+          <>
+            <p className="why mb-3">
+              How you arrive now shapes what fits. Mira will remember this
+              only for this intention.
+            </p>
+            <ChoiceGrid
             options={energyOptions}
             disabled={busy}
             onChoose={(energy) =>
@@ -170,9 +212,15 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
               })
             }
           />
+          </>
         )}
         {nextDecision.kind === "clarify-budget" && (
-          <ChoiceGrid
+          <>
+            <p className="why mb-3">
+              A responsible limit keeps the choice honest. Mira will remember
+              this only for this intention.
+            </p>
+            <ChoiceGrid
             options={budgetOptions}
             disabled={busy}
             onChoose={(budget) =>
@@ -183,9 +231,15 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
               })
             }
           />
+          </>
         )}
         {nextDecision.kind === "clarify-social" && (
-          <ChoiceGrid
+          <>
+            <p className="why mb-3">
+              The shape of company shapes the day. Mira will remember this
+              only for this intention.
+            </p>
+            <ChoiceGrid
             options={socialOptions}
             disabled={busy}
             onChoose={(social) =>
@@ -196,14 +250,21 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
               })
             }
           />
+          </>
         )}
         {nextDecision.kind === "review-recommendation" && !recommendation && (
-          <PrimaryButton
-            disabled={busy}
-            onClick={() => act({ type: "recommend" })}
-          >
-            {busy ? "Considering what matters…" : nextDecision.primaryLabel}
-          </PrimaryButton>
+          <>
+            <p className="why mb-3">
+              Mira scores your intention against the verified pool. Nothing
+              is shared or stored yet.
+            </p>
+            <PrimaryButton
+              disabled={busy}
+              onClick={() => act({ type: "recommend" })}
+            >
+              {busy ? "Considering what matters…" : nextDecision.primaryLabel}
+            </PrimaryButton>
+          </>
         )}
 
         {recommendation && (
@@ -252,26 +313,108 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
                 onRefresh={load}
               />
             ) : (
-              <div className="flex flex-wrap gap-3">
-                <PrimaryButton
-                  disabled={busy}
-                  onClick={() => act({ type: "create-hold" })}
-                >
-                  Hold this for 48 hours
-                </PrimaryButton>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    act({
-                      type: episode.monitor ? "check-monitor" : "start-monitoring",
-                    })
-                  }
-                  className="px-5 py-3 rounded-sm border border-[color:var(--hairline)] disabled:opacity-40"
-                >
-                  {episode.monitor ? "Check for changes" : "Watch this for me"}
-                </button>
-              </div>
+              <>
+                <p className="why mb-3">
+                  Mira places a non-binding hold, or watches this retreat
+                  for changes. Neither charges you. Either expires on its own.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <PrimaryButton
+                    disabled={busy}
+                    onClick={() => act({ type: "create-hold" })}
+                  >
+                    Hold this for 48 hours
+                  </PrimaryButton>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      act({
+                        type: episode.monitor ? "check-monitor" : "start-monitoring",
+                      })
+                    }
+                    className="px-5 py-3 rounded-sm border border-[color:var(--hairline)] disabled:opacity-40"
+                  >
+                    {episode.monitor ? "Check for changes" : "Watch this for me"}
+                  </button>
+                </div>
+                {episode.recommendation!.alternatives.length > 0 && (
+                  <div className="mt-6 border-t border-[color:var(--hairline)] pt-5">
+                    <p className="tag mb-2">and one more that qualified</p>
+                    <p className="why mb-3">
+                      Mira saw these too. She chose the top fit because the
+                      reasoning below weighed energy, social, and budget
+                      together.
+                    </p>
+                    <ul className="space-y-2">
+                      {episode.recommendation!.alternatives.map((alt) => (
+                        <li
+                          key={alt.retreatRootHash}
+                          className="text-sm leading-relaxed"
+                        >
+                          <span className="font-serif text-base tracking-tight">
+                            {alt.retreatTitle}
+                          </span>
+                          <span className="text-[color:var(--muted)]">
+                            {" "}
+                            · {alt.retreatLocation} · {alt.durationDays} days
+                            · ${alt.priceUsd.toLocaleString()}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="mt-6 border-t border-[color:var(--hairline)] pt-5">
+                  <p className="tag mb-2">what would change the fit?</p>
+                  <p className="why mb-3">
+                    Mira can re-weight the criteria. Nothing is committed —
+                    you stay where you are.
+                  </p>
+                  <div
+                    role="group"
+                    aria-label="Recompute the fit under a different lens"
+                    className="flex flex-wrap gap-2"
+                  >
+                    {(["balanced", "restorative", "movement"] as const).map(
+                      (lens) => (
+                        <button
+                          key={lens}
+                          type="button"
+                          disabled={busy || lensLoading}
+                          onClick={() => void recomputeWithPerspective(lens)}
+                          className={`px-3 py-2 rounded-sm border text-sm capitalize transition-colors disabled:opacity-40 ${
+                            activeLens === lens
+                              ? "border-[color:var(--accent)] text-[color:var(--accent-ink)]"
+                              : "border-[color:var(--hairline)] hover:border-[color:var(--accent)]"
+                          }`}
+                          aria-pressed={activeLens === lens}
+                        >
+                          {lens}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                  {lensLoading && (
+                    <p className="text-sm text-[color:var(--muted)] mt-3 italic">
+                      Re-ranking…
+                    </p>
+                  )}
+                  {!lensLoading &&
+                    activeLens !== "balanced" &&
+                    lensData &&
+                    lensData[activeLens] && (
+                      <LensOutcome
+                        lens={activeLens}
+                        pick={lensData[activeLens]!}
+                        sameAsMain={
+                          lensData[activeLens]!.retreatRootHash ===
+                          recommendation?.retreatRootHash
+                        }
+                      />
+                    )}
+                </div>
+              </>
             )}
 
             {latestObservation && (
@@ -284,6 +427,11 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
 
             {nextDecision.kind === "ready-to-book" && (
               <div className="border-t border-[color:var(--hairline)] pt-6">
+                <p className="why mb-3">
+                  Mira moves from holding to booking. A real deposit and
+                  attestation happen here. You can change your mind before
+                  that line.
+                </p>
                 {!commitmentOpen ? (
                   <PrimaryButton
                     disabled={busy}
@@ -307,6 +455,10 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
             >
               This doesn’t feel right →
             </button>
+            <p className="why mt-2">
+              Tell Mira what is off. The journey re-enters clarity — never
+              checkout.
+            </p>
             {feedbackOpen && (
               <fieldset className="border-t border-[color:var(--hairline)] pt-5">
                 <legend className="tag mb-3">what is off?</legend>
@@ -417,6 +569,35 @@ function PrimaryButton({
   );
 }
 
+// A small panel that shows which retreat a non-balanced lens picked.
+// Used under the lens toggle. The `sameAsMain` flag turns this into a
+// statement (the alternative lens agrees) rather than a recommendation
+// replacement — agency without confusion.
+function LensOutcome({
+  lens,
+  pick,
+  sameAsMain,
+}: {
+  lens: PerspectiveName;
+  pick: MatchResult;
+  sameAsMain: boolean;
+}) {
+  return (
+    <div className="mt-4 border-l-2 border-[color:var(--accent-soft)] pl-4">
+      <p className="tag mb-2">
+        with {lens} lens{sameAsMain ? " (same retreat)" : ""}
+      </p>
+      <p className="font-serif text-xl tracking-tight mb-1">
+        {pick.retreatTitle}
+      </p>
+      <p className="text-sm text-[color:var(--muted)]">
+        {pick.retreatLocation} · {pick.durationDays} days · $
+        {pick.priceUsd.toLocaleString()}
+      </p>
+    </div>
+  );
+}
+
 function HoldPanel({
   episode,
   participant,
@@ -459,6 +640,11 @@ function HoldPanel({
       ) : shareUrl ? (
         <div className="mb-5">
           <p className="text-sm mb-2">Private invitation link</p>
+          <p className="why mb-3">
+            For {episode.coordination?.participantName ?? "the person"} — this
+            link confirms a shared hold and never includes your intention or
+            constraints.
+          </p>
           <div className="flex gap-2">
             <input
               readOnly
@@ -473,6 +659,9 @@ function HoldPanel({
               Copy
             </button>
           </div>
+          <p className="text-xs text-[color:var(--muted)] mt-2">
+            Mira can&apos;t recover this link if you close the tab — copy it now.
+          </p>
         </div>
       ) : episode.coordination?.inviteExpiresAt ? (
         <p className="text-sm text-[color:var(--muted)] mb-5">

@@ -136,9 +136,14 @@ export default function ArrivalScreen() {
             <h1 className="font-serif text-4xl sm:text-6xl leading-[1.05] tracking-tight mb-5">
               What are you trying to make space for?
             </h1>
-            <p className="text-[color:var(--muted)] max-w-lg mx-auto mb-8 leading-relaxed">
+            <p className="text-[color:var(--muted)] max-w-lg mx-auto mb-4 leading-relaxed">
               You do not need a destination or dates yet. Begin with what you
               want life to feel like on the other side.
+            </p>
+            <p className="why max-w-lg mx-auto mb-8">
+              Pressing <em>Tell Mira what matters</em> records this intention
+              and remembers it across visits. You can refine, export, or
+              delete it at any time.
             </p>
             <label className="block text-left max-w-xl mx-auto">
               <span className="sr-only">Your intention</span>

@@ -58,10 +58,15 @@ export default function MemoryPage() {
       <h1 className="font-serif text-4xl sm:text-5xl tracking-tight mb-4">
         What I am keeping in mind.
       </h1>
-      <p className="text-[color:var(--muted)] text-lg leading-relaxed mb-10">
+      <p className="text-[color:var(--muted)] text-lg leading-relaxed mb-4">
         Operational history belongs to each intention. It is stored behind an
         anonymous ownership cookie, not in a public URL. You can inspect,
         export, or delete it here.
+      </p>
+      <p className="why mb-10">
+        Each entry below is what Mira is allowed to remember — your intention,
+        what you have clarified, and the steps that followed. Nothing here is
+        shared with retreats, wallets, or invitees.
       </p>
 
       {message && (
