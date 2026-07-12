@@ -311,6 +311,11 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
                 }
                 onRelease={() => act({ type: "release-hold" })}
                 onRefresh={load}
+                recommendation={recommendation}
+                activeLens={activeLens}
+                lensData={lensData}
+                lensLoading={lensLoading}
+                onPickLens={recomputeWithPerspective}
               />
             ) : (
               <>
@@ -338,82 +343,17 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
                     {episode.monitor ? "Check for changes" : "Watch this for me"}
                   </button>
                 </div>
-                {episode.recommendation!.alternatives.length > 0 && (
-                  <div className="mt-6 border-t border-[color:var(--hairline)] pt-5">
-                    <p className="tag mb-2">and one more that qualified</p>
-                    <p className="why mb-3">
-                      Mira saw these too. She chose the top fit because the
-                      reasoning below weighed energy, social, and budget
-                      together.
-                    </p>
-                    <ul className="space-y-2">
-                      {episode.recommendation!.alternatives.map((alt) => (
-                        <li
-                          key={alt.retreatRootHash}
-                          className="text-sm leading-relaxed"
-                        >
-                          <span className="font-serif text-base tracking-tight">
-                            {alt.retreatTitle}
-                          </span>
-                          <span className="text-[color:var(--muted)]">
-                            {" "}
-                            · {alt.retreatLocation} · {alt.durationDays} days
-                            · ${alt.priceUsd.toLocaleString()}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <div className="mt-6 border-t border-[color:var(--hairline)] pt-5">
-                  <p className="tag mb-2">what would change the fit?</p>
-                  <p className="why mb-3">
-                    Mira can re-weight the criteria. Nothing is committed —
-                    you stay where you are.
-                  </p>
-                  <div
-                    role="group"
-                    aria-label="Recompute the fit under a different lens"
-                    className="flex flex-wrap gap-2"
-                  >
-                    {(["balanced", "restorative", "movement"] as const).map(
-                      (lens) => (
-                        <button
-                          key={lens}
-                          type="button"
-                          disabled={busy || lensLoading}
-                          onClick={() => void recomputeWithPerspective(lens)}
-                          className={`px-3 py-2 rounded-sm border text-sm capitalize transition-colors disabled:opacity-40 ${
-                            activeLens === lens
-                              ? "border-[color:var(--accent)] text-[color:var(--accent-ink)]"
-                              : "border-[color:var(--hairline)] hover:border-[color:var(--accent)]"
-                          }`}
-                          aria-pressed={activeLens === lens}
-                        >
-                          {lens}
-                        </button>
-                      ),
-                    )}
-                  </div>
-                  {lensLoading && (
-                    <p className="text-sm text-[color:var(--muted)] mt-3 italic">
-                      Re-ranking…
-                    </p>
-                  )}
-                  {!lensLoading &&
-                    activeLens !== "balanced" &&
-                    lensData &&
-                    lensData[activeLens] && (
-                      <LensOutcome
-                        lens={activeLens}
-                        pick={lensData[activeLens]!}
-                        sameAsMain={
-                          lensData[activeLens]!.retreatRootHash ===
-                          recommendation?.retreatRootHash
-                        }
-                      />
-                    )}
-                </div>
+                <ExploreOtherFits
+                  alternatives={episode.recommendation!.alternatives}
+                  recommendation={recommendation}
+                  activeLens={activeLens}
+                  lensData={lensData}
+                  lensLoading={lensLoading}
+                  busy={busy}
+                  onPickLens={recomputeWithPerspective}
+                  holdActive={false}
+                  variant="open"
+                />
               </>
             )}
 
@@ -598,6 +538,136 @@ function LensOutcome({
   );
 }
 
+// Surfaces the alternatives + lens toggle as a single component, in
+// two contexts: open when no hold is active (the natural secondary
+// inspection after the primary decision is shown), and collapsed as a
+// <details> disclosure when a hold IS active (Mira's hold is unaffected;
+// this is purely a confidence check, not a re-commit). The copy adapts
+// per `holdActive` so the user is never misled into thinking their hold
+// moved.
+function ExploreOtherFits({
+  alternatives,
+  recommendation,
+  activeLens,
+  lensData,
+  lensLoading,
+  busy,
+  onPickLens,
+  holdActive,
+  variant,
+}: {
+  alternatives: MatchResult[];
+  recommendation: MatchResult | undefined;
+  activeLens: PerspectiveName;
+  lensData: PerspectivesPayload | null;
+  lensLoading: boolean;
+  busy: boolean;
+  onPickLens: (lens: PerspectiveName) => void;
+  holdActive: boolean;
+  variant: "open" | "details";
+}) {
+  const body = (
+    <div className="space-y-5">
+      <p className="why mb-1">
+        {holdActive
+          ? "Your hold continues below. These alternatives and a re-ranking are a confidence check — nothing here moves without your word."
+          : "Mira can re-weight the criteria. Nothing is committed — you stay where you are."}
+      </p>
+      {alternatives.length > 0 && (
+        <div>
+          <p className="tag mb-2">
+            {holdActive
+              ? "and one more that also qualified"
+              : "and one more that qualified"}
+          </p>
+          <p className="why mb-3">
+            {holdActive
+              ? "The hold is unchanged. These are what would have fit if you had not held."
+              : "Mira saw these too. She chose the top fit because the reasoning below weighed energy, social, and budget together."}
+          </p>
+          <ul className="space-y-2">
+            {alternatives.map((alt) => (
+              <li
+                key={alt.retreatRootHash}
+                className="text-sm leading-relaxed"
+              >
+                <span className="font-serif text-base tracking-tight">
+                  {alt.retreatTitle}
+                </span>
+                <span className="text-[color:var(--muted)]">
+                  {" "}
+                  · {alt.retreatLocation} · {alt.durationDays} days · $
+                  {alt.priceUsd.toLocaleString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div>
+        <p className="tag mb-2">what would change the fit?</p>
+        <div
+          role="group"
+          aria-label="Recompute the fit under a different lens"
+          className="flex flex-wrap gap-2"
+        >
+          {(["balanced", "restorative", "movement"] as const).map((lens) => (
+            <button
+              key={lens}
+              type="button"
+              disabled={busy || lensLoading}
+              onClick={() => onPickLens(lens)}
+              className={`px-3 py-2 rounded-sm border text-sm capitalize transition-colors disabled:opacity-40 ${
+                activeLens === lens
+                  ? "border-[color:var(--accent)] text-[color:var(--accent-ink)]"
+                  : "border-[color:var(--hairline)] hover:border-[color:var(--accent)]"
+              }`}
+              aria-pressed={activeLens === lens}
+            >
+              {lens}
+            </button>
+          ))}
+        </div>
+        {lensLoading && (
+          <p className="text-sm text-[color:var(--muted)] mt-3 italic">
+            Re-ranking…
+          </p>
+        )}
+        {!lensLoading &&
+          activeLens !== "balanced" &&
+          lensData &&
+          lensData[activeLens] && (
+            <LensOutcome
+              lens={activeLens}
+              pick={lensData[activeLens]!}
+              sameAsMain={
+                lensData[activeLens]!.retreatRootHash ===
+                recommendation?.retreatRootHash
+              }
+            />
+          )}
+      </div>
+    </div>
+  );
+
+  if (variant === "details") {
+    return (
+      <details className="mt-5 border-t border-[color:var(--hairline)] pt-5">
+        <summary className="tag cursor-pointer">
+          still curious what else fitted?
+        </summary>
+        <div className="mt-4">{body}</div>
+      </details>
+    );
+  }
+
+  return (
+    <div className="mt-6 border-t border-[color:var(--hairline)] pt-5">
+      {body}
+    </div>
+  );
+}
+
 function HoldPanel({
   episode,
   participant,
@@ -607,6 +677,11 @@ function HoldPanel({
   onInvite,
   onRelease,
   onRefresh,
+  recommendation,
+  activeLens,
+  lensData,
+  lensLoading,
+  onPickLens,
 }: {
   episode: Episode;
   participant: string;
@@ -616,6 +691,11 @@ function HoldPanel({
   onInvite: () => void;
   onRelease: () => void;
   onRefresh: () => Promise<void>;
+  recommendation: MatchResult | undefined;
+  activeLens: PerspectiveName;
+  lensData: PerspectivesPayload | null;
+  lensLoading: boolean;
+  onPickLens: (lens: PerspectiveName) => void;
 }) {
   const hold = episode.hold!;
   return (
@@ -718,6 +798,17 @@ function HoldPanel({
           Release the hold
         </button>
       </div>
+      <ExploreOtherFits
+        alternatives={episode.recommendation?.alternatives ?? []}
+        recommendation={recommendation}
+        activeLens={activeLens}
+        lensData={lensData}
+        lensLoading={lensLoading}
+        busy={busy}
+        onPickLens={onPickLens}
+        holdActive={true}
+        variant="details"
+      />
     </div>
   );
 }
