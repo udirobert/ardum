@@ -5,6 +5,12 @@ name: Automation tick
 # is one such external scheduler; cron-job.org or a paid monitor would
 # also work. Tick cadence is hourly by default — adjust `cron:` below if
 # your retention contract needs tighter observation windows.
+#
+# Two log markers exist for downstream monitors:
+#   [automation-tick] skipped: ...   — secrets not configured
+#   [automation-tick] ran: ...       — POST returned a body
+# scripts/verify-automation.mjs complements this for monitors that
+# don't have GitHub Actions access — see docs/OPERATIONS.md.
 
 on:
   schedule:
@@ -37,11 +43,10 @@ jobs:
         run: |
           echo "::add-mask::${AUTOMATION_SECRET}"
           if [ -z "$AUTOMATION_URL" ] || [ -z "$AUTOMATION_SECRET" ]; then
-            echo "AUTOMATION_URL or AUTOMATION_SECRET is not set; skipping tick."
-            echo "Configure both in repo Settings -> Secrets and variables -> Actions."
+            echo "[automation-tick] skipped: target not configured (set AUTOMATION_URL + AUTOMATION_SECRET in repo Settings -> Secrets and variables -> Actions)"
             exit 0
           fi
-          echo "Tick target configured."
+          echo "[automation-tick] target configured: ${AUTOMATION_URL}"
 
       - name: POST to the automation endpoint
         run: |
@@ -54,10 +59,11 @@ jobs:
           body=$(cat "$response_file")
           rm -f "$response_file"
 
-          echo "Response (status ${http_code}):"
+          echo "[automation-tick] response (status ${http_code}):"
           echo "${body}"
 
           if [ "${http_code}" != "200" ]; then
-            echo "Automation tick failed (status ${http_code})."
+            echo "[automation-tick] failed: HTTP ${http_code}"
             exit 1
           fi
+          echo "[automation-tick] ran: status=200"
