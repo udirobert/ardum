@@ -357,3 +357,179 @@ describe("scoreAllWithOverrides", () => {
     }
   });
 });
+
+// Synthetic pool — lens re-rank property ------------------------------
+//
+// The seed-catalog "changes the runner-up under at least one lens"
+// test above is robust but non-deterministic — the seed pool often
+// converges toward a few dominant retreats. This block is the
+// deterministic counter-test: a fixed 2-retreat pool with mutually
+// exclusive energy and social claims, scored across Balanced /
+// Restorative / Movement, produces a verifiable top-pick shift (the
+// property the HoldPanel disclosure's "confidence check" claim
+// depends on). The pool is inline so changes to the seed catalog
+// cannot affect these assertions.
+
+const ENERGY_FIT_ROOT_SYN = "test-retreat-energy-fit-001";
+const SOCIAL_FIT_ROOT_SYN = "test-retreat-social-fit-001";
+
+const syntheticPool: AttestationIndex[] = [
+  {
+    rootHash: ENERGY_FIT_ROOT_SYN,
+    kind: "retreat",
+    title: "Synthetic Energy-Match Retreat",
+    description:
+      "Settles the energy axis cleanly; misses the social axis. Used " +
+      "by the lens re-rank property test to prove behavior without " +
+      "relying on the seed catalog.",
+    claims: {
+      location: "test",
+      durationDays: 7,
+      priceUsd: 1500,
+      capacity: 10,
+      practiceStyle: ["restorative"],
+      energyFit: ["settled"],
+      socialFit: ["communal"],
+      breathPhase: [],
+    },
+    attestor: "0x0000000000000000000000000000000000000000",
+    createdAt: "2026-07-12T00:00:00.000Z",
+  },
+  {
+    rootHash: SOCIAL_FIT_ROOT_SYN,
+    kind: "retreat",
+    title: "Synthetic Social-Match Retreat",
+    description:
+      "Settles the social axis cleanly; misses the energy axis. " +
+      "Twin of the energy-fit retreat so the lens decides.",
+    claims: {
+      location: "test",
+      durationDays: 7,
+      priceUsd: 1500,
+      capacity: 10,
+      practiceStyle: ["restorative"],
+      energyFit: ["sharp"],
+      socialFit: ["solo"],
+      breathPhase: [],
+    },
+    attestor: "0x0000000000000000000000000000000000000000",
+    createdAt: "2026-07-12T00:00:00.000Z",
+  },
+];
+
+const syntheticPractitioner: PractitionerProfile = {
+  energy: "settled",
+  budget: "1k-2k",
+  social: "solo",
+  createdAt: "2026-07-12T00:00:00.000Z",
+};
+
+describe("synthetic pool — lens re-rank property", () => {
+  it("Balanced picks the energy-fit retreat", () => {
+    const ranked = scoreAllWithOverrides(
+      syntheticPractitioner,
+      syntheticPool,
+      {},
+    );
+    expect(ranked[0]?.result.retreatRootHash).toBe(ENERGY_FIT_ROOT_SYN);
+  });
+
+  it("Restorative stays aligned with Balanced (energy-weighted even more)", () => {
+    const ranked = scoreAllWithOverrides(
+      syntheticPractitioner,
+      syntheticPool,
+      RESTORATIVE_LENS.overrides,
+    );
+    expect(ranked[0]?.result.retreatRootHash).toBe(ENERGY_FIT_ROOT_SYN);
+  });
+
+  it('Movement flips the top pick to the social-fit retreat — the "confidence check" property', () => {
+    const ranked = scoreAllWithOverrides(
+      syntheticPractitioner,
+      syntheticPool,
+      MOVEMENT_LENS.overrides,
+    );
+    expect(ranked[0]?.result.retreatRootHash).toBe(SOCIAL_FIT_ROOT_SYN);
+  });
+
+  it("Balanced and Movement produce different top picks on the mutually-exclusive pool", () => {
+    const balanced = scoreAllWithOverrides(
+      syntheticPractitioner,
+      syntheticPool,
+      {},
+    );
+    const movement = scoreAllWithOverrides(
+      syntheticPractitioner,
+      syntheticPool,
+      MOVEMENT_LENS.overrides,
+    );
+    expect(balanced[0]?.result.retreatRootHash).not.toBe(
+      movement[0]?.result.retreatRootHash,
+    );
+  });
+
+  it("Composite score rises for the energy-fit retreat under Restorative vs Balanced", () => {
+    const balanced = scoreAllWithOverrides(
+      syntheticPractitioner,
+      syntheticPool,
+      {},
+    );
+    const restorative = scoreAllWithOverrides(
+      syntheticPractitioner,
+      syntheticPool,
+      RESTORATIVE_LENS.overrides,
+    );
+    const balancedEnergyScore = balanced.find(
+      (entry) => entry.result.retreatRootHash === ENERGY_FIT_ROOT_SYN,
+    )?.result.score;
+    const restorativeEnergyScore = restorative.find(
+      (entry) => entry.result.retreatRootHash === ENERGY_FIT_ROOT_SYN,
+    )?.result.score;
+    expect(balancedEnergyScore).toBeDefined();
+    expect(restorativeEnergyScore).toBeDefined();
+    expect(restorativeEnergyScore as number).toBeGreaterThan(
+      balancedEnergyScore as number,
+    );
+  });
+
+  it("Composite score falls for the energy-fit retreat under Movement vs Balanced", () => {
+    const balanced = scoreAllWithOverrides(
+      syntheticPractitioner,
+      syntheticPool,
+      {},
+    );
+    const movement = scoreAllWithOverrides(
+      syntheticPractitioner,
+      syntheticPool,
+      MOVEMENT_LENS.overrides,
+    );
+    const balancedEnergyScore = balanced.find(
+      (entry) => entry.result.retreatRootHash === ENERGY_FIT_ROOT_SYN,
+    )?.result.score;
+    const movementEnergyScore = movement.find(
+      (entry) => entry.result.retreatRootHash === ENERGY_FIT_ROOT_SYN,
+    )?.result.score;
+    expect(balancedEnergyScore).toBeDefined();
+    expect(movementEnergyScore).toBeDefined();
+    expect(movementEnergyScore as number).toBeLessThan(
+      balancedEnergyScore as number,
+    );
+  });
+
+  it("is deterministic for identical inputs", () => {
+    const first = scoreAllWithOverrides(
+      syntheticPractitioner,
+      syntheticPool,
+      {},
+    );
+    const second = scoreAllWithOverrides(
+      structuredClone(syntheticPractitioner),
+      syntheticPool,
+      {},
+    );
+    expect(first[0]?.result.retreatRootHash).toBe(
+      second[0]?.result.retreatRootHash,
+    );
+    expect(first[0]?.result.score).toBe(second[0]?.result.score);
+  });
+});
