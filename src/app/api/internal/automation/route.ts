@@ -9,5 +9,24 @@ export async function POST(request: Request) {
   if (!configured || supplied !== configured) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
-  return NextResponse.json(await runDueAutomation());
+  // Structured response — see scripts/verify-automation.mjs. The
+  // shape is purposefully boring so external monitors (Upptime,
+  // cron-job.org's health probes, GitHub Actions' own run summary)
+  // can extract `considered` / `checked` / `failed` without
+  // parsing free-form logs.
+  const startedAt = new Date().toISOString();
+  const result = await runDueAutomation();
+  const finishedAt = new Date().toISOString();
+  const durationMs =
+    Date.parse(finishedAt) - Date.parse(startedAt);
+  return NextResponse.json({
+    ...result,
+    // checked + failed is the union of episodes the runner ATTEMPTED,
+    // even if some failed mid-tick. Use this as the denominator when
+    // reasoning about automation health — checked alone hides failures.
+    considered: result.checked + result.failed,
+    startedAt,
+    finishedAt,
+    durationMs,
+  });
 }

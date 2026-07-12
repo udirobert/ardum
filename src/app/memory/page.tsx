@@ -1,47 +1,45 @@
-"use client";
+// Server component — replaces the previous "use client" page so the
+// returning-practitioner summary card renders in the initial HTML
+// (smoke-ui.mjs pins that testid on first paint).
+//
+// Why server: the actor cookie is read with resolveActor (server-only),
+// the episode repo is server-only too, and smoke-ui.mjs asserts the
+// summary card's data-testid lands in the first byte stream of GET
+// /memory. Doing the projection server-side gives us that, plus a
+// no-flicker first paint for returning practitioners.
+//
+// Why projector-only: the summary card only uses operational fields
+// (pastBookings, pastMatches — see AGENTS.md "Semantic memory is
+// supplementary and lossy"). pastNotes from Cognee are free-form
+// prose the home page also skips. Same reasoning as the home greeting.
+//
+// The interactive episode list (Delete + Export buttons) is
+// delegated to MemoryView, a "use client" island. The list itself
+// is read-only from the server, so the only boundary crossings are
+// window.confirm, Blob, and useRouter().refresh() after delete.
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { resolveActor } from "@/identity/actor";
+import { episodeRepository } from "@/episodes/repository";
+import { projectActorMemory } from "@/memory/enrich";
+import MemoryView from "@/app/memory/MemoryView";
 import MiraOrb from "@/components/MiraOrb";
-import type { Episode } from "@/episodes/model";
+import Link from "next/link";
 
-export default function MemoryPage() {
-  const [episodes, setEpisodes] = useState<Episode[] | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+export const dynamic = "force-dynamic";
 
-  async function load() {
-    const response = await fetch("/api/episodes", { cache: "no-store" });
-    const data = (await response.json()) as { episodes?: Episode[] };
-    setEpisodes(data.episodes ?? []);
-  }
-
-  useEffect(() => {
-    fetch("/api/episodes", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((data: { episodes?: Episode[] }) => setEpisodes(data.episodes ?? []))
-      .catch(() => setEpisodes([]));
-  }, []);
-
-  async function remove(episodeId: string) {
-    if (!window.confirm("Delete this intention and its history? This cannot be undone.")) {
-      return;
-    }
-    await fetch(`/api/episodes/${episodeId}`, { method: "DELETE" });
-    setMessage("The intention and its operational history were deleted.");
-    await load();
-  }
-
-  function exportEpisode(episode: Episode) {
-    const blob = new Blob([JSON.stringify(episode, null, 2)], {
-      type: "application/json",
-    });
-    const href = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = href;
-    anchor.download = `ardum-intention-${episode.id}.json`;
-    anchor.click();
-    URL.revokeObjectURL(href);
-  }
+export default async function MemoryPage() {
+  const actorId = await resolveActor();
+  // If there's no ownership cookie, the page is a privacy explainer:
+  // no summary card, the "Nothing retained" empty state will render
+  // (because listOwned for an unknown actor returns []). Same shape
+  // as a first-time visitor.
+  const episodes = actorId
+    ? await episodeRepository.listOwned(actorId)
+    : [];
+  const memory = actorId
+    ? // Projector-only result; no Cognee recall on this surface.
+      await projectActorMemory(actorId, episodes)
+    : null;
 
   return (
     <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 py-16">
@@ -69,107 +67,59 @@ export default function MemoryPage() {
         shared with retreats, wallets, or invitees.
       </p>
 
-      {message && (
-        <p className="mb-6 text-sm text-[color:var(--accent-ink)]" role="status">
-          {message}
-        </p>
+      {/* Server-rendered recognition summary card. Lands in initial
+          HTML so smoke-ui.mjs's data-testid="memory-summary" check
+          finds it on first paint, not after client hydration. The
+          card only renders when projector.isReturning is true; a
+          fresh visitor sees the privacy explainer above plus the
+          "Nothing retained" empty state from MemoryView below. */}
+      {memory?.isReturning && (
+        <aside
+          aria-label="what our previous visits looked like"
+          aria-live="polite"
+          data-testid="memory-summary"
+          className="border-l-2 border-[color:var(--accent-soft)] pl-5 mb-8"
+        >
+          <div className="flex items-start gap-3 mb-3">
+            <MiraOrb size={40} state="calm" />
+            <p className="tag pt-2">what our previous visits looked like</p>
+          </div>
+          <div className="space-y-2 leading-relaxed">
+            <p>
+              You have surfaced{" "}
+              <strong>{memory.pastMatches.length}</strong> recommendation
+              {memory.pastMatches.length === 1 ? "" : "s"} so far.
+              {memory.pastMatches[0] && (
+                <>
+                  {" "}
+                  Most recently,{" "}
+                  <span className="italic text-[color:var(--accent-ink)]">
+                    {memory.pastMatches[0].title}
+                  </span>{" "}
+                  in {memory.pastMatches[0].location}.
+                </>
+              )}
+            </p>
+            {memory.pastBookings[0] && (
+              <p>
+                You committed to{" "}
+                <span className="italic text-[color:var(--accent-ink)]">
+                  {memory.pastBookings[0].title}
+                </span>{" "}
+                in {memory.pastBookings[0].location}.
+              </p>
+            )}
+            {memory.energyHistory.length >= 2 && (
+              <p className="text-sm text-[color:var(--muted)]">
+                Energy over time:{" "}
+                {memory.energyHistory.slice(-3).join(" → ")}.
+              </p>
+            )}
+          </div>
+        </aside>
       )}
 
-      {episodes === null ? (
-        <p aria-live="polite">Loading retained intentions…</p>
-      ) : episodes.length === 0 ? (
-        <div className="border border-[color:var(--hairline)] rounded-sm p-6 bg-[color:var(--surface)]">
-          <p className="font-serif text-2xl mb-2">Nothing retained.</p>
-          <p className="text-sm text-[color:var(--muted)]">
-            Mira will ask before giving a new intention a persistent home.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {episodes.map((episode) => {
-            const current = episode.intentions.at(-1)!;
-            return (
-              <article
-                key={episode.id}
-                className="border border-[color:var(--hairline)] rounded-sm p-6 bg-[color:var(--surface)]"
-              >
-                <p className="tag mb-2">
-                  {episode.status} · revision {episode.revision}
-                </p>
-                <h2 className="font-serif text-2xl tracking-tight mb-4">
-                  {current.statement}
-                </h2>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm mb-5">
-                  <dt className="text-[color:var(--muted)]">Added</dt>
-                  <dd>{new Date(episode.createdAt).toLocaleString()}</dd>
-                  <dt className="text-[color:var(--muted)]">Used for</dt>
-                  <dd>Clarification, recommendation, monitoring, and coordination</dd>
-                  <dt className="text-[color:var(--muted)]">Constraints</dt>
-                  <dd>
-                    {Object.entries(current.constraints)
-                      .map(([key, value]) => `${key}: ${value}`)
-                      .join(" · ") || "None yet"}
-                  </dd>
-                </dl>
-                <details className="mb-5">
-                  <summary className="tag cursor-pointer">
-                    show intention history and events
-                  </summary>
-                  <div className="mt-4 space-y-4 text-sm">
-                    {episode.intentions.map((revision) => (
-                      <div key={revision.version}>
-                        <p className="font-medium">Revision {revision.version}</p>
-                        <p>{revision.statement}</p>
-                        <p className="text-[color:var(--muted)]">
-                          {revision.changeReason}
-                        </p>
-                      </div>
-                    ))}
-                    {episode.events.map((event) => (
-                      <p key={event.id} className="text-[color:var(--muted)]">
-                        {new Date(event.createdAt).toLocaleDateString()} ·{" "}
-                        {event.summary}
-                      </p>
-                    ))}
-                  </div>
-                </details>
-                <div className="flex flex-wrap gap-4">
-                  <Link
-                    href={`/episode/${episode.id}`}
-                    className="text-sm text-[color:var(--accent)]"
-                  >
-                    Continue →
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => exportEpisode(episode)}
-                    className="text-sm text-[color:var(--muted)]"
-                  >
-                    Export JSON
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => remove(episode.id)}
-                    className="text-sm text-[color:var(--muted)]"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="mt-12 pt-8 border-t border-[color:var(--hairline)]">
-        <h2 className="font-serif text-2xl mb-3">Boundaries</h2>
-        <ul className="space-y-2 text-sm text-[color:var(--muted)]">
-          <li>Browser data is a cache, not authority.</li>
-          <li>Semantic recall may add context but cannot change episode facts.</li>
-          <li>Invitation links never contain private intention text.</li>
-          <li>Deleting an intention removes its local operational history.</li>
-        </ul>
-      </div>
+      <MemoryView episodes={episodes} />
     </section>
   );
 }

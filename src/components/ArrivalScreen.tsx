@@ -25,7 +25,15 @@ const NEUTRAL_VECTOR: AestheticVector = {
   intimate: 0.45,
 };
 
-export default function ArrivalScreen() {
+type Props = {
+  // Server-derived warm greeting for returning practitioners.
+  // Plain string so the home-page server component can hand it down
+  // without dragging the MemoryContext shape into the client.
+  // Null when the practitioner is new (no useful history yet).
+  greeting?: string | null;
+};
+
+export default function ArrivalScreen({ greeting }: Props) {
   const router = useRouter();
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -95,6 +103,15 @@ export default function ArrivalScreen() {
       />
 
       <div className="w-full max-w-2xl px-6 sm:px-10 py-16 text-center">
+        {greeting && (
+          <p
+            className="tag italic mb-2"
+            aria-live="polite"
+            data-testid="returning-greeting"
+          >
+            {greeting}
+          </p>
+        )}
         <div className="flex justify-center mb-8">
           <MiraOrb size={112} state={submitting ? "thinking" : "calm"} />
         </div>

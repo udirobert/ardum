@@ -301,6 +301,109 @@ async function main() {
       `expected status=booked, got ${res.body.episode.status}`);
   });
 
+  // 11b. Returning-practitioner scenario.
+  // Open a SECOND episode with the same cookie (the smoke journey uses
+  // a single HttpOnly actor cookie throughout, so this is genuinely
+  // the same practitioner returning). The detail route's GET must
+  // project memory from the actor's siblings EXCLUDING the current
+  // episode, so pastBookings[0] here points at the FIRST episode's
+  // booked retreat and pastMatches[0] points at the same episode's
+  // recommendation — confirming the operational recognition line
+  // fires correctly on the second visit.
+  //
+  // The whole body is wrapped in try/finally so any throw on the
+  // walk-to-recommend path (create #2, clarify, recommend, GET)
+  // MUST still wipe #2 from the repo. Without the finally, a 500 on
+  // any of those calls would leave #2 stranded in the dev server's
+  // in-memory repo until restart.
+  let ep2Id = null;
+  try {
+    await step("recognize a returning practitioner — memory.isReturning fires on episode #2", async () => {
+      // Capture #1's final recommendation title from a fresh read so
+      // we have a stable string to match against (record-commitment
+      // clears the hold but keeps recommendation).
+      const firstRead = await jsonRequest("GET", `/api/episodes/${episodeId}`);
+      const firstTitle =
+        firstRead.body?.episode?.recommendation?.result?.retreatTitle;
+      assert(
+        typeof firstTitle === "string" && firstTitle.length > 0,
+        `first episode should still carry its recommendation title, got ${JSON.stringify(
+          firstRead.body?.episode?.recommendation,
+        )}`,
+      );
+
+      // Walk #2 with the same actor cookie. Capture, then three
+      // clarifying revisions, then recommend.
+      const second = await jsonRequest("POST", "/api/episodes", {
+        statement: "A second intention for the smoke journey.",
+        persistenceConsent: true,
+      });
+      assert(second.status === 201, `expected 201, got ${second.status}: ${JSON.stringify(second.body)}`);
+      ep2Id = second.body.episode.id;
+      let ep2Rev = second.body.episode.revision;
+
+      for (const clarifier of [
+        { energy: "low" },
+        { budget: "1k-2k" },
+        { social: "solo" },
+      ]) {
+        const r = await jsonRequest("POST", `/api/episodes/${ep2Id}/actions`, {
+          type: "revise-intention",
+          expectedRevision: ep2Rev,
+          constraints: clarifier,
+          reason: `smoke: clarify ${Object.keys(clarifier)[0]} on #2`,
+        });
+        assert(r.status === 200, `clarify #2: ${r.status} ${JSON.stringify(r.body)}`);
+        ep2Rev = r.body.episode.revision;
+      }
+      const rec2 = await jsonRequest("POST", `/api/episodes/${ep2Id}/actions`, {
+        type: "recommend",
+        expectedRevision: ep2Rev,
+      });
+      assert(rec2.status === 200, `recommend #2: ${rec2.status} ${JSON.stringify(rec2.body)}`);
+
+      // The detail route projects memory from siblings excluding this
+      // episode. #1 is the only sibling; because #1.status === "booked"
+      // AND #1.commitment.status === "booked", the projector puts #1
+      // into BOTH pastMatches[0] and pastBookings[0]. Capture what we
+      // need into locals FIRST so the cleanup is unconditional.
+      const detail = await jsonRequest("GET", `/api/episodes/${ep2Id}`);
+      const memory = detail.body?.memory ?? null;
+      const pastBookingTitle = memory?.pastBookings?.[0]?.title;
+
+      // Inner cleanup. Idempotent against the outer finally — the
+      // second DELETE on Supabase is a fast 200 (the WHERE on
+      // revision matches no rows); the local adapter no-ops.
+      await jsonRequest("DELETE", `/api/episodes/${ep2Id}`);
+
+      const pastMatchTitle = memory?.pastMatches?.[0]?.title;
+      assert(
+        detail.status === 200,
+        `expected 200, got ${detail.status}: ${JSON.stringify(detail.body)}`,
+      );
+      assert(
+        memory && memory.isReturning === true,
+        `memory.isReturning should be true on the second visit, got ${JSON.stringify(memory)}`,
+      );
+      assert(
+        pastBookingTitle === firstTitle,
+        `memory.pastBookings[0].title should equal #1's recommendation, got "${pastBookingTitle}", want "${firstTitle}"`,
+      );
+      assert(
+        pastMatchTitle === firstTitle,
+        `memory.pastMatches[0].title should equal #1's recommendation, got "${pastMatchTitle}", want "${firstTitle}"`,
+      );
+    });
+  } finally {
+    // Belt: even if the step() throws before its inner DELETE ran
+    // (clarify failed, recommend failed, GET failed, etc.), wipe #2.
+    // The inner DELETE is still the happy-path cleanup; this finally
+    // is the rollback the happy path doesn't need.
+    if (ep2Id) {
+      await jsonRequest("DELETE", `/api/episodes/${ep2Id}`).catch(() => {});
+    }
+  }
+
   // 12. Delete and confirm empty.
   await step("DELETE /api/episodes/[id] removes the episode", async () => {
     const res = await jsonRequest("DELETE", `/api/episodes/${episodeId}`);

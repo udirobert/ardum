@@ -3,14 +3,23 @@ import { parseCreateEpisode } from "@/episodes/contracts";
 import { episodeRepository } from "@/episodes/repository";
 import { createEpisode } from "@/episodes/service";
 import { resolveActor } from "@/identity/actor";
+import { projectActorMemory } from "@/memory/enrich";
+import { cogneeMemory } from "@/memory/cognee";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const actorId = await resolveActor();
-  if (!actorId) return NextResponse.json({ episodes: [] });
+  if (!actorId) return NextResponse.json({ episodes: [], memory: null });
+  // Project from ALL the actor's episodes here — the LIST endpoint
+  // serves each episode equally; there is no "current vs prior"
+  // distinction the way the detail endpoint (`/api/episodes/[id]`)
+  // has. The detail route filters out the current id so matchLetter
+  // can read pastMatches[0] as a *prior* match. Don't add the same
+  // filter here by analogy.
   const episodes = await episodeRepository.listOwned(actorId);
-  return NextResponse.json({ episodes });
+  const memory = await projectActorMemory(actorId, episodes, cogneeMemory);
+  return NextResponse.json({ episodes, memory });
 }
 
 export async function POST(request: Request) {

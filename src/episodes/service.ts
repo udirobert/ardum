@@ -20,6 +20,7 @@ import {
   type EpisodeEvent,
   type IntentionConstraints,
 } from "./model";
+import { fireSemanticRemember } from "@/memory/observe";
 import { recommendForEpisode } from "./recommendation";
 import { episodeRepository } from "./repository";
 
@@ -182,6 +183,13 @@ export async function applyEpisodeCommand(
           event(ids, now, "recommendation-created", "Mira chose one next step."),
         ],
       };
+      // Semantic memory — fire-and-forget. recall() will surface the
+      // recommendation on the practitioner's next visit. Never blocks
+      // the response. Cognee is silent when unconfigured.
+      fireSemanticRemember(
+        episode.actorId,
+        `recommendation:${episode.recommendation!.result.retreatRootHash}`,
+      );
       break;
     }
     case "feedback": {
@@ -340,6 +348,12 @@ export async function applyEpisodeCommand(
           event(ids, now, "commitment-recorded", "The booking was confirmed."),
         ],
       };
+      // Semantic memory on commitment so the next-returning visit can
+      // weave "the last place you booked" into the recognition line.
+      fireSemanticRemember(
+        episode.actorId,
+        `commitment:${command.bookingRootHash}`,
+      );
       break;
     case "pause":
       episode = {

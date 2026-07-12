@@ -17,6 +17,8 @@ import type {
   NextDecision,
 } from "./model";
 import { createAbortableRunner } from "@/lib/abortableFetch";
+import type { MemoryContext } from "@/memory/semantic-memory";
+import { matchLetter } from "@/agent/mira-voice";
 
 type Props = { episodeId: string };
 
@@ -28,6 +30,14 @@ const CommitmentPanel = dynamic(
 type EpisodePayload = {
   episode: Episode;
   nextDecision: NextDecision;
+  // Memory is server-projected (operational truth from the episode
+  // repository, optionally enriched with Cognee recall). Optional
+  // because the list endpoint may also produce this payload, and
+  // because older routes may not have wired it yet. When present,
+  // the workbench renders Mira's recognition lines above the
+  // recommendation card; when absent (or isReturning=false), no
+  // letter is shown — the recommendation card itself does that work.
+  memory?: MemoryContext;
   shareToken?: string;
   error?: string;
 };
@@ -262,10 +272,26 @@ useEffect(() => {
     );
   }
 
-  const { episode, nextDecision } = payload;
+  const { episode, nextDecision, memory } = payload;
   const intention = episode.intentions.at(-1)!;
   const recommendation = episode.recommendation?.result;
   const latestObservation = episode.monitor?.observations.at(-1);
+
+  // Derived once per render so the recommendation block has stable
+  // inputs. matchLetter() is pure; memoizing around it would only
+  // add complexity for no win. Recognition lines are read directly
+  // off `letter.lines.slice(0, letter.recognitionLineCount)` — the
+  // letter pushes recognition lines at the front and the narrative
+  // body after, exactly once.
+  const practitionerSignals = {
+    energy: intention.constraints.energy,
+    budget: intention.constraints.budget,
+    social: intention.constraints.social,
+  };
+  const letter =
+    recommendation && memory && memory.isReturning
+      ? matchLetter(recommendation, practitionerSignals, memory)
+      : null;
 
   return (
     <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
@@ -373,6 +399,29 @@ useEffect(() => {
 
         {recommendation && (
           <div className="space-y-6">
+            {letter && letter.recognitionLineCount > 0 && (
+              <aside
+                aria-label="a note from Mira"
+                className="border-l-2 border-[color:var(--accent-soft)] pl-5"
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <MiraOrb size={40} state="calm" />
+                  <p className="tag pt-2">a note from Mira</p>
+                </div>
+                <div className="space-y-2 leading-relaxed">
+                  {letter.lines
+                    .slice(0, letter.recognitionLineCount)
+                    .map((line, index) => (
+                      <p
+                        key={`recognition-${index}`}
+                        className="italic text-[color:var(--accent-ink)]"
+                      >
+                        {line}
+                      </p>
+                    ))}
+                </div>
+              </aside>
+            )}
             <div>
               <p className="tag mb-2">one current recommendation</p>
               <h3 className="font-serif text-3xl tracking-tight">

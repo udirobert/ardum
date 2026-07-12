@@ -51,7 +51,15 @@ export function matchLetter(
 
   // If Mira has memory of this practitioner, open with a recognition line
   // instead of a cold start. This is the "AI that doesn't forget" moment.
-  if (memory?.isReturning && memory.provider !== "none") {
+  //
+  // Recognition is operational: per AGENTS.md ("operational truth belongs
+  // to the episode repository"), it gates on `isReturning`, which is
+  // derived from the episode list by src/memory/projector.ts and is true
+  // whenever the practitioner has ever surfaced a recommendation or
+  // recorded a booking. The provider check stays where pastNotes /
+  // priorCheckIns are woven (semantic-memory fields are by definition
+  // lossy supplementary, and empty in projector-only mode).
+  if (memory?.isReturning) {
     const lastEnergy = memory.energyHistory[memory.energyHistory.length - 1];
     const energyShifted =
       lastEnergy && lastEnergy !== signals.energy
@@ -234,7 +242,9 @@ export function preparationPlan(
 
   // If Mira has memory of past practice, weave it into day 1's description.
   // This is the improve() payoff — the preparation plan gets sharper the
-  // more the practitioner uses Ardum.
+  // more the practitioner uses Ardum. pastNotes are supplied by semantic
+  // memory (Cognee) — they are LOSSY by AGENTS.md, so the weave stays
+  // gated on provider !== "none" rather than on isReturning alone.
   if (memory?.isReturning && memory.provider !== "none" && memory.pastNotes.length > 0) {
     days[0] = {
       ...days[0],
