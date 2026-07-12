@@ -27,6 +27,8 @@ to outcome.
 The canonical product direction is in
 [`docs/product-vision.md`](docs/product-vision.md). System boundaries and
 sources of truth are in [`docs/architecture.md`](docs/architecture.md).
+Architectural decisions are recorded as ADRs in
+[`docs/decisions/`](docs/decisions/).
 
 ## Current journey
 
@@ -65,7 +67,7 @@ without changing it — a confidence check, never an action.
   never mutates episode state. A controlled synthetic-pool property test
   pins that the toggle can flip the top pick on a mutually-exclusive pool.
 - **Automation adapters** — monitoring, non-binding holds, and coordination
-- **Cognee** — optional semantic recall; never transactional persistence
+- **Memory subsystem** — a pure operational projector with an optional Cognee semantic-enrichment adapter; the per-route projector-only-vs-enriched contract is recorded as [ADR 0007](docs/decisions/0007-memory-architecture.md)
 - **0G Storage** — optional immutable evidence; never episode state
 - **Magic, Particle, Arbitrum** — optional commitment execution, loaded only
   when a person chooses to book
@@ -104,8 +106,30 @@ divergence at the boundary, not in production:
 - `npm run smoke:journey [-- URL]` walks the canonical intake-to-booking
   journey against a live server (default `http://localhost:3000`) and
   asserts status transitions, the MatchResult shape, idempotent retry
-  behavior, and the 409 path for stale revisions. Run it after any change
-  to the API surface, repository contract, or service orchestration.
+  behavior, the 409 path for stale revisions, and the returning
+  practitioner scenario (memory projection from siblings). Run it after
+  any change to the API surface, repository contract, or service
+  orchestration.
+- `npm run smoke:ui [-- URL]` walks the server-rendered visible
+  surface — the home-page returning-practitioner greeting
+  (`data-testid="returning-greeting"`) and the /memory summary card
+  (`data-testid="memory-summary"`) — and pins that both appear after
+  a recommendation is surfaced and both vanish after the episode is
+  deleted. Run it after any change to the home, /memory, or memory
+  projection.
+
+## Operations
+
+Two operator surfaces touch live infrastructure and are documented in
+[`docs/OPERATIONS.md`](docs/OPERATIONS.md):
+
+- `npm run e2e:loop` — re-seeds attestations on 0G Storage and deploys
+  the retail escrow contract on Arbitrum Sepolia. Skips phases whose
+  secrets are absent so a CI run or the smoke journey can call it
+  without breaking.
+- `npm run verify:automation` — probes `/api/internal/automation` to
+  confirm the scheduler is alive and authorized. Exit codes: `0` ok,
+  `1` unreachable, `2` unauthorized or missing config.
 
 ## Privacy and trust
 
