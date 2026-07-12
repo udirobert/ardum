@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { projectActorMemory } from "./enrich";
 import { projectMemoryForActor } from "./projector";
+import { cogneeMemory } from "./cognee";
 import type { Episode } from "@/episodes/model";
 import type { MatchResult } from "@/matching/types";
 import type {
@@ -217,5 +218,126 @@ describe("projectActorMemory", () => {
     expect(result.pastNotes).toContain("another real note");
     expect(result.pastNotes).toContain("   ");
     expect(result.pastNotes).not.toContain("");
+  });
+});
+
+// Pairs with src/memory/cognee.test.ts: that file pins the
+// Cognee adapter's HTTP contract in isolation. This block pins
+// the bridge — projectActorMemory — against the REAL cogneeMemory
+// with a mocked fetch. The mkSemantic stub above models delay and
+// throw in-process; the cases here model the real fetch path that
+// the stub skips: 200, 500, fetch-throw, and a fetch that resolves
+// late enough to trip the 800ms withTimeout. Without this block,
+// a Cognee API change (response shape, header, dataset prefix) or
+// a transport failure (DNS, TLS, ECONNREFUSED) would silently
+// degrade pastNotes and the practitioner would see the projector
+// output without knowing the supplement failed.
+describe("projectActorMemory with the real cogneeMemory (fetch mocked)", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+  let originalBaseUrl: string | undefined;
+  let originalApiKey: string | undefined;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    originalBaseUrl = process.env.COGNEE_BASE_URL;
+    originalApiKey = process.env.COGNEE_API_KEY;
+    process.env.COGNEE_BASE_URL = "https://cognee.test";
+    process.env.COGNEE_API_KEY = "test-key";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (originalBaseUrl === undefined) delete process.env.COGNEE_BASE_URL;
+    else process.env.COGNEE_BASE_URL = originalBaseUrl;
+    if (originalApiKey === undefined) delete process.env.COGNEE_API_KEY;
+    else process.env.COGNEE_API_KEY = originalApiKey;
+  });
+
+  it("fills pastNotes from a real Cognee 200 response", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          results: [{ text: "real note from Cognee", source: "diary" }],
+        }),
+        { status: 200 },
+      ),
+    );
+    const result = await projectActorMemory(
+      "actor-1",
+      episodesWithMatch(),
+      cogneeMemory,
+    );
+    expect(result.provider).toBe("cognee");
+    expect(result.pastNotes).toEqual(["real note from Cognee"]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to projector output when the real Cognee delays past recallTimeoutMs", async () => {
+    // Real Cognee resolves after 200ms with valid items. The
+    // 50ms recallTimeoutMs we set in the test fires first, so
+    // pastNotes stay empty. The 200ms delay (rather than the
+    // full 800ms) keeps the test fast — we only need to
+    // demonstrate that withTimeout resolves to null before the
+    // fetch does. The 1000ms vitest timeout is a safety net for
+    // the lingering setTimeout in the mock — vitest warns on
+    // leaked timers.
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve(
+                new Response(
+                  JSON.stringify({
+                    results: [{ text: "late note", source: "diary" }],
+                  }),
+                  { status: 200 },
+                ),
+              ),
+            200,
+          ),
+        ),
+    );
+    const result = await projectActorMemory(
+      "actor-1",
+      episodesWithMatch(),
+      cogneeMemory,
+      { recallTimeoutMs: 50 },
+    );
+    expect(result.provider).toBe("none");
+    expect(result.pastNotes).toEqual([]);
+    // Projector passthrough: isReturning stays true because the
+    // episode has a recommendation, regardless of the semantic
+    // supplement.
+    expect(result.isReturning).toBe(true);
+  }, 1000);
+
+  it("falls back to projector output when the real Cognee returns 500", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response("Internal Server Error", { status: 500 }),
+    );
+    const result = await projectActorMemory(
+      "actor-1",
+      episodesWithMatch(),
+      cogneeMemory,
+    );
+    expect(result.provider).toBe("none");
+    expect(result.pastNotes).toEqual([]);
+  });
+
+  it("falls back to projector output when the real fetch throws", async () => {
+    // The outter try/catch in cogneeMemory.recall() swallows the
+    // network-layer error and returns []. Pins the contract: a
+    // Cognee outage cannot break an episode transition or first
+    // paint.
+    fetchMock.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+    const result = await projectActorMemory(
+      "actor-1",
+      episodesWithMatch(),
+      cogneeMemory,
+    );
+    expect(result.provider).toBe("none");
+    expect(result.pastNotes).toEqual([]);
   });
 });
