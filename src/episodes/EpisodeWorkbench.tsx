@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import MiraOrb from "@/components/MiraOrb";
 import type { MatchResult } from "@/matching/types";
-import type { BudgetBand } from "@/calibration/schema";
-import { BUDGET_BANDS } from "@/calibration/schema";
+import type { BudgetBand, EnergyState } from "@/calibration/schema";
+import { BUDGET_BANDS, ENERGY_STATES } from "@/calibration/schema";
 import type { CounterfactualResult } from "@/episodes/counterfactual";
 import type {
   PerspectiveName,
@@ -144,6 +144,45 @@ async function runCounterfactualBudget(
     );
   } finally {
     setBandLoading(false);
+  }
+}
+
+const [activeEnergy, setActiveEnergy] = useState<EnergyState | null>(null);
+const [energyData, setEnergyData] = useState<CounterfactualResult | null>(null);
+const [energyLoading, setEnergyLoading] = useState(false);
+
+async function runCounterfactualEnergy(
+  energy: EnergyState | null,
+): Promise<void> {
+  setActiveEnergy(energy);
+  if (energy === null) {
+    setEnergyData(null);
+    return;
+  }
+  setEnergyLoading(true);
+  try {
+    const response = await fetch(
+      `/api/episodes/${episodeId}/counterfactual-energy?energy=${encodeURIComponent(energy)}`,
+      { cache: "no-store" },
+    );
+    const json = (await response.json()) as {
+      counterfactual?: CounterfactualResult;
+      error?: string;
+    };
+    if (!response.ok || !json.counterfactual) {
+      throw new Error(
+        json.error ?? "Could not run the counterfactual.",
+      );
+    }
+    setEnergyData(json.counterfactual);
+  } catch (caught) {
+    setError(
+      caught instanceof Error
+        ? caught.message
+        : "Could not run the counterfactual.",
+    );
+  } finally {
+    setEnergyLoading(false);
   }
 }
 
@@ -362,6 +401,10 @@ useEffect(() => {
                 bandData={bandData}
                 bandLoading={bandLoading}
                 onPickBand={runCounterfactualBudget}
+                activeEnergy={activeEnergy}
+                energyData={energyData}
+                energyLoading={energyLoading}
+                onPickEnergy={runCounterfactualEnergy}
               />
             ) : (
               <>
@@ -401,6 +444,10 @@ useEffect(() => {
                   bandData={bandData}
                   bandLoading={bandLoading}
                   onPickBand={runCounterfactualBudget}
+                  activeEnergy={activeEnergy}
+                  energyData={energyData}
+                  energyLoading={energyLoading}
+                  onPickEnergy={runCounterfactualEnergy}
                   holdActive={false}
                   variant="open"
                 />
@@ -637,6 +684,55 @@ function BudgetCounterfactualOutcome({
   );
 }
 
+// A small panel that shows which retreat a hypothetical energy state
+// picks. Mirrors the budget counterpart's structure (peer of
+// BudgetCounterfactualOutcome inside ExploreOtherFits body). The
+// sameAsMain flag turns this into a statement (the override agrees
+// with the surfaced recommendation) rather than a recommendation
+// replacement — agency without confusion.
+function EnergyCounterfactualOutcome({
+  energy,
+  topRanked,
+  recommendation,
+}: {
+  energy: EnergyState;
+  topRanked: MatchResult | null;
+  recommendation: MatchResult | undefined;
+}) {
+  const energyLabel =
+    ENERGY_STATES.find((e) => e.value === energy)?.label ?? energy;
+  const sameAsMain =
+    topRanked !== null &&
+    recommendation !== undefined &&
+    topRanked.retreatRootHash === recommendation.retreatRootHash;
+  if (!topRanked) {
+    return (
+      <div className="mt-4 border-l-2 border-[color:var(--accent-soft)] pl-4">
+        <p className="tag mb-2">if energy were {energyLabel}</p>
+        <p className="text-sm text-[color:var(--muted)]">
+          Nothing in the verified pool fits that register — and that
+          is information too.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-4 border-l-2 border-[color:var(--accent-soft)] pl-4">
+      <p className="tag mb-2">
+        if energy were {energyLabel}
+        {sameAsMain ? " (same retreat)" : ""}
+      </p>
+      <p className="font-serif text-xl tracking-tight mb-1">
+        {topRanked.retreatTitle}
+      </p>
+      <p className="text-sm text-[color:var(--muted)]">
+        {topRanked.retreatLocation} · {topRanked.durationDays} days · $
+        {topRanked.priceUsd.toLocaleString()}
+      </p>
+    </div>
+  );
+}
+
 // Surfaces the alternatives + lens toggle as a single component, in
 // two contexts: open when no hold is active (the natural secondary
 // inspection after the primary decision is shown), and collapsed as a
@@ -656,6 +752,10 @@ function ExploreOtherFits({
   bandData,
   bandLoading,
   onPickBand,
+  activeEnergy,
+  energyData,
+  energyLoading,
+  onPickEnergy,
   holdActive,
   variant,
 }: {
@@ -670,6 +770,10 @@ function ExploreOtherFits({
   bandData: CounterfactualResult | null;
   bandLoading: boolean;
   onPickBand: (band: BudgetBand | null) => void;
+  activeEnergy: EnergyState | null;
+  energyData: CounterfactualResult | null;
+  energyLoading: boolean;
+  onPickEnergy: (energy: EnergyState | null) => void;
   holdActive: boolean;
   variant: "open" | "details";
 }) {
@@ -802,6 +906,51 @@ function ExploreOtherFits({
             />
           )}
         </div>
+        <div>
+          <p className="tag mb-2">what if your energy were different?</p>
+          <p className="why mb-3">
+            If you had arrived with a different energy, Mira would
+            re-rank. Your stated energy never changes — this is
+            a confidence check, not a commitment.
+          </p>
+          <div
+            role="group"
+            aria-label="Re-rank the fit under a hypothetical energy"
+            className="flex flex-wrap gap-2"
+          >
+            {ENERGY_STATES.map(({ value, label }) => {
+              const isActive = activeEnergy === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={busy || energyLoading}
+                  onClick={() => onPickEnergy(isActive ? null : value)}
+                  className={`px-3 py-2 rounded-sm border text-sm transition-colors disabled:opacity-40 ${
+                    isActive
+                      ? "border-[color:var(--accent)] text-[color:var(--accent-ink)]"
+                      : "border-[color:var(--hairline)] hover:border-[color:var(--accent)]"
+                  }`}
+                  aria-pressed={isActive}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          {energyLoading && (
+            <p className="text-sm text-[color:var(--muted)] mt-3 italic">
+              Re-ranking under a different energy…
+            </p>
+          )}
+          {!energyLoading && activeEnergy && energyData && (
+            <EnergyCounterfactualOutcome
+              energy={activeEnergy}
+              topRanked={energyData.topRanked}
+              recommendation={recommendation}
+            />
+          )}
+        </div>
       </div>
     );
 
@@ -841,6 +990,10 @@ function HoldPanel({
   bandData,
   bandLoading,
   onPickBand,
+  activeEnergy,
+  energyData,
+  energyLoading,
+  onPickEnergy,
 }: {
   episode: Episode;
   participant: string;
@@ -859,6 +1012,10 @@ function HoldPanel({
   bandData: CounterfactualResult | null;
   bandLoading: boolean;
   onPickBand: (band: BudgetBand | null) => void;
+  activeEnergy: EnergyState | null;
+  energyData: CounterfactualResult | null;
+  energyLoading: boolean;
+  onPickEnergy: (energy: EnergyState | null) => void;
 }) {
   const hold = episode.hold!;
   return (
@@ -973,6 +1130,10 @@ function HoldPanel({
         bandData={bandData}
         bandLoading={bandLoading}
         onPickBand={onPickBand}
+        activeEnergy={activeEnergy}
+        energyData={energyData}
+        energyLoading={energyLoading}
+        onPickEnergy={onPickEnergy}
         holdActive={true}
         variant="details"
       />
