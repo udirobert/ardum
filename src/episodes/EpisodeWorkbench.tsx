@@ -573,6 +573,10 @@ function ExploreOtherFits({
           ? "Your hold continues below. These alternatives and a re-ranking are a confidence check — nothing here moves without your word."
           : "Mira can re-weight the criteria. Nothing is committed — you stay where you are."}
       </p>
+      <p className="why mb-3">
+        A re-ranking may flip the top pick — that&apos;s what this surface
+        is here to catch.
+      </p>
       {alternatives.length > 0 && (
         <div>
           <p className="tag mb-2">
