@@ -85,6 +85,24 @@ Corrections revise the intention or constraints and run the same policy.
 Optional language generation receives the computed decision and may summarize
 its rationale. It cannot invent evidence, change scores, or reorder candidates.
 
+### Lens re-ranking as a derived view
+
+Three composite-weight balances — the **lenses** in `src/agent/score.ts`:
+balanced, restorative, movement — run the same pure ranking policy over the
+same evidence and practitioner profile. Lenses are derived views: read-only
+recomputations that never mutate episode state. The optional
+`GET /api/episodes/[id]/perspectives` endpoint exposes them; authorization
+is required and the response shape matches the surfaced recommendation.
+
+The synthetic-pool property test in `src/agent/score.test.ts` makes one
+guarantee verifiable rather than aspirational: on a 2-retreat pool with
+mutually-exclusive energy/social claims, MOVEMENT_LENS can flip the top
+pick to a retreat BALANCED ranked second, while BALANCED and RESTORATIVE
+keep the top pick with a measurably higher composite under Restorative.
+The hold-aware disclosure on the Workbench UI surfaces this guarantee to
+the user with one calm caption: a re-ranking may flip the top pick — that
+is what this surface is here to catch.
+
 ## Automation
 
 Monitoring, holds, and coordination use provider interfaces with deterministic
@@ -183,6 +201,24 @@ way a browser would.
 
 The journey is the canary that nothing in the contract has been quietly broken
 by a route-handler, parser, or service-layer change.
+
+### Ranking policy property tests
+
+`src/agent/score.test.ts` pins the deterministic ranking policy against
+two layers of guarantee at once:
+
+- **Seed-catalog conformance** — every retreat is ranked, every score
+  stays within [0, 1], runner-ups shift between Balanced and the
+  alternative lenses under at least one practitioner profile, and
+  overrides versus defaults measurably change at least one score.
+- **Synthetic-pool property** — a controlled 2-retreat pool with
+  mutually-exclusive energy and social claims proves that
+  MOVEMENT_LENS flips the top pick while BALANCED and RESTORATIVE keep
+  it, with a measurably higher composite under Restorative. The pool
+  is inline so changes to the seed catalog cannot affect the
+  assertion.
+
+Any change to `score.ts` that violates either guarantee fails the build.
 
 ## Release gate
 

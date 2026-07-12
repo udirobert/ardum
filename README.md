@@ -45,6 +45,12 @@ clear boundaries. The episode database owns operational state. Semantic memory
 adds context. Verifiable evidence supports recommendations. Payment and booking
 providers execute an explicit commitment.
 
+A non-committing re-ranking under a different priority balance is available
+at any point. Balanced, restorative, and movement lenses share the same
+evidence and never touch the episode. When a hold is active, the re-ranking
+lives inside the disclosure so the user can confirm the hold still fits
+without changing it — a confidence check, never an action.
+
 ## Architecture
 
 - **Next.js 16.2 / React 19** — application and route handlers
@@ -53,6 +59,11 @@ providers execute an explicit commitment.
   persistent deployments
 - **Deterministic recommendation service** — one ranking policy shared by every
   recommendation and correction flow
+- **Lens toggle re-ranking** — three composite-weight balances (balanced,
+  restorative, movement) reused from the existing `LENSES` registry in
+  `src/agent/score.ts`. Re-runs the pure ranking over the same evidence;
+  never mutates episode state. A controlled synthetic-pool property test
+  pins that the toggle can flip the top pick on a mutually-exclusive pool.
 - **Automation adapters** — monitoring, non-binding holds, and coordination
 - **Cognee** — optional semantic recall; never transactional persistence
 - **0G Storage** — optional immutable evidence; never episode state

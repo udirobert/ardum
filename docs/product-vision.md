@@ -50,6 +50,8 @@ Examples:
 - “A non-binding hold is available for 48 hours. Nothing will be charged.”
 - “Two people still need to respond. I will keep the hold active until
   tomorrow.”
+- “A re-ranking under different priorities is available at any point. It
+  is read-only. A hold is never changed by it.”
 
 ## Agency is earned
 
