@@ -22,7 +22,9 @@ idempotent where externally visible, and guarded by an expected revision.
 | Retreat claims | Evidence repository | 0G may provide immutable evidence references |
 
 No operational decision may reconstruct state from semantic prose, URL payloads,
-or local storage.
+or local storage. The projector/observe/enrich split and the per-route
+projector-vs-cognee contract that backs the Semantic context row above are in
+[0007-memory-architecture](docs/decisions/0007-memory-architecture.md).
 
 ## Boundaries
 

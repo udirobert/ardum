@@ -34,7 +34,7 @@ experience as a marketplace, ranked-results page, or conversational checkout.
 - The episode repository owns operational state.
 - The deterministic ranking policy owns recommendation ordering.
 - Derived ranking views (lens re-rankings and similar) never mutate episode state.
-- Semantic memory is supplementary and lossy.
+- Semantic memory is supplementary and lossy. The projector/observe/enrich split and the per-route projector-vs-cognee contract are documented in [0007-memory-architecture](docs/decisions/0007-memory-architecture.md).
 - 0G contains evidence, not journey state.
 - Browser storage is a disposable cache.
 - Client-supplied identifiers never establish ownership.

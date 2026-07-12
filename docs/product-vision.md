@@ -70,7 +70,9 @@ inspectable and reversible where the provider permits it.
 
 Operational truth belongs to the episode repository. Semantic memory can help
 Mira recognize patterns and language, but it is lossy context rather than a
-ledger.
+ledger. The projector/observe/enrich split that backs this contract — including
+which routes use projector-only output and which use cognee enrichment — is in
+[0007-memory-architecture](docs/decisions/0007-memory-architecture.md).
 
 The product must distinguish:
 
