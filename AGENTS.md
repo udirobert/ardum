@@ -33,6 +33,7 @@ experience as a marketplace, ranked-results page, or conversational checkout.
 
 - The episode repository owns operational state.
 - The deterministic ranking policy owns recommendation ordering.
+- Lens re-rankings are derived views; they never mutate episode state.
 - Semantic memory is supplementary and lossy.
 - 0G contains evidence, not journey state.
 - Browser storage is a disposable cache.
