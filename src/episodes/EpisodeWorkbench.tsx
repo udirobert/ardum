@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import MiraOrb from "@/components/MiraOrb";
 import type { MatchResult } from "@/matching/types";
+import type { BudgetBand } from "@/calibration/schema";
+import { BUDGET_BANDS } from "@/calibration/schema";
+import type { CounterfactualResult } from "@/episodes/counterfactual";
 import type {
   PerspectiveName,
 } from "./perspectives";
@@ -100,12 +103,51 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
       setError(
         caught instanceof Error ? caught.message : "Could not recompute.",
       );
-    } finally {
-      setLensLoading(false);
-    }
+  } finally {
+    setLensLoading(false);
   }
+}
 
-  useEffect(() => {
+const [activeBand, setActiveBand] = useState<BudgetBand | null>(null);
+const [bandData, setBandData] = useState<CounterfactualResult | null>(null);
+const [bandLoading, setBandLoading] = useState(false);
+
+async function runCounterfactualBudget(
+  band: BudgetBand | null,
+): Promise<void> {
+  setActiveBand(band);
+  if (band === null) {
+    setBandData(null);
+    return;
+  }
+  setBandLoading(true);
+  try {
+    const response = await fetch(
+      `/api/episodes/${episodeId}/counterfactual-budget?band=${encodeURIComponent(band)}`,
+      { cache: "no-store" },
+    );
+    const json = (await response.json()) as {
+      counterfactual?: CounterfactualResult;
+      error?: string;
+    };
+    if (!response.ok || !json.counterfactual) {
+      throw new Error(
+        json.error ?? "Could not run the counterfactual.",
+      );
+    }
+    setBandData(json.counterfactual);
+  } catch (caught) {
+    setError(
+      caught instanceof Error
+        ? caught.message
+        : "Could not run the counterfactual.",
+    );
+  } finally {
+    setBandLoading(false);
+  }
+}
+
+useEffect(() => {
     fetch(`/api/episodes/${episodeId}`, { cache: "no-store" })
       .then(async (response) => {
         const data = (await response.json()) as EpisodePayload;
@@ -316,6 +358,10 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
                 lensData={lensData}
                 lensLoading={lensLoading}
                 onPickLens={recomputeWithPerspective}
+                activeBand={activeBand}
+                bandData={bandData}
+                bandLoading={bandLoading}
+                onPickBand={runCounterfactualBudget}
               />
             ) : (
               <>
@@ -351,6 +397,10 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
                   lensLoading={lensLoading}
                   busy={busy}
                   onPickLens={recomputeWithPerspective}
+                  activeBand={activeBand}
+                  bandData={bandData}
+                  bandLoading={bandLoading}
+                  onPickBand={runCounterfactualBudget}
                   holdActive={false}
                   variant="open"
                 />
@@ -538,6 +588,55 @@ function LensOutcome({
   );
 }
 
+// A small panel that shows which retreat a hypothetical budget band
+// picks. Mirrors LensOutcome so the two peer sections read the same.
+// Used under the counterfactual budget toggle. The sameAsMain flag
+// turns this into a statement (the override agrees with the surfaced
+// recommendation) rather than a recommendation replacement — agency
+// without confusion.
+function BudgetCounterfactualOutcome({
+  band,
+  topRanked,
+  recommendation,
+}: {
+  band: BudgetBand;
+  topRanked: MatchResult | null;
+  recommendation: MatchResult | undefined;
+}) {
+  const bandLabel =
+    BUDGET_BANDS.find((b) => b.value === band)?.label ?? band;
+  const sameAsMain =
+    topRanked !== null &&
+    recommendation !== undefined &&
+    topRanked.retreatRootHash === recommendation.retreatRootHash;
+  if (!topRanked) {
+    return (
+      <div className="mt-4 border-l-2 border-[color:var(--accent-soft)] pl-4">
+        <p className="tag mb-2">if budget were {bandLabel}</p>
+        <p className="text-sm text-[color:var(--muted)]">
+          Nothing in the verified pool satisfies that limit — and that
+          is information too.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-4 border-l-2 border-[color:var(--accent-soft)] pl-4">
+      <p className="tag mb-2">
+        if budget were {bandLabel}
+        {sameAsMain ? " (same retreat)" : ""}
+      </p>
+      <p className="font-serif text-xl tracking-tight mb-1">
+        {topRanked.retreatTitle}
+      </p>
+      <p className="text-sm text-[color:var(--muted)]">
+        {topRanked.retreatLocation} · {topRanked.durationDays} days · $
+        {topRanked.priceUsd.toLocaleString()}
+      </p>
+    </div>
+  );
+}
+
 // Surfaces the alternatives + lens toggle as a single component, in
 // two contexts: open when no hold is active (the natural secondary
 // inspection after the primary decision is shown), and collapsed as a
@@ -553,6 +652,10 @@ function ExploreOtherFits({
   lensLoading,
   busy,
   onPickLens,
+  activeBand,
+  bandData,
+  bandLoading,
+  onPickBand,
   holdActive,
   variant,
 }: {
@@ -563,6 +666,10 @@ function ExploreOtherFits({
   lensLoading: boolean;
   busy: boolean;
   onPickLens: (lens: PerspectiveName) => void;
+  activeBand: BudgetBand | null;
+  bandData: CounterfactualResult | null;
+  bandLoading: boolean;
+  onPickBand: (band: BudgetBand | null) => void;
   holdActive: boolean;
   variant: "open" | "details";
 }) {
@@ -648,11 +755,55 @@ function ExploreOtherFits({
                 lensData[activeLens]!.retreatRootHash ===
                 recommendation?.retreatRootHash
               }
+            />          )}
+        </div>
+        <div>
+          <p className="tag mb-2">what if your budget were tighter?</p>
+          <p className="why mb-3">
+            If you had set a different limit, Mira would re-rank. Your
+            stated budget never changes — this is a confidence
+            check, not a commitment.
+          </p>
+          <div
+            role="group"
+            aria-label="Re-rank the fit under a hypothetical budget"
+            className="flex flex-wrap gap-2"
+          >
+            {BUDGET_BANDS.map(({ value, label }) => {
+              const isActive = activeBand === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={busy || bandLoading}
+                  onClick={() => onPickBand(isActive ? null : value)}
+                  className={`px-3 py-2 rounded-sm border text-sm transition-colors disabled:opacity-40 ${
+                    isActive
+                      ? "border-[color:var(--accent)] text-[color:var(--accent-ink)]"
+                      : "border-[color:var(--hairline)] hover:border-[color:var(--accent)]"
+                  }`}
+                  aria-pressed={isActive}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          {bandLoading && (
+            <p className="text-sm text-[color:var(--muted)] mt-3 italic">
+              Re-ranking under a different limit…
+            </p>
+          )}
+          {!bandLoading && activeBand && bandData && (
+            <BudgetCounterfactualOutcome
+              band={activeBand}
+              topRanked={bandData.topRanked}
+              recommendation={recommendation}
             />
           )}
+        </div>
       </div>
-    </div>
-  );
+    );
 
   if (variant === "details") {
     return (
@@ -686,6 +837,10 @@ function HoldPanel({
   lensData,
   lensLoading,
   onPickLens,
+  activeBand,
+  bandData,
+  bandLoading,
+  onPickBand,
 }: {
   episode: Episode;
   participant: string;
@@ -700,6 +855,10 @@ function HoldPanel({
   lensData: PerspectivesPayload | null;
   lensLoading: boolean;
   onPickLens: (lens: PerspectiveName) => void;
+  activeBand: BudgetBand | null;
+  bandData: CounterfactualResult | null;
+  bandLoading: boolean;
+  onPickBand: (band: BudgetBand | null) => void;
 }) {
   const hold = episode.hold!;
   return (
@@ -810,6 +969,10 @@ function HoldPanel({
         lensLoading={lensLoading}
         busy={busy}
         onPickLens={onPickLens}
+        activeBand={activeBand}
+        bandData={bandData}
+        bandLoading={bandLoading}
+        onPickBand={onPickBand}
         holdActive={true}
         variant="details"
       />
