@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+// Loads @types/react canary declarations (ViewTransition) project-wide.
+import type {} from "react/canary";
+import { ViewTransition } from "react";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
-import PageTransition from "@/components/PageTransition";
 import SmoothScroll from "@/components/SmoothScroll";
 import "./globals.css";
 
@@ -58,7 +60,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <header className="px-6 sm:px-10 pt-6 pb-2 flex items-baseline justify-between">
+        <header
+          className="px-6 sm:px-10 pt-6 pb-2 flex items-baseline justify-between"
+          style={{ viewTransitionName: "site-header" }}
+        >
           <Link
             href="/"
             className="font-serif text-2xl tracking-tight text-foreground"
@@ -71,7 +76,9 @@ export default function RootLayout({
         </header>
         <main className="flex-1">
           <SmoothScroll>
-            <PageTransition>{children}</PageTransition>
+            <ViewTransition enter="page-in" exit="page-out">
+              {children}
+            </ViewTransition>
           </SmoothScroll>
         </main>
         <footer className="px-6 sm:px-10 py-6 rule border-t mt-12">

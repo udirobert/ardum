@@ -40,6 +40,12 @@ type MiraOrbProps = {
   children?: ReactNode;
   className?: string;
   aestheticVector?: AestheticVector | null;
+  /**
+   * Marks this orb as the page's primary presence: it becomes the shared
+   * element that morphs across route transitions. At most one orb per page
+   * may be shared — duplicate names skip the view transition entirely.
+   */
+  shared?: boolean;
 };
 
 // Ardum base palette (sRGB 0–1).
@@ -244,6 +250,7 @@ export default function MiraOrb({
   children,
   className,
   aestheticVector,
+  shared = false,
 }: MiraOrbProps) {
   const orbRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -485,7 +492,15 @@ export default function MiraOrb({
   return (
     <div className={`flex flex-col items-center gap-3 ${className ?? ""}`}>
       {useScene ? (
-        <div className="relative" style={{ width: size, height: size }} aria-hidden>
+        <div
+          className="relative"
+          style={{
+            width: size,
+            height: size,
+            viewTransitionName: shared ? "mira-orb" : undefined,
+          }}
+          aria-hidden
+        >
           <MiraScene
             size={size}
             morph={morph}
@@ -524,6 +539,7 @@ export default function MiraOrb({
           background:
             "radial-gradient(circle at 35% 30%, rgba(168,90,58,0.35), rgba(168,90,58,0.08) 60%, transparent 80%)",
           border: "1px solid rgba(168,90,58,0.15)",
+          viewTransitionName: shared ? "mira-orb" : undefined,
         }}
         aria-hidden
       >

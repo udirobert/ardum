@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import {
@@ -31,7 +31,6 @@ type Props = {
 
 export default function AestheticCalibration({ onComplete }: Props) {
   const { fire } = useMiraImpulse();
-  const [phase, setPhase] = useState<Phase>("calibrate");
   const [pref, setPref] = useState<UserPreference>(() =>
     typeof window !== "undefined" ? readAestheticPreference() : emptyPreference(),
   );
@@ -50,13 +49,16 @@ export default function AestheticCalibration({ onComplete }: Props) {
     const initial = readAestheticPreference();
     if (initial.interactions.length >= TARGET_REACTIONS) return null;
     const initialShown = new Set(initial.interactions.map((item) => item.imageId));
-    const img = pickNextImage(IMAGE_POOL, initial, initialShown);
-    if (img) shownAt.current = performance.now();
-    return img;
+    return pickNextImage(IMAGE_POOL, initial, initialShown);
   });
   const [exiting, setExiting] = useState<"resonate" | "skip" | null>(null);
   const shownAt = useRef(0);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+
+  // Stamp when the initial image appeared; advance() stamps subsequent ones.
+  useEffect(() => {
+    shownAt.current = performance.now();
+  }, []);
 
   const advance = useCallback(
     (nextPref: UserPreference, nextShown: Set<string>) => {
@@ -76,8 +78,6 @@ export default function AestheticCalibration({ onComplete }: Props) {
       setCurrent(img);
       shownAt.current = performance.now();
     },
-    // setPhase is stable from useState
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 

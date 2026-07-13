@@ -264,6 +264,7 @@ useEffect(() => {
           <MiraOrb
             size={48}
             presence={presenceFromActivity("processing")}
+            shared
           />
           <p aria-live="polite">{error ?? "Returning to your intention…"}</p>
         </div>
@@ -317,6 +318,7 @@ useEffect(() => {
           presence={miraPresence}
           activity={busy ? "processing" : "idle"}
           aestheticVector={aestheticVector}
+          shared
         />
         <div>
           <p className="tag mb-2">what you are making space for</p>

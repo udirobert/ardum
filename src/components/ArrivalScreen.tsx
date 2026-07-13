@@ -17,6 +17,7 @@ import type { AestheticVector } from "@/aesthetics/image-pool";
 import type { Episode } from "@/episodes/model";
 import StaggerReveal from "@/components/StaggerReveal";
 import { MiraImpulseProvider } from "@/components/MiraImpulse";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 const AestheticCalibration = dynamic(
   () => import("@/aesthetics/AestheticCalibration"),
@@ -31,11 +32,13 @@ type Props = {
 
 export default function ArrivalScreen({ greeting }: Props) {
   const router = useRouter();
+  const reduced = useReducedMotion();
   const [phase, setPhase] = useState<Phase>("loading");
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [statement, setStatement] = useState("");
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [committing, setCommitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activePresence, setActivePresence] = useState<MiraPresence | null>(
     null,
@@ -90,6 +93,12 @@ export default function ArrivalScreen({ greeting }: Props) {
       if (!response.ok || !data.episode) {
         throw new Error(data.error ?? "Could not save this intention.");
       }
+      if (!reduced) {
+        // Kinetic beat: Mira gathers the words of the intention before
+        // carrying the navigation (shared-element orb morph).
+        setCommitting(true);
+        await new Promise((resolve) => setTimeout(resolve, 1150));
+      }
       router.push(`/episode/${data.episode.id}`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not continue.");
@@ -132,8 +141,9 @@ export default function ArrivalScreen({ greeting }: Props) {
           <MiraOrb
             size={128}
             presence={activePresence ?? STEADY_PRESENCE}
-            activity={submitting ? "processing" : "idle"}
+            activity={committing ? "arriving" : submitting ? "processing" : "idle"}
             aestheticVector={aestheticVector}
+            shared
           />
         </div>
 
@@ -181,7 +191,30 @@ export default function ArrivalScreen({ greeting }: Props) {
           </StaggerReveal>
         )}
 
-        {phase === "intention" && (
+        {phase === "intention" && committing && (
+          <div className="max-w-xl mx-auto" aria-live="polite">
+            <p className="font-serif text-3xl sm:text-4xl leading-snug tracking-tight">
+              {statement
+                .trim()
+                .split(/\s+/)
+                .map((word, i) => (
+                  <span
+                    key={i}
+                    className="word-gather"
+                    style={{ animationDelay: `${Math.min(i * 45, 600)}ms` }}
+                  >
+                    {word}
+                    {" "}
+                  </span>
+                ))}
+            </p>
+            <span className="sr-only">
+              Intention recorded. Opening your episode.
+            </span>
+          </div>
+        )}
+
+        {phase === "intention" && !committing && (
           <StaggerReveal>
             <p className="tag mb-4 t-stagger-line">Mira</p>
             <h1 className="font-serif text-4xl sm:text-6xl leading-[1.05] tracking-tight mb-5 t-stagger-line t-stagger-line--2">

@@ -138,20 +138,35 @@ body::before {
   }
 }
 
-.page-enter {
-  animation: fade-in-up 420ms var(--ease-ardum) both;
-}
-
-.page-exit {
-  animation: fade-out 420ms var(--ease-ardum) both;
-}
-
 /* Staggered entrance delays for progressive reveal. */
 .fade-in-up-1 { animation: fade-in-up 480ms var(--ease-ardum) both; animation-delay: 100ms; }
 .fade-in-up-2 { animation: fade-in-up 480ms var(--ease-ardum) both; animation-delay: 250ms; }
 .fade-in-up-3 { animation: fade-in-up 480ms var(--ease-ardum) both; animation-delay: 450ms; }
 .fade-in-up-4 { animation: fade-in-up 480ms var(--ease-ardum) both; animation-delay: 700ms; }
 .fade-in-up-5 { animation: fade-in-up 480ms var(--ease-ardum) both; animation-delay: 1000ms; }
+
+/* Kinetic commit beat — the intention's words are gathered by Mira
+   (drift up toward the orb, soften, dissolve) before navigation. */
+@keyframes word-gather {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+  55% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-88px) scale(0.85);
+    filter: blur(4px);
+  }
+}
+
+.word-gather {
+  display: inline-block;
+  animation: word-gather 760ms var(--ease-ardum) both;
+}
 
 /* Pulse used for "thinking" placeholders. */
 @keyframes pulse-soft {
@@ -380,13 +395,46 @@ body::before {
   animation: shimmer 1.8s ease-in-out infinite;
 }
 
-/* View Transitions API — progressive enhancement for Chromium. */
-@supports (view-transition-name: none) {
-  ::view-transition-old(root) {
-    animation: fade-out 360ms var(--ease-ardum) both;
-  }
-  ::view-transition-new(root) {
-    animation: fade-in-up 360ms var(--ease-ardum) both;
+/* ── View Transitions ──
+   Route navigations run through React's <ViewTransition> (layout.tsx).
+   The page content exits down/fades, the new page arrives up/fades;
+   Mira's orb and the header are named elements that travel outside the
+   page group — the orb morphs between routes, the header stays fixed. */
+
+::view-transition-old(.page-out) {
+  animation: fade-out 240ms var(--ease-ardum) both;
+}
+::view-transition-new(.page-in) {
+  animation: fade-in-up 420ms var(--ease-ardum) 120ms both;
+}
+
+/* Mira as shared element — she carries the navigation. The group
+   animates position/size between routes; the snapshot pair keeps the
+   browser's default crossfade. */
+::view-transition-group(mira-orb) {
+  animation-duration: 560ms;
+  animation-timing-function: var(--ease-ardum);
+  z-index: 60;
+}
+
+/* The header is the fixed spatial anchor during transitions. */
+::view-transition-group(site-header) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(site-header) {
+  display: none;
+}
+::view-transition-new(site-header) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
   }
 }
 
