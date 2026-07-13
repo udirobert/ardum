@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { buildEpisodeDetailPayload } from "@/episodes/detail-payload";
 import { episodeRepository } from "@/episodes/repository";
-import { nextDecision } from "@/episodes/model";
 import { resolveActor } from "@/identity/actor";
 import { projectActorMemory } from "@/memory/enrich";
 import { cogneeMemory } from "@/memory/cognee";
@@ -32,11 +32,9 @@ export async function GET(
     (sibling) => sibling.id !== id,
   );
   const memory = await projectActorMemory(actorId, siblings, cogneeMemory);
-  return NextResponse.json({
-    episode,
-    nextDecision: nextDecision(episode),
-    memory,
-  });
+  return NextResponse.json(
+    buildEpisodeDetailPayload({ episode, memory }),
+  );
 }
 
 export async function DELETE(

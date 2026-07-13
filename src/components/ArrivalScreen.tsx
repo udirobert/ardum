@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import CloudField from "@/aesthetics/CloudField";
 import MiraOrb from "./MiraOrb";
+import {
+  STEADY_PRESENCE,
+  type MiraPresence,
+} from "@/agent/mira-presence";
 import type { Episode } from "@/episodes/model";
 import type { AestheticVector } from "@/aesthetics/image-pool";
 
@@ -41,16 +45,25 @@ export default function ArrivalScreen({ greeting }: Props) {
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activePresence, setActivePresence] = useState<MiraPresence | null>(
+    null,
+  );
 
   useEffect(() => {
     fetch("/api/episodes")
       .then((response) => response.json())
-      .then((data: { episodes?: Episode[] }) => {
-        const active = data.episodes?.find(
-          (item) => !["completed"].includes(item.status),
-        );
-        setEpisode(active ?? null);
-      })
+      .then(
+        (data: {
+          episodes?: Episode[];
+          activeMiraPresence?: MiraPresence | null;
+        }) => {
+          const active = data.episodes?.find(
+            (item) => !["completed"].includes(item.status),
+          );
+          setEpisode(active ?? null);
+          setActivePresence(data.activeMiraPresence ?? null);
+        },
+      )
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, []);
@@ -113,7 +126,11 @@ export default function ArrivalScreen({ greeting }: Props) {
           </p>
         )}
         <div className="flex justify-center mb-8">
-          <MiraOrb size={112} state={submitting ? "thinking" : "calm"} />
+          <MiraOrb
+            size={112}
+            presence={activePresence ?? STEADY_PRESENCE}
+            activity={submitting ? "processing" : "idle"}
+          />
         </div>
 
         {!loaded ? (

@@ -2,136 +2,102 @@
 
 // Mira — the agent persona that guides users through Ardum.
 //
-// Not a chatbot. Not a mascot. A breathing presence that anchors the
-// conversation. The orb pulses at a calm 4-second cycle (matching
-// a relaxed breathing rhythm of ~15 breaths/min). When Mira is
-// "thinking" (processing), the orb breathes slightly faster.
-//
-// Mira's voice is warm, second-person, present tense. Never says
-// "I am an AI." Talks like a guide who has been doing this for years.
-//
-// Name: Mira (Sanskrit: "ocean" — the vast, calm body that holds depth)
-//
-// ── The living marble ───────────────────────────────────────────────
-//
-// The orb is not a static gradient — it is a slice of flowing marble,
-// rendered live in WebGL with domain-warped fbm noise. Terracotta veins
-// drift through cream and ink, tinted by Mira's state:
-//
-//   calm     → slow, settled flow (deep breathing)
-//   thinking → faster, more turbulent (the mind at work — Ardum, inquiry)
-//   speaking → warmer, brighter, expansive (the offering — abhaya)
-//
-// The marble references mattrossman/magic-marble: fbm + domain warp for
-// organic veining. It replaces the old CSS radial-gradient so the agent
-// visibly breathes and moves instead of sitting still.
-//
-// ── The mudra ring ──────────────────────────────────────────────────
-//
-// Ardum is "mudra" reversed. A mudra is a seal — a closed shape that
-// directs energy. Ardum opens the seal. The orb carries a thin ring
-// inside it that represents this:
-//
-//   calm    → ring is complete (the seal — chin mudra, receptivity)
-//   thinking → ring has a gap  (the seal opened — Ardum, inquiry)
-//   speaking → ring radiates    (the offering — abhaya, fearlessness)
-//
-// The gap IS the concept. A mudra seals. Ardum opens. The user sees
-// this without needing to know Sanskrit.
+// The orb is a living presence: domain-warped marble inside a morphing
+// metaball silhouette. Posture, valence, and reactions come from
+// src/agent/mira-presence.ts (operational projection). See
+// docs/design/mira-presence.md.
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import type { AestheticVector } from "@/aesthetics/image-pool";
-
-type OrbState = "calm" | "thinking" | "speaking";
+import {
+  breathDuration,
+  mergePresence,
+  morphParamsForTier,
+  presenceAnnouncement,
+  renderTier,
+  ringStyle,
+  STEADY_PRESENCE,
+  type MiraActivity,
+  type MiraPresence,
+  type MorphParams,
+} from "@/agent/mira-presence";
 
 type MiraOrbProps = {
-  /** Breathing state — "calm" (default), "thinking" (faster pulse), "speaking" (gentle expand) */
-  state?: OrbState;
-  /** Size in px. Default: 48 */
+  /** Journey posture — projected from episode or activity helpers. */
+  presence?: MiraPresence;
+  /** Transient overlay when busy / narrating (merged via mergePresence). */
+  activity?: MiraActivity;
   size?: number;
-  /** Optional children rendered below the orb (e.g. a label) */
   children?: ReactNode;
   className?: string;
-  /**
-   * Optional preference vector from the aesthetic journey.
-   * When supplied, vein colours shift to reflect the practitioner's
-   * stated aesthetic — warm → deeper terracotta, cool → cooler greys,
-   * light → more cream, dark → deeper ink.
-   */
   aestheticVector?: AestheticVector | null;
 };
 
-// ── Shader-driven marble ─────────────────────────────────────────────
-
-// Per-state flow parameters. Smoothly interpolated at runtime so the
-// orb eases between states instead of snapping.
-type MarbleParams = { speed: number; turbulence: number; brightness: number };
-
-const STATE_PARAMS: Record<OrbState, MarbleParams> = {
-  calm: { speed: 0.12, turbulence: 0.75, brightness: 0.55 },
-  thinking: { speed: 0.45, turbulence: 1.45, brightness: 0.78 },
-  speaking: { speed: 0.26, turbulence: 1.0, brightness: 1.15 },
-};
-
-// Ardum base palette (sRGB 0–1). Ink → terracotta → warm sand → cream.
-const COL_DARK  = [0.431, 0.224, 0.145] as const; // accent-ink  #6e3925
-const COL_WARM  = [0.659, 0.353, 0.227] as const; // accent      #a85a3a
-const COL_LIGHT = [0.847, 0.659, 0.573] as const; // accent-soft #d8a892
-const COL_CREAM = [0.965, 0.945, 0.906] as const; // background  #f6f1e7
+// Ardum base palette (sRGB 0–1).
+const COL_DARK = [0.431, 0.224, 0.145] as const;
+const COL_WARM = [0.659, 0.353, 0.227] as const;
+const COL_LIGHT = [0.847, 0.659, 0.573] as const;
+const COL_CREAM = [0.965, 0.945, 0.906] as const;
 
 type RGB = [number, number, number];
 
-/**
- * Shift the four palette entries based on the preference vector.
- * Warm → push R up, G down slightly (terracotta deepens).
- * Cool → push B up, R down (marble cools toward grey-blue).
- * Light → lift all channels toward cream.
- * Dark  → pull all channels toward ink.
- * Each shift is ±0.18 max so the result always reads as marble.
- */
 function vectorToPalette(v: AestheticVector | null | undefined): {
-  dark: RGB; warm: RGB; light: RGB; cream: RGB;
+  dark: RGB;
+  warm: RGB;
+  light: RGB;
+  cream: RGB;
 } {
-  if (!v) return {
-    dark:  [...COL_DARK]  as RGB,
-    warm:  [...COL_WARM]  as RGB,
-    light: [...COL_LIGHT] as RGB,
-    cream: [...COL_CREAM] as RGB,
-  };
+  if (!v) {
+    return {
+      dark: [...COL_DARK] as RGB,
+      warm: [...COL_WARM] as RGB,
+      light: [...COL_LIGHT] as RGB,
+      cream: [...COL_CREAM] as RGB,
+    };
+  }
 
-  const warmth    = (v.warm  - v.cool)      * 0.18; // +warm = more red/terra
-  const darkness  = (v.dark  - v.light)     * 0.12; // +dark = pull toward ink
-  const expansion = (v.expansive - v.intimate) * 0.04; // +expansive = slight lift
-  const cool      = (v.cool  - v.warm)      * 0.10; // +cool = push toward blue-grey
+  const warmth = (v.warm - v.cool) * 0.18;
+  const darkness = (v.dark - v.light) * 0.12;
+  const expansion = (v.expansive - v.intimate) * 0.04;
+  const cool = (v.cool - v.warm) * 0.1;
 
-  const shift = (base: readonly number[], r: number, g: number, b: number): RGB => [
+  const shift = (
+    base: readonly number[],
+    r: number,
+    g: number,
+    b: number,
+  ): RGB => [
     Math.max(0, Math.min(1, base[0] + r)),
     Math.max(0, Math.min(1, base[1] + g)),
     Math.max(0, Math.min(1, base[2] + b)),
   ];
 
   return {
-    // Ink base: warm → deeper red-brown, cool → cooler grey-green, dark → even darker
-    dark: shift(COL_DARK,
+    dark: shift(
+      COL_DARK,
       warmth * 0.6 - cool * 0.5,
       -warmth * 0.2 + cool * 0.1 - darkness * 0.3,
-      -warmth * 0.3 + cool * 0.4),
-    // Terracotta body: warm → richer, cool → desaturated, dark → pulls down
-    warm: shift(COL_WARM,
+      -warmth * 0.3 + cool * 0.4,
+    ),
+    warm: shift(
+      COL_WARM,
       warmth * 0.5 - cool * 0.4 - darkness * 0.2,
       -warmth * 0.15 - darkness * 0.1,
-      -warmth * 0.25 + cool * 0.35),
-    // Sand highlight: warm → golden, cool → silver-grey, light → lifts
-    light: shift(COL_LIGHT,
+      -warmth * 0.25 + cool * 0.35,
+    ),
+    light: shift(
+      COL_LIGHT,
       warmth * 0.3 - cool * 0.2 - darkness * 0.15 + expansion * 0.05,
       warmth * 0.1 - darkness * 0.1 + expansion * 0.05,
-      -warmth * 0.1 + cool * 0.25 + expansion * 0.05),
-    // Cream vein: barely affected — stays light but slightly golden/cool
-    cream: shift(COL_CREAM,
+      -warmth * 0.1 + cool * 0.25 + expansion * 0.05,
+    ),
+    cream: shift(
+      COL_CREAM,
       warmth * 0.05 - cool * 0.04 - darkness * 0.08,
       -cool * 0.02 - darkness * 0.06,
-      cool * 0.05 - darkness * 0.05),
+      cool * 0.05 - darkness * 0.05,
+    ),
   };
 }
 
@@ -147,12 +113,19 @@ uniform float u_time;
 uniform float u_speed;
 uniform float u_turb;
 uniform float u_bright;
+uniform float u_blobCount;
+uniform float u_orbitRadius;
+uniform float u_orbitSpeed;
+uniform float u_pinch;
+uniform float u_bloom;
+uniform float u_asymmetry;
+uniform float u_reaction;
+uniform float u_metaball; // 1 = full morph, 0 = circle mask (inline tier)
 uniform vec3  u_dark;
 uniform vec3  u_warm;
 uniform vec3  u_light;
 uniform vec3  u_cream;
 
-// Value noise + fbm (domain-warped) → marble veining.
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
@@ -176,45 +149,65 @@ float fbm(vec2 p) {
   return v;
 }
 
+float smin(float a, float b, float k) {
+  float h = max(k - abs(a - b), 0.0) / k;
+  return min(a, b) - h * h * k * 0.25;
+}
+
+float sdCircle(vec2 p, vec2 c, float r) {
+  return length(p - c) - r;
+}
+
+float metaballField(vec2 p, float t) {
+  float pinch = u_pinch + u_reaction * 0.35;
+  float bloom = u_bloom + u_reaction * 0.12;
+  vec2 asym = vec2(u_asymmetry * 0.12, -u_asymmetry * 0.08);
+  float baseR = 0.36 + bloom * 0.1 - pinch * 0.06;
+  float field = sdCircle(p, asym, baseR);
+
+  for (int i = 0; i < 4; i++) {
+    if (float(i) >= u_blobCount) break;
+    float fi = float(i);
+    float angle = t * u_orbitSpeed * (0.65 + fi * 0.21) + fi * 1.5708;
+    float rad = u_orbitRadius * (fi < 0.5 ? 0.0 : 1.0);
+    vec2 center = vec2(cos(angle), sin(angle)) * rad + asym;
+    float r = 0.13 - pinch * 0.045 + bloom * 0.035;
+    field = smin(field, sdCircle(p, center, r), 0.085);
+  }
+  return field;
+}
+
 void main() {
   vec2 uv = gl_FragCoord.xy / u_res;
   vec2 p = uv - 0.5;
-  float r = length(p);
-
   float t = u_time * u_speed;
 
-  // Domain warp — two layers of fbm displace the sample point, giving
-  // the swirling marble veins their organic, non-repeating flow.
+  float field = metaballField(p, u_time);
+  float circleR = length(p);
+  float shapeDist = mix(circleR - 0.42, field, u_metaball);
+  float alpha = smoothstep(0.018, -0.012, shapeDist);
+  if (alpha <= 0.001) discard;
+
   vec2 q = vec2(fbm(p * 3.2 + t * 0.10),
                 fbm(p * 3.2 + vec2(5.2, 1.3) + t * 0.12));
   vec2 s = vec2(fbm(p * 3.2 + q * u_turb + t * 0.15 + vec2(1.7, 9.2)),
                 fbm(p * 3.2 + q * u_turb + t * 0.126 + vec2(8.3, 2.8)));
   float f = fbm(p * 3.2 + s * u_turb);
 
-  // Marble mix: ink in the troughs, terracotta in the body.
   vec3 col = mix(u_dark, u_warm, clamp(f * 1.7, 0.0, 1.0));
-  // Warm sand highlights where the second warp field peaks.
   col = mix(col, u_light, pow(clamp(s.x, 0.0, 1.0), 2.0) * 0.6 * u_bright);
-  // A few cream veins for depth on the speaking (bright) state.
   float vein = smoothstep(0.55, 0.62, f) * u_bright * 0.35;
   col = mix(col, u_cream, vein);
 
-  // Spherical shading — light from top-left (matches the old 35%/30%).
   vec2 lightPos = vec2(-0.16, 0.16);
   float diff = clamp(1.0 - length(p - lightPos) * 1.35, 0.0, 1.0);
   col += diff * diff * 0.22;
-  // Rim darkening for volume.
-  col *= 1.0 - smoothstep(0.32, 0.5, r) * 0.35;
+  col *= 1.0 - smoothstep(0.32, 0.5, circleR) * 0.35 * (1.0 - u_metaball * 0.5);
 
-  // Soft circular mask.
-  float alpha = smoothstep(0.5, 0.46, r);
   gl_FragColor = vec4(col, alpha);
 }
 `;
 
-// WebGL contexts are a finite resource (~16 per document). Guard against
-// exhaustion when many orbs mount at once — beyond the budget, orbs fall
-// back to the CSS gradient below.
 const MAX_GL_ORBS = 8;
 let liveGLOrbs = 0;
 
@@ -234,8 +227,11 @@ function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
 
+const REACTION_MS = 2400;
+
 export default function MiraOrb({
-  state = "calm",
+  presence = STEADY_PRESENCE,
+  activity,
   size = 48,
   children,
   className,
@@ -243,41 +239,60 @@ export default function MiraOrb({
 }: MiraOrbProps) {
   const orbRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const stateRef = useRef<OrbState>(state);
+  const presenceRef = useRef(presence);
   const reduced = useReducedMotion();
-  // Target palette derived from the preference vector. Updated whenever
-  // the vector prop changes — the draw loop lerps toward it each frame.
   const paletteRef = useRef(vectorToPalette(aestheticVector));
+  const reactionRef = useRef<{
+    eventId?: string;
+    startedAt: number;
+    active: boolean;
+  }>({ startedAt: 0, active: false });
+
+  const tier = renderTier(size);
+  const effectivePresence = mergePresence(presence, activity);
+  const ring = ringStyle(effectivePresence.posture);
 
   useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
+    presenceRef.current = mergePresence(presence, activity);
+  }, [presence, activity]);
+
+  useEffect(() => {
+    const rx = effectivePresence.reaction;
+    if (rx && rx.eventId !== reactionRef.current.eventId) {
+      reactionRef.current = {
+        eventId: rx.eventId,
+        startedAt: performance.now(),
+        active: true,
+      };
+    }
+  }, [effectivePresence.reaction]);
+
+  useEffect(() => {
+    const orb = orbRef.current;
+    if (!orb) return;
+    orb.style.animationDuration = breathDuration(effectivePresence.posture);
+  }, [effectivePresence.posture]);
 
   useEffect(() => {
     paletteRef.current = vectorToPalette(aestheticVector);
   }, [aestheticVector]);
 
-  // Sync the CSS breathing-scale animation speed to the state.
-  useEffect(() => {
-    const orb = orbRef.current;
-    if (!orb) return;
-    orb.style.animationDuration =
-      state === "thinking" ? "2s" : state === "speaking" ? "3s" : "4s";
-  }, [state]);
-
-  // WebGL marble render loop.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    if (liveGLOrbs >= MAX_GL_ORBS) return; // budget exceeded → CSS fallback
+    if (liveGLOrbs >= MAX_GL_ORBS) return;
 
     const gl =
-      canvas.getContext("webgl", { alpha: true, premultipliedAlpha: false, antialias: true }) ||
+      canvas.getContext("webgl", {
+        alpha: true,
+        premultipliedAlpha: false,
+        antialias: true,
+      }) ||
       (canvas.getContext("experimental-webgl", {
         alpha: true,
         premultipliedAlpha: false,
       }) as WebGLRenderingContext | null);
-    if (!gl) return; // no WebGL → CSS fallback
+    if (!gl) return;
 
     const vs = compile(gl, gl.VERTEX_SHADER, VERT_SRC);
     const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG_SRC);
@@ -291,7 +306,6 @@ export default function MiraOrb({
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
     gl.useProgram(prog);
 
-    // Fullscreen quad.
     const buf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(
@@ -304,26 +318,34 @@ export default function MiraOrb({
     gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
     const u = {
-      res:   gl.getUniformLocation(prog, "u_res"),
-      time:  gl.getUniformLocation(prog, "u_time"),
+      res: gl.getUniformLocation(prog, "u_res"),
+      time: gl.getUniformLocation(prog, "u_time"),
       speed: gl.getUniformLocation(prog, "u_speed"),
-      turb:  gl.getUniformLocation(prog, "u_turb"),
-      bright:gl.getUniformLocation(prog, "u_bright"),
-      dark:  gl.getUniformLocation(prog, "u_dark"),
-      warm:  gl.getUniformLocation(prog, "u_warm"),
+      turb: gl.getUniformLocation(prog, "u_turb"),
+      bright: gl.getUniformLocation(prog, "u_bright"),
+      blobCount: gl.getUniformLocation(prog, "u_blobCount"),
+      orbitRadius: gl.getUniformLocation(prog, "u_orbitRadius"),
+      orbitSpeed: gl.getUniformLocation(prog, "u_orbitSpeed"),
+      pinch: gl.getUniformLocation(prog, "u_pinch"),
+      bloom: gl.getUniformLocation(prog, "u_bloom"),
+      asymmetry: gl.getUniformLocation(prog, "u_asymmetry"),
+      reaction: gl.getUniformLocation(prog, "u_reaction"),
+      metaball: gl.getUniformLocation(prog, "u_metaball"),
+      dark: gl.getUniformLocation(prog, "u_dark"),
+      warm: gl.getUniformLocation(prog, "u_warm"),
       light: gl.getUniformLocation(prog, "u_light"),
       cream: gl.getUniformLocation(prog, "u_cream"),
     };
-    // Initialise palette from the current vector (may already be non-neutral).
+
     const initPal = paletteRef.current;
-    gl.uniform3fv(u.dark,  initPal.dark);
-    gl.uniform3fv(u.warm,  initPal.warm);
+    gl.uniform3fv(u.dark, initPal.dark);
+    gl.uniform3fv(u.warm, initPal.warm);
     gl.uniform3fv(u.light, initPal.light);
     gl.uniform3fv(u.cream, initPal.cream);
-    // Live palette state — lerped toward paletteRef each frame.
+
     const curPal = {
-      dark:  [...initPal.dark]  as RGB,
-      warm:  [...initPal.warm]  as RGB,
+      dark: [...initPal.dark] as RGB,
+      warm: [...initPal.warm] as RGB,
       light: [...initPal.light] as RGB,
       cream: [...initPal.cream] as RGB,
     };
@@ -334,45 +356,73 @@ export default function MiraOrb({
     canvas.height = px;
     gl.viewport(0, 0, px, px);
     gl.uniform2f(u.res, px, px);
+    gl.uniform1f(u.metaball, tier === "inline" ? 0 : 1);
 
     liveGLOrbs++;
 
-    // Current params ease toward the active state's target each frame.
-    const cur: MarbleParams = { ...STATE_PARAMS[stateRef.current] };
+    const targetMorph = (): MorphParams =>
+      morphParamsForTier(
+        presenceRef.current,
+        renderTier(size),
+      );
+
+    const cur: MorphParams = { ...targetMorph() };
     let raf = 0;
     const start = performance.now();
 
     const draw = (now: number) => {
-      const target = STATE_PARAMS[stateRef.current];
-      cur.speed      = lerp(cur.speed,      target.speed,      0.04);
-      cur.turbulence = lerp(cur.turbulence, target.turbulence, 0.04);
-      cur.brightness = lerp(cur.brightness, target.brightness, 0.04);
+      const target = targetMorph();
+      const M = 0.04;
+      cur.speed = lerp(cur.speed, target.speed, M);
+      cur.turbulence = lerp(cur.turbulence, target.turbulence, M);
+      cur.brightness = lerp(cur.brightness, target.brightness, M);
+      cur.blobCount = lerp(cur.blobCount, target.blobCount, M);
+      cur.orbitRadius = lerp(cur.orbitRadius, target.orbitRadius, M);
+      cur.orbitSpeed = lerp(cur.orbitSpeed, target.orbitSpeed, M);
+      cur.pinch = lerp(cur.pinch, target.pinch, M);
+      cur.bloom = lerp(cur.bloom, target.bloom, M);
+      cur.asymmetry = lerp(cur.asymmetry, target.asymmetry, M);
 
-      // Ease palette toward the vector-derived target (same cadence as params).
       const tpal = paletteRef.current;
-      const PALR = 0.025; // slower than flow — colour shift is contemplative
+      const PALR = 0.025;
       for (let i = 0; i < 3; i++) {
-        curPal.dark[i]  = lerp(curPal.dark[i],  tpal.dark[i],  PALR);
-        curPal.warm[i]  = lerp(curPal.warm[i],  tpal.warm[i],  PALR);
+        curPal.dark[i] = lerp(curPal.dark[i], tpal.dark[i], PALR);
+        curPal.warm[i] = lerp(curPal.warm[i], tpal.warm[i], PALR);
         curPal.light[i] = lerp(curPal.light[i], tpal.light[i], PALR);
         curPal.cream[i] = lerp(curPal.cream[i], tpal.cream[i], PALR);
       }
-      gl.uniform3fv(u.dark,  curPal.dark);
-      gl.uniform3fv(u.warm,  curPal.warm);
+
+      let reactionPulse = 0;
+      if (reactionRef.current.active) {
+        const elapsed = now - reactionRef.current.startedAt;
+        if (elapsed > REACTION_MS) {
+          reactionRef.current.active = false;
+        } else {
+          reactionPulse = Math.sin((elapsed / REACTION_MS) * Math.PI);
+        }
+      }
+
+      gl.uniform3fv(u.dark, curPal.dark);
+      gl.uniform3fv(u.warm, curPal.warm);
       gl.uniform3fv(u.light, curPal.light);
       gl.uniform3fv(u.cream, curPal.cream);
-
-      gl.uniform1f(u.time,  (now - start) / 1000);
-      gl.uniform1f(u.speed,  cur.speed);
-      gl.uniform1f(u.turb,   cur.turbulence);
+      gl.uniform1f(u.time, (now - start) / 1000);
+      gl.uniform1f(u.speed, cur.speed);
+      gl.uniform1f(u.turb, cur.turbulence);
       gl.uniform1f(u.bright, cur.brightness);
+      gl.uniform1f(u.blobCount, cur.blobCount);
+      gl.uniform1f(u.orbitRadius, cur.orbitRadius);
+      gl.uniform1f(u.orbitSpeed, cur.orbitSpeed);
+      gl.uniform1f(u.pinch, cur.pinch);
+      gl.uniform1f(u.bloom, cur.bloom);
+      gl.uniform1f(u.asymmetry, cur.asymmetry);
+      gl.uniform1f(u.reaction, reactionPulse);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
       if (!reduced) raf = requestAnimationFrame(draw);
     };
 
     if (reduced) {
-      // Single settled frame, no loop.
       draw(start + 3200);
     } else {
       raf = requestAnimationFrame(draw);
@@ -384,30 +434,17 @@ export default function MiraOrb({
       const lose = gl.getExtension("WEBGL_lose_context");
       lose?.loseContext();
     };
-  }, [size, reduced]);
+  }, [size, reduced, tier]);
 
-  // The mudra ring — an SVG circle that changes based on state.
   const ringRadius = (size - 8) / 2;
   const ringCircumference = 2 * Math.PI * ringRadius;
   const gapSize =
-    state === "thinking"
-      ? ringCircumference * 0.15
-      : state === "speaking"
+    ring === "open"
+      ? ringCircumference * 0.18
+      : ring === "radiating"
         ? ringCircumference * 0.25
         : 0;
   const visibleLength = ringCircumference - gapSize;
-
-  // The orb is decorative — keep aria-hidden — but assistive tech still
-  // needs to hear Mira's posture. A sibling sr-only live region carries the
-  // announcement so the visual remains silent AND the screen reader hears
-  // "Mira is reasoning" / "Mira is speaking" / "Mira is steady." Polite so
-  // it doesn't interrupt a current utterance.
-  const stateAnnouncement =
-    state === "thinking"
-      ? "Mira is reasoning."
-      : state === "speaking"
-        ? "Mira is speaking."
-        : "Mira is steady.";
 
   return (
     <div className={`flex flex-col items-center gap-3 ${className ?? ""}`}>
@@ -417,20 +454,16 @@ export default function MiraOrb({
         style={{
           width: size,
           height: size,
-          // CSS-gradient fallback — visible until/unless WebGL paints over it.
           background:
             "radial-gradient(circle at 35% 30%, rgba(168,90,58,0.35), rgba(168,90,58,0.08) 60%, transparent 80%)",
           border: "1px solid rgba(168,90,58,0.15)",
         }}
         aria-hidden
       >
-        {/* Live marble */}
         <canvas
           ref={canvasRef}
           className="absolute inset-0 w-full h-full rounded-full"
         />
-
-        {/* Glass sheen — a soft specular highlight over the marble */}
         <div
           className="absolute inset-0 rounded-full pointer-events-none"
           style={{
@@ -438,7 +471,6 @@ export default function MiraOrb({
               "radial-gradient(circle at 38% 32%, rgba(246,241,231,0.35), transparent 55%)",
           }}
         />
-        {/* Outer halo */}
         <div
           className="absolute inset-0 rounded-full opacity-30 pointer-events-none"
           style={{
@@ -447,8 +479,6 @@ export default function MiraOrb({
             transform: "scale(1.4)",
           }}
         />
-
-        {/* The mudra ring — the seal that opens */}
         <svg
           className="absolute inset-0 w-full h-full pointer-events-none"
           viewBox={`0 0 ${size} ${size}`}
@@ -470,9 +500,7 @@ export default function MiraOrb({
             }}
           />
         </svg>
-
-        {/* Speaking state — radiating dots (abhaya, the offering) */}
-        {state === "speaking" && (
+        {ring === "radiating" && (
           <svg
             className="absolute inset-0 w-full h-full pointer-events-none"
             viewBox={`0 0 ${size} ${size}`}
@@ -482,9 +510,10 @@ export default function MiraOrb({
             {[0, 72, 144, 216, 288].map((angle, i) => {
               const rad = (angle * Math.PI) / 180;
               const dotR = size / 2 + 3;
-              // Round to avoid server/client float-representation hydration drift.
-              const cx = Math.round((size / 2 + dotR * Math.cos(rad)) * 1000) / 1000;
-              const cy = Math.round((size / 2 + dotR * Math.sin(rad)) * 1000) / 1000;
+              const cx =
+                Math.round((size / 2 + dotR * Math.cos(rad)) * 1000) / 1000;
+              const cy =
+                Math.round((size / 2 + dotR * Math.sin(rad)) * 1000) / 1000;
               return (
                 <circle
                   key={i}
@@ -501,14 +530,12 @@ export default function MiraOrb({
           </svg>
         )}
       </div>
-      <span
-        aria-live="polite"
-        aria-atomic="true"
-        className="sr-only"
-      >
-        {stateAnnouncement}
+      <span aria-live="polite" aria-atomic="true" className="sr-only">
+        {presenceAnnouncement(effectivePresence)}
       </span>
       {children}
     </div>
   );
 }
+
+export type { MiraPresence, MiraActivity };

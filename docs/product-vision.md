@@ -31,6 +31,11 @@ The core object is a living episode:
 A recommendation, retreat, or booking belongs to an episode. None of them is
 the episode itself.
 
+Mira's orb reflects **journey posture** — what she is doing for the episode
+(watching, holding, coordinating) and how much tension the journey carries —
+not guessed user emotion. Posture is projected from operational episode state
+and surfaced in API responses; see [design/mira-presence.md](design/mira-presence.md).
+
 ## Interaction contract
 
 Every state presents one primary human decision.

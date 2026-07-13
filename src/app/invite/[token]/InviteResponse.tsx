@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import MiraOrb from "@/components/MiraOrb";
+import { presenceFromActivity } from "@/agent/mira-presence";
 
 type Invitation = {
   participantName: string;
@@ -49,7 +50,11 @@ export default function InviteResponse({ token }: { token: string }) {
   return (
     <section className="mx-auto max-w-xl px-6 sm:px-10 py-20 text-center">
       <div className="flex justify-center mb-7">
-        <MiraOrb size={72} state={busy ? "thinking" : "calm"} />
+        <MiraOrb
+          size={72}
+          presence={presenceFromActivity("idle")}
+          activity={busy ? "processing" : "idle"}
+        />
       </div>
       {done ? (
         <>

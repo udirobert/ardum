@@ -10,6 +10,7 @@
 
 import { useCallback, useState } from "react";
 import MiraOrb from "@/components/MiraOrb";
+import { presenceFromActivity } from "@/agent/mira-presence";
 import { useMagicAuth } from "./MagicAuth";
 import { BASE_SEPOLIA_CHAIN_ID, USDC_BASE_SEPOLIA } from "./constants";
 import { classInvitation } from "@/agent/mira-voice";
@@ -148,7 +149,11 @@ export default function ClassInvitation({
     return (
       <div className="mt-8 fade-in-up">
         <div className="flex items-start gap-4 mb-6">
-          <MiraOrb size={48} state="calm" className="flex-shrink-0 mt-1" />
+          <MiraOrb
+            size={48}
+            presence={presenceFromActivity("arriving")}
+            className="flex-shrink-0 mt-1"
+          />
           <div className="space-y-2 flex-1">
             <p className="text-lg leading-relaxed mira-line">
               You&apos;re in. Tomorrow&apos;s practice starts at 6am.
@@ -178,7 +183,7 @@ export default function ClassInvitation({
     return (
       <div className="mt-8 fade-in-up">
         <div className="flex items-center gap-4 mb-4">
-          <MiraOrb size={48} state="calm" />
+          <MiraOrb size={48} presence={presenceFromActivity("idle")} />
           <div className="flex-1">
             <p className="text-lg leading-relaxed text-[color:var(--accent-ink)]">
               The payment didn&apos;t go through. Nothing was charged.
@@ -211,7 +216,7 @@ export default function ClassInvitation({
     return (
       <div className="mt-8 fade-in-up">
         <div className="flex items-center gap-4 mb-4">
-          <MiraOrb size={48} state="thinking" />
+          <MiraOrb size={48} presence={presenceFromActivity("processing")} />
           <div className="flex-1">
             <p className="text-lg leading-relaxed mira-line">
               Handling the payment now…
@@ -234,7 +239,7 @@ export default function ClassInvitation({
     return (
       <div className="mt-8 fade-in-up">
         <div className="flex items-center gap-4 mb-4">
-          <MiraOrb size={48} state="speaking" />
+          <MiraOrb size={48} presence={presenceFromActivity("speaking")} />
           <p className="text-lg leading-relaxed flex-1">
             Sign in first — I&apos;ll handle the rest.
           </p>
@@ -269,7 +274,11 @@ export default function ClassInvitation({
   return (
     <div className="mt-8 fade-in-up">
       <div className="flex items-start gap-4 mb-6">
-        <MiraOrb size={48} state="speaking" className="flex-shrink-0 mt-1" />
+        <MiraOrb
+          size={48}
+          presence={presenceFromActivity("speaking")}
+          className="flex-shrink-0 mt-1"
+        />
         <div className="space-y-2 flex-1">
           {invitation.lines.map((line, i) => (
             <p

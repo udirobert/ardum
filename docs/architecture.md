@@ -19,6 +19,7 @@ idempotent where externally visible, and guarded by an expected revision.
 | Group responses | Episode coordination state | Invitation URLs carry opaque tokens only |
 | Booking settlement | Commitment provider plus verified reference | Episode stores normalized status |
 | Semantic context | Cognee when configured | Supplementary, lossy, never operational truth |
+| Mira orb posture | `mira-presence` projection from episode state | `MiraOrb` renders; semantic memory does not influence posture |
 | Retreat claims | Evidence repository | 0G may provide immutable evidence references |
 
 No operational decision may reconstruct state from semantic prose, URL payloads,
@@ -130,11 +131,24 @@ integrations sit behind a lazy commitment provider.
 The provider returns normalized status and verifiable references. Technical
 steps are available in details and logs, not narrated as the central product.
 
+## Mira presence
+
+Mira's orb posture is a pure projection from episode state — not from guessed
+user emotion. `src/agent/mira-presence.ts` owns the contract;
+`src/episodes/detail-payload.ts` assembles it into API responses; `MiraOrb`
+renders it. Posture vocabulary, valence, reactions, and render tiers are
+documented in [design/mira-presence.md](design/mira-presence.md).
+
+Voice and visuals stay aligned because both read the same projection. Semantic
+memory does not influence posture.
+
 ## Performance
 
 - Personalized episode reads remain dynamic.
 - Shared evidence reads may be cached by version.
 - Heavy visual, pose, wallet, and provider code loads only when invoked.
+- Mira orb WebGL contexts are capped per page; inline sizes use a simplified
+  mask. See [design/mira-presence.md](design/mira-presence.md).
 - One cloud/WebGL surface may be active at a time, with static and
   reduced-motion fallbacks.
 - The primary decision renders without waiting for semantic recall or optional

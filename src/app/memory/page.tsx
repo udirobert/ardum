@@ -21,8 +21,10 @@
 import { resolveActor } from "@/identity/actor";
 import { episodeRepository } from "@/episodes/repository";
 import { projectActorMemory } from "@/memory/enrich";
+import { activeEpisodePresence } from "@/episodes/detail-payload";
 import MemoryView from "@/app/memory/MemoryView";
 import MiraOrb from "@/components/MiraOrb";
+import { STEADY_PRESENCE } from "@/agent/mira-presence";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +42,7 @@ export default async function MemoryPage() {
     ? // Projector-only result; no Cognee recall on this surface.
       await projectActorMemory(actorId, episodes)
     : null;
+  const miraPresence = activeEpisodePresence(episodes) ?? STEADY_PRESENCE;
 
   return (
     <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 py-16">
@@ -47,7 +50,7 @@ export default async function MemoryPage() {
         ← back
       </Link>
       <div className="flex items-center gap-4 mt-8 mb-8">
-        <MiraOrb size={56} state="calm" />
+        <MiraOrb size={56} presence={miraPresence} />
         <div>
           <p className="font-serif text-2xl">Mira</p>
           <p className="tag">your intention &amp; privacy</p>
@@ -81,7 +84,7 @@ export default async function MemoryPage() {
           className="border-l-2 border-[color:var(--accent-soft)] pl-5 mb-8"
         >
           <div className="flex items-start gap-3 mb-3">
-            <MiraOrb size={40} state="calm" />
+            <MiraOrb size={40} presence={miraPresence} />
             <p className="tag pt-2">what our previous visits looked like</p>
           </div>
           <div className="space-y-2 leading-relaxed">

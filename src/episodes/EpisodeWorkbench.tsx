@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import MiraOrb from "@/components/MiraOrb";
+import {
+  presenceFromActivity,
+} from "@/agent/mira-presence";
 import type { MatchResult } from "@/matching/types";
 import type { BudgetBand, EnergyState } from "@/calibration/schema";
 import { BUDGET_BANDS, ENERGY_STATES } from "@/calibration/schema";
@@ -14,8 +17,8 @@ import type {
 import type {
   Episode,
   EpisodeCommand,
-  NextDecision,
 } from "./model";
+import type { EpisodeDetailPayload } from "./detail-payload";
 import { createAbortableRunner } from "@/lib/abortableFetch";
 import type { MemoryContext } from "@/memory/semantic-memory";
 import { matchLetter } from "@/agent/mira-voice";
@@ -27,17 +30,7 @@ const CommitmentPanel = dynamic(
   { ssr: false },
 );
 
-type EpisodePayload = {
-  episode: Episode;
-  nextDecision: NextDecision;
-  // Memory is server-projected (operational truth from the episode
-  // repository, optionally enriched with Cognee recall). Optional
-  // because the list endpoint may also produce this payload, and
-  // because older routes may not have wired it yet. When present,
-  // the workbench renders Mira's recognition lines above the
-  // recommendation card; when absent (or isReturning=false), no
-  // letter is shown — the recommendation card itself does that work.
-  memory?: MemoryContext;
+type EpisodePayload = EpisodeDetailPayload & {
   shareToken?: string;
   error?: string;
 };
@@ -247,9 +240,19 @@ useEffect(() => {
           idempotencyKey: crypto.randomUUID(),
         }),
       });
-      const data = (await response.json()) as EpisodePayload;
+      const data = (await response.json()) as EpisodePayload & { error?: string };
       if (!response.ok) throw new Error(data.error ?? "Could not update.");
-      setPayload(data);
+      setPayload((prev) =>
+        prev
+          ? {
+              ...prev,
+              episode: data.episode,
+              nextDecision: data.nextDecision,
+              miraPresence: data.miraPresence,
+              shareToken: data.shareToken ?? prev.shareToken,
+            }
+          : data,
+      );
       if (data.shareToken) {
         setShareUrl(`${window.location.origin}/invite/${data.shareToken}`);
       }
@@ -265,14 +268,17 @@ useEffect(() => {
     return (
       <section className="mx-auto max-w-2xl px-6 sm:px-10 py-20">
         <div className="flex items-center gap-4">
-          <MiraOrb size={48} state="thinking" />
+          <MiraOrb
+            size={48}
+            presence={presenceFromActivity("processing")}
+          />
           <p aria-live="polite">{error ?? "Returning to your intention…"}</p>
         </div>
       </section>
     );
   }
 
-  const { episode, nextDecision, memory } = payload;
+  const { episode, nextDecision, memory, miraPresence } = payload;
   const intention = episode.intentions.at(-1)!;
   const recommendation = episode.recommendation?.result;
   const latestObservation = episode.monitor?.observations.at(-1);
@@ -307,7 +313,11 @@ useEffect(() => {
       </div>
 
       <div className="flex items-start gap-5 mb-8">
-        <MiraOrb size={64} state={busy ? "thinking" : "calm"} />
+        <MiraOrb
+          size={64}
+          presence={miraPresence}
+          activity={busy ? "processing" : "idle"}
+        />
         <div>
           <p className="tag mb-2">what you are making space for</p>
           <h1 className="font-serif text-4xl sm:text-5xl tracking-tight leading-tight">
@@ -405,7 +415,7 @@ useEffect(() => {
                 className="border-l-2 border-[color:var(--accent-soft)] pl-5"
               >
                 <div className="flex items-start gap-3 mb-3">
-                  <MiraOrb size={40} state="calm" />
+                  <MiraOrb size={40} presence={miraPresence} />
                   <p className="tag pt-2">a note from Mira</p>
                 </div>
                 <div className="space-y-2 leading-relaxed">

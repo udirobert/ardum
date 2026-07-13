@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import MiraOrb from "@/components/MiraOrb";
+import { presenceFromActivity } from "@/agent/mira-presence";
 import { useMagicAuth } from "./MagicAuth";
 import { useUniversalAccount } from "./UniversalAccount";
 import { canonicalBookingMessage } from "./canonical";
@@ -231,7 +232,11 @@ export default function ConversationalBooking({
       <div className="mt-8 fade-in-up">
         {/* Mira's closing lines — the letter continues */}
         <div className="flex items-start gap-4 mb-8">
-          <MiraOrb size={48} state="calm" className="flex-shrink-0 mt-1" />
+          <MiraOrb
+            size={48}
+            presence={presenceFromActivity("arriving")}
+            className="flex-shrink-0 mt-1"
+          />
           <div className="space-y-3 flex-1">
             {dialogue.done.map((line, i) => (
               <p
@@ -286,7 +291,11 @@ export default function ConversationalBooking({
         {/* Share — woven into Mira's voice, not a card */}
         <div className="ml-16 mb-8">
           <div className="flex items-start gap-3 mb-3">
-            <MiraOrb size={28} state="speaking" className="flex-shrink-0 mt-0.5" />
+            <MiraOrb
+              size={28}
+              presence={presenceFromActivity("speaking")}
+              className="flex-shrink-0 mt-0.5"
+            />
             <p className="text-sm leading-relaxed max-w-prose">
               Your spot is held. If a friend books through your link, you both
               get $50 off. Want to share?
@@ -339,7 +348,7 @@ export default function ConversationalBooking({
     return (
       <div className="mt-8 fade-in-up">
         <div className="flex items-center gap-4 mb-4">
-          <MiraOrb size={48} state="calm" />
+          <MiraOrb size={48} presence={presenceFromActivity("idle")} />
           <div className="flex-1">
             <p className="text-lg leading-relaxed text-[color:var(--accent-ink)]">
               Something didn&apos;t go through. That&apos;s okay — nothing was lost.
@@ -381,16 +390,21 @@ export default function ConversationalBooking({
     error: [],
   };
 
-  const orbState =
+  const orbActivity =
     effectivePhase === "attesting" || (effectivePhase === "upgrading" && delegating)
-      ? "thinking"
+      ? "processing"
       : "speaking";
 
   return (
     <div className="mt-8 fade-in-up">
       {/* Mira dialogue for current phase */}
       <div className="flex items-start gap-4 mb-6">
-        <MiraOrb size={48} state={orbState} className="flex-shrink-0 mt-1" />
+        <MiraOrb
+          size={48}
+          presence={presenceFromActivity("idle")}
+          activity={orbActivity}
+          className="flex-shrink-0 mt-1"
+        />
         <div className="space-y-2 flex-1">
           {phaseLines[effectivePhase].map((line, i) => (
             <p

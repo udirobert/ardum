@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { parseEpisodeCommand } from "@/episodes/contracts";
-import { nextDecision } from "@/episodes/model";
+import { buildEpisodeActionPayload } from "@/episodes/detail-payload";
 import { applyEpisodeCommand } from "@/episodes/service";
 import { resolveActor } from "@/identity/actor";
 
@@ -26,10 +26,7 @@ export async function POST(
       command.idempotencyKey = key;
     }
     const result = await applyEpisodeCommand(actorId, id, command);
-    return NextResponse.json({
-      ...result,
-      nextDecision: nextDecision(result.episode),
-    });
+    return NextResponse.json(buildEpisodeActionPayload(result));
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "The action could not be completed.";
