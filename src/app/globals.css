@@ -168,7 +168,111 @@ body::before {
   animation: pulse-soft 1.6s ease-in-out infinite;
 }
 
-/* Mira orb — breathing animation. Calm = 4s (relaxed breathing),
+/* Mira choice beat — micro-orb motion per energy state */
+@keyframes mira-choice-still {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+@keyframes mira-choice-flow {
+  0%, 100% { transform: translateX(0) scale(1); }
+  50% { transform: translateX(6px) scale(1.08); }
+}
+@keyframes mira-choice-sink {
+  0%, 100% { transform: translateY(0); opacity: 0.55; }
+  50% { transform: translateY(4px); opacity: 0.9; }
+}
+@keyframes mira-choice-pulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  40% { transform: scale(1.12); filter: brightness(1.2); }
+}
+
+.mira-choice-orb {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, rgba(216,168,146,0.9), rgba(110,57,37,0.85));
+  box-shadow: 0 0 24px rgba(168, 90, 58, 0.25);
+}
+.mira-choice-still { animation: mira-choice-still 4s ease-in-out infinite; }
+.mira-choice-flow { animation: mira-choice-flow 2.2s ease-in-out infinite; }
+.mira-choice-sink { animation: mira-choice-sink 3.5s ease-in-out infinite; }
+.mira-choice-pulse { animation: mira-choice-pulse 1.6s ease-in-out infinite; }
+
+.mira-choice-card:hover .mira-choice-orb {
+  box-shadow: 0 0 32px rgba(168, 90, 58, 0.45);
+}
+
+.mira-choice-card:focus-visible {
+  outline: 2px solid rgba(168, 90, 58, 0.45);
+  outline-offset: 2px;
+}
+
+/* Aesthetic calibration — immersive frame */
+.aesthetic-calibrate-frame {
+  touch-action: pan-y;
+  cursor: grab;
+}
+.aesthetic-calibrate-frame:active {
+  cursor: grabbing;
+}
+
+/* Retreat vision payoff */
+@keyframes vision-ken-burns {
+  0% { transform: scale(1) translate(0, 0); }
+  100% { transform: scale(1.08) translate(-1.5%, -1%); }
+}
+@keyframes vision-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.vision-ken-burns img {
+  animation: vision-ken-burns 18s ease-in-out infinite alternate;
+}
+.vision-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(246, 232, 220, 0.4) 0%,
+    rgba(216, 168, 146, 0.55) 50%,
+    rgba(246, 232, 220, 0.4) 100%
+  );
+  background-size: 200% 100%;
+  animation: vision-shimmer 2.2s ease-in-out infinite;
+}
+
+/* Vector-driven color grade over curated vision frames */
+.vision-grade {
+  background:
+    radial-gradient(
+      ellipse 90% 80% at 50% 100%,
+      rgba(30, 18, 12, calc(0.15 + var(--vision-dark, 0.35) * 0.45)),
+      transparent 70%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(216, 168, 146, calc(var(--vision-warmth, 0.5) * 0.22)),
+      rgba(120, 150, 170, calc((1 - var(--vision-warmth, 0.5)) * 0.18))
+    );
+  mix-blend-mode: soft-light;
+  opacity: calc(0.35 + var(--vision-calm, 0.6) * 0.25);
+}
+
+/* Auto-reveal stagger children inside choice beats */
+.mira-choice-reveal.is-shown .t-stagger-line {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+
+/* Hero orb — 3D scene owns motion; disable CSS breathe */
+.mira-orb--scene {
+  animation: none !important;
+}
+
+.mira-orb--scene canvas {
+  display: none;
+}
+
+/* ── Mira orb — breathing animation. Calm = 4s (relaxed breathing),
    thinking = 2s, speaking = 3s. Scale + opacity shift, not a pulse. */
 @keyframes mira-breathe {
   0%, 100% {

@@ -5,7 +5,7 @@
 // This is Tier 1: zero API cost, instant load. The user's reactions
 // to these images build a preference vector that later drives:
 //   1. Which images we show next (bandit-style selection)
-//   2. The fal.ai prompt for the generated "retreat vision" (Tier 2)
+//   2. The curated retreat vision frame (Tier 2 — local assets)
 //   3. Mira's language in the match letter ("You were drawn to ocean
 //      and warm tones...")
 //
@@ -89,7 +89,7 @@ export const IMAGE_POOL: PoolImage[] = [
   },
   {
     id: "desert-dunes",
-    src: "https://images.unsplash.com/photo-1473580044384-34fe828d2e6f?w=800&q=70&auto=format&fit=crop",
+    src: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&q=70&auto=format&fit=crop",
     alt: "Smooth desert dunes at golden hour",
     vector: { ocean: 0.0, mountain: 0.3, jungle: 0.0, desert: 0.95, forest: 0.0, warm: 0.9, cool: 0.1, minimal: 0.9, ornate: 0.1, light: 0.8, dark: 0.2, calming: 0.8, energizing: 0.3, expansive: 0.95, intimate: 0.15 },
     tags: ["desert", "warm", "minimal", "expansive"],
@@ -124,7 +124,7 @@ export const IMAGE_POOL: PoolImage[] = [
   },
   {
     id: "temple-stone",
-    src: "https://images.unsplash.com/photo-1545569310-acec1c7f9b0f?w=800&q=70&auto=format&fit=crop",
+    src: "https://images.unsplash.com/photo-1528164344705-47542687000d?w=800&q=70&auto=format&fit=crop",
     alt: "Ancient stone temple in soft morning light",
     vector: { ocean: 0.0, mountain: 0.3, jungle: 0.3, desert: 0.2, forest: 0.2, warm: 0.6, cool: 0.4, minimal: 0.4, ornate: 0.8, light: 0.5, dark: 0.5, calming: 0.75, energizing: 0.2, expansive: 0.4, intimate: 0.7 },
     tags: ["temple", "ornate", "ancient", "intimate"],
@@ -138,7 +138,7 @@ export const IMAGE_POOL: PoolImage[] = [
   },
   {
     id: "rice-terraces",
-    src: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&q=70&auto=format&fit=crop",
+    src: "https://images.unsplash.com/photo-1555400038-63f5ba517a47?w=800&q=70&auto=format&fit=crop",
     alt: "Lush rice terraces in tropical highlands",
     vector: { ocean: 0.1, mountain: 0.6, jungle: 0.6, desert: 0.0, forest: 0.5, warm: 0.7, cool: 0.3, minimal: 0.3, ornate: 0.7, light: 0.7, dark: 0.2, calming: 0.7, energizing: 0.4, expansive: 0.6, intimate: 0.5 },
     tags: ["tropical", "warm", "terraces", "green"],

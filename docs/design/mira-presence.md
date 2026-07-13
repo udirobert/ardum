@@ -65,13 +65,21 @@ Fidelity scales with footprint and page budget:
 
 | Tier | Size | Expression |
 |---|---|---|
-| `hero` | ≥ 96 px | Full metaball morph, reactions, marble shader |
-| `standard` | 40–95 px | Metaball morph, mudra ring |
-| `inline` | < 40 px | Breath, ring, palette — simplified mask |
+| `hero` | ≥ 96 px | **MiraScene** — glass transmission core, attractor shell, bloom, chromatic aberration |
+| `standard` | 64–95 px | MiraScene at reduced footprint |
+| `inline` | < 64 px | 2D metaball WebGL or CSS fallback |
 
 `MiraOrb` selects the tier from `size`. Multiple orbs may mount on one page;
 WebGL contexts remain capped (`MAX_GL_ORBS`). Beyond the budget, CSS fallback
 applies.
+
+## Interaction impulse
+
+`MiraImpulseProvider` exposes a decaying 0–1 scalar when the person leans on
+or commits to a choice (`lean`, `commit`, `resonate`, `skip`). Hero
+`MiraScene` reads impulse via shader uniforms — faster orbit, brighter bloom,
+glass distortion. Impulse is ephemeral UI feedback; it never writes episode
+state.
 
 ## Activity overlay
 

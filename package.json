@@ -33,6 +33,9 @@
     "@particle-network/auth": "^1.3.1",
     "@particle-network/provider": "^1.3.2",
     "@particle-network/universal-account-sdk": "^2.0.3",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
+    "@react-three/postprocessing": "^3.0.4",
     "@supabase/supabase-js": "^2.108.2",
     "@zerodev/ecdsa-validator": "^5.4.9",
     "@zerodev/sdk": "^5.5.10",
@@ -42,9 +45,11 @@
     "lenis": "^1.3.25",
     "magic-sdk": "^33.7.1",
     "next": "16.2.9",
+    "postprocessing": "^6.39.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "server-only": "^0.0.1",
+    "three": "^0.185.1",
     "viem": "^2.54.1"
   },
   "devDependencies": {

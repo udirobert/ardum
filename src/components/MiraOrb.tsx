@@ -7,8 +7,10 @@
 // src/agent/mira-presence.ts (operational projection). See
 // docs/design/mira-presence.md.
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { readAestheticVector } from "@/aesthetics/aesthetic-store";
 import type { AestheticVector } from "@/aesthetics/image-pool";
 import {
   breathDuration,
@@ -22,6 +24,12 @@ import {
   type MiraPresence,
   type MorphParams,
 } from "@/agent/mira-presence";
+
+import { useMiraImpulse } from "@/components/MiraImpulse";
+
+const MiraScene = dynamic(() => import("./MiraScene"), { ssr: false });
+
+const SCENE_MIN_PX = 64;
 
 type MiraOrbProps = {
   /** Journey posture — projected from episode or activity helpers. */
@@ -251,6 +259,15 @@ export default function MiraOrb({
   const tier = renderTier(size);
   const effectivePresence = mergePresence(presence, activity);
   const ring = ringStyle(effectivePresence.posture);
+  const useScene = size >= SCENE_MIN_PX;
+  const [storedVector] = useState(() =>
+    typeof window !== "undefined" ? readAestheticVector() : null,
+  );
+  const resolvedVector = aestheticVector ?? storedVector;
+  const [reactionPulse, setReactionPulse] = useState(0);
+  const { impulse } = useMiraImpulse();
+  const morph = morphParamsForTier(effectivePresence, tier);
+  const palette = vectorToPalette(resolvedVector);
 
   useEffect(() => {
     presenceRef.current = mergePresence(presence, activity);
@@ -268,16 +285,35 @@ export default function MiraOrb({
   }, [effectivePresence.reaction]);
 
   useEffect(() => {
+    if (useScene) return;
     const orb = orbRef.current;
     if (!orb) return;
     orb.style.animationDuration = breathDuration(effectivePresence.posture);
-  }, [effectivePresence.posture]);
+  }, [effectivePresence.posture, useScene]);
 
   useEffect(() => {
-    paletteRef.current = vectorToPalette(aestheticVector);
-  }, [aestheticVector]);
+    paletteRef.current = vectorToPalette(resolvedVector);
+  }, [resolvedVector]);
 
   useEffect(() => {
+    if (!reactionRef.current.active) return;
+    let raf = 0;
+    const tick = (now: number) => {
+      const elapsed = now - reactionRef.current.startedAt;
+      if (elapsed > REACTION_MS) {
+        reactionRef.current.active = false;
+        setReactionPulse(0);
+        return;
+      }
+      setReactionPulse(Math.sin((elapsed / REACTION_MS) * Math.PI));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [effectivePresence.reaction?.eventId]);
+
+  useEffect(() => {
+    if (useScene) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     if (liveGLOrbs >= MAX_GL_ORBS) return;
@@ -434,7 +470,7 @@ export default function MiraOrb({
       const lose = gl.getExtension("WEBGL_lose_context");
       lose?.loseContext();
     };
-  }, [size, reduced, tier]);
+  }, [size, reduced, tier, useScene]);
 
   const ringRadius = (size - 8) / 2;
   const ringCircumference = 2 * Math.PI * ringRadius;
@@ -448,6 +484,37 @@ export default function MiraOrb({
 
   return (
     <div className={`flex flex-col items-center gap-3 ${className ?? ""}`}>
+      {useScene ? (
+        <div className="relative" style={{ width: size, height: size }} aria-hidden>
+          <MiraScene
+            size={size}
+            morph={morph}
+            palette={palette}
+            reactionPulse={reactionPulse}
+            impulse={impulse}
+          />
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            viewBox={`0 0 ${size} ${size}`}
+            fill="none"
+          >
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={ringRadius}
+              stroke="rgba(110,57,37,0.45)"
+              strokeWidth="0.75"
+              strokeDasharray={`${visibleLength} ${gapSize}`}
+              strokeLinecap="round"
+              style={{
+                transition: "stroke-dasharray 1.2s ease-in-out",
+                transform: "rotate(-90deg)",
+                transformOrigin: "center",
+              }}
+            />
+          </svg>
+        </div>
+      ) : (
       <div
         ref={orbRef}
         className="relative rounded-full mira-orb"
@@ -530,6 +597,7 @@ export default function MiraOrb({
           </svg>
         )}
       </div>
+      )}
       <span aria-live="polite" aria-atomic="true" className="sr-only">
         {presenceAnnouncement(effectivePresence)}
       </span>

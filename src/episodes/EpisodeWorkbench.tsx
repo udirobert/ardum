@@ -4,6 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import MiraOrb from "@/components/MiraOrb";
+import DecisionSlide from "@/components/DecisionSlide";
+import StaggerReveal from "@/components/StaggerReveal";
+import {
+  BudgetChoice,
+  EnergyChoice,
+  SocialChoice,
+} from "@/components/MiraChoices";
+import { MiraImpulseProvider } from "@/components/MiraImpulse";
+import { readAestheticVector } from "@/aesthetics/aesthetic-store";
 import {
   presenceFromActivity,
 } from "@/agent/mira-presence";
@@ -20,7 +29,6 @@ import type {
 } from "./model";
 import type { EpisodeDetailPayload } from "./detail-payload";
 import { createAbortableRunner } from "@/lib/abortableFetch";
-import type { MemoryContext } from "@/memory/semantic-memory";
 import { matchLetter } from "@/agent/mira-voice";
 
 type Props = { episodeId: string };
@@ -42,25 +50,6 @@ type CommandInput = EpisodeCommand extends infer Command
     ? Omit<Command, "expectedRevision">
     : never
   : never;
-
-const energyOptions = [
-  ["settled", "Settled"],
-  ["in-movement", "In movement"],
-  ["low", "Low"],
-  ["sharp", "Sharp"],
-] as const;
-const budgetOptions = [
-  ["under-1k", "Under $1,000"],
-  ["1k-2k", "$1,000 – $2,000"],
-  ["2k-3k", "$2,000 – $3,000"],
-  ["3k-plus", "$3,000+"],
-] as const;
-const socialOptions = [
-  ["solo", "Mostly alone"],
-  ["small-circle", "Small circle"],
-  ["open-circle", "Open circle"],
-  ["communal", "Communal"],
-] as const;
 
 export default function EpisodeWorkbench({ episodeId }: Props) {
   const router = useRouter();
@@ -136,9 +125,11 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
     }
   }
 
-const [activeBand, setActiveBand] = useState<BudgetBand | null>(null);
-const [bandData, setBandData] = useState<CounterfactualResult | null>(null);
-const [bandLoading, setBandLoading] = useState(false);async function runCounterfactualBudget(
+  const [activeBand, setActiveBand] = useState<BudgetBand | null>(null);
+  const [bandData, setBandData] = useState<CounterfactualResult | null>(null);
+  const [bandLoading, setBandLoading] = useState(false);
+
+  async function runCounterfactualBudget(
     band: BudgetBand | null,
   ): Promise<void> {
     setActiveBand(band);
@@ -174,9 +165,11 @@ const [bandLoading, setBandLoading] = useState(false);async function runCounterf
     }
   }
 
-const [activeEnergy, setActiveEnergy] = useState<EnergyState | null>(null);
-const [energyData, setEnergyData] = useState<CounterfactualResult | null>(null);
-const [energyLoading, setEnergyLoading] = useState(false);async function runCounterfactualEnergy(
+  const [activeEnergy, setActiveEnergy] = useState<EnergyState | null>(null);
+  const [energyData, setEnergyData] = useState<CounterfactualResult | null>(null);
+  const [energyLoading, setEnergyLoading] = useState(false);
+
+  async function runCounterfactualEnergy(
     energy: EnergyState | null,
   ): Promise<void> {
     setActiveEnergy(energy);
@@ -298,8 +291,14 @@ useEffect(() => {
     recommendation && memory && memory.isReturning
       ? matchLetter(recommendation, practitionerSignals, memory)
       : null;
+  const aestheticVector = readAestheticVector();
+  const isClarifyStep =
+    nextDecision.kind === "clarify-energy" ||
+    nextDecision.kind === "clarify-budget" ||
+    nextDecision.kind === "clarify-social";
 
   return (
+    <MiraImpulseProvider>
     <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
       <div className="flex items-center justify-between gap-4 mb-10">
         <button
@@ -317,6 +316,7 @@ useEffect(() => {
           size={64}
           presence={miraPresence}
           activity={busy ? "processing" : "idle"}
+          aestheticVector={aestheticVector}
         />
         <div>
           <p className="tag mb-2">what you are making space for</p>
@@ -330,68 +330,73 @@ useEffect(() => {
         className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 sm:p-8 surface-card"
         aria-live="polite"
       >
+        {isClarifyStep ? (
+          <DecisionSlide
+            decisionKind={nextDecision.kind}
+            prompt={nextDecision.prompt}
+          >
+            {nextDecision.kind === "clarify-energy" && (
+              <StaggerReveal className="mira-choice-reveal is-shown">
+                <p className="why mb-5 t-stagger-line">
+                  How you arrive now shapes what fits. Mira will remember this
+                  only for this intention.
+                </p>
+                <EnergyChoice
+                  disabled={busy}
+                  onChoose={(energy) =>
+                    act({
+                      type: "revise-intention",
+                      constraints: { energy },
+                      reason: "Clarified current energy",
+                    })
+                  }
+                />
+              </StaggerReveal>
+            )}
+            {nextDecision.kind === "clarify-budget" && (
+              <StaggerReveal className="mira-choice-reveal is-shown">
+                <p className="why mb-5 t-stagger-line">
+                  A responsible limit keeps the choice honest. Mira will remember
+                  this only for this intention.
+                </p>
+                <BudgetChoice
+                  disabled={busy}
+                  onChoose={(budget) =>
+                    act({
+                      type: "revise-intention",
+                      constraints: { budget },
+                      reason: "Set a responsible limit",
+                    })
+                  }
+                />
+              </StaggerReveal>
+            )}
+            {nextDecision.kind === "clarify-social" && (
+              <StaggerReveal className="mira-choice-reveal is-shown">
+                <p className="why mb-5 t-stagger-line">
+                  The shape of company shapes the day. Mira will remember this
+                  only for this intention.
+                </p>
+                <SocialChoice
+                  disabled={busy}
+                  onChoose={(social) =>
+                    act({
+                      type: "revise-intention",
+                      constraints: { social },
+                      reason: "Clarified the shape of company",
+                    })
+                  }
+                />
+              </StaggerReveal>
+            )}
+          </DecisionSlide>
+        ) : (
+          <>
         <p className="tag mb-3">the next decision</p>
         <h2 className="font-serif text-3xl tracking-tight mb-6">
           {nextDecision.prompt}
         </h2>
 
-        {nextDecision.kind === "clarify-energy" && (
-          <>
-            <p className="why mb-3">
-              How you arrive now shapes what fits. Mira will remember this
-              only for this intention.
-            </p>
-            <ChoiceGrid
-            options={energyOptions}
-            disabled={busy}
-            onChoose={(energy) =>
-              act({
-                type: "revise-intention",
-                constraints: { energy },
-                reason: "Clarified current energy",
-              })
-            }
-          />
-          </>
-        )}
-        {nextDecision.kind === "clarify-budget" && (
-          <>
-            <p className="why mb-3">
-              A responsible limit keeps the choice honest. Mira will remember
-              this only for this intention.
-            </p>
-            <ChoiceGrid
-            options={budgetOptions}
-            disabled={busy}
-            onChoose={(budget) =>
-              act({
-                type: "revise-intention",
-                constraints: { budget },
-                reason: "Set a responsible limit",
-              })
-            }
-          />
-          </>
-        )}
-        {nextDecision.kind === "clarify-social" && (
-          <>
-            <p className="why mb-3">
-              The shape of company shapes the day. Mira will remember this
-              only for this intention.
-            </p>
-            <ChoiceGrid
-            options={socialOptions}
-            disabled={busy}
-            onChoose={(social) =>
-              act({
-                type: "revise-intention",
-                constraints: { social },
-                reason: "Clarified the shape of company",
-              })
-            }
-          />
-          </>
-        )}
         {nextDecision.kind === "review-recommendation" && !recommendation && (
           <>
             <p className="why mb-3">
@@ -613,6 +618,9 @@ useEffect(() => {
           </div>
         )}
 
+          </>
+        )}
+
         {error && (
           <p className="mt-5 text-sm text-[color:var(--accent-ink)]" role="alert">
             {error}
@@ -637,33 +645,7 @@ useEffect(() => {
         </ol>
       </div>
     </section>
-  );
-}
-
-function ChoiceGrid<T extends string>({
-  options,
-  disabled,
-  onChoose,
-}: {
-  options: readonly (readonly [T, string])[];
-  disabled: boolean;
-  onChoose: (value: T) => void;
-}) {
-  return (
-    <fieldset className="grid sm:grid-cols-2 gap-3">
-      <legend className="sr-only">Choose one</legend>
-      {options.map(([value, label]) => (
-        <button
-          key={value}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChoose(value)}
-          className="min-h-12 px-4 py-3 text-left rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent)] disabled:opacity-40"
-        >
-          {label}
-        </button>
-      ))}
-    </fieldset>
+    </MiraImpulseProvider>
   );
 }
 
