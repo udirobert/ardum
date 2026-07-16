@@ -1,20 +1,30 @@
 // End-to-end smoke journey for the Ardum intention surface.
 //
-//   npm run smoke:journey                           # against localhost:3000
+//   npm run smoke:journey                           # solo + invite paths
+//   npm run smoke:journey -- --solo-only            # solo hold → book only
+//   npm run smoke:journey -- --invite-only          # invite branch only
 //   npm run smoke:journey -- https://ardum.vercel.app
 //
-// Walks the canonical episode journey against a running server:
-//   capture → clarify energy/budget/social → recommend → reject →
-//   re-clarify → recommend → monitor → hold → invite → response →
-//   book → resume (GET) → delete
+// Walks two regression paths against a running server:
 //
-// Plus two defensive checks:
+//   Solo (ADR 0008): capture → clarify → recommend → hold → book → delete
+//
+//   Invite branch: capture → clarify → recommend → reject → re-clarify →
+//   recommend → monitor → hold → invite → response → book → returning memory
+//   → delete
+//
+// Plus defensive checks on the invite path:
 //   - the same command with the same idempotency key produces no new revision
 //   - a command with an expected revision that has moved is rejected as 409
 //
 // Each step prints a ✓ / ✗ so a failed journey is obvious in CI output.
 
-const baseUrl = (process.argv[2] ?? "http://localhost:3000").replace(/\/$/, "");
+const argv = process.argv.slice(2);
+const inviteOnly = argv.includes("--invite-only");
+const soloOnly = argv.includes("--solo-only");
+const baseUrl = (
+  argv.find((a) => a.startsWith("http")) ?? "http://localhost:3000"
+).replace(/\/$/, "");
 
 // --- cookie jar ----------------------------------------------------------
 
@@ -91,9 +101,106 @@ async function waitForServer() {
   throw new Error(`Server at ${baseUrl} did not respond within 30s.`);
 }
 
-async function main() {
-  console.log(`\nArdum journey smoke — ${baseUrl}\n`);
-  await waitForServer();
+/** Compact walk: capture → clarify → recommend → hold. Returns { episodeId, revision, send }. */
+async function walkToSoloHold(prefix) {
+  let episodeId = null;
+  let revision = 1;
+
+  await step(`${prefix}POST /api/episodes captures an intention`, async () => {
+    const res = await jsonRequest("POST", "/api/episodes", {
+      statement: "Make space to recover from an intense quarter.",
+      desiredShift: "Come back to my edges with a little softness.",
+      persistenceConsent: true,
+    });
+    assert(res.status === 201, `expected 201, got ${res.status}: ${JSON.stringify(res.body)}`);
+    assert(res.body?.episode?.id, `no episode id returned: ${JSON.stringify(res.body)}`);
+    episodeId = res.body.episode.id;
+    revision = res.body.episode.revision;
+  });
+
+  const send = async (command) =>
+    jsonRequest("POST", `/api/episodes/${episodeId}/actions`, command);
+
+  for (const [label, constraints, reason] of [
+    ["clarify energy → status:clarifying", { energy: "settled" }, "Resolve energy first."],
+    ["clarify budget → status:clarifying", { budget: "1k-2k" }, "Add a responsible limit."],
+    ["clarify social → status:ready", { social: "solo" }, "Solo path — no invite required."],
+  ]) {
+    await step(`${prefix}${label}`, async () => {
+      const res = await send({
+        type: "revise-intention",
+        expectedRevision: revision,
+        constraints,
+        reason,
+      });
+      assert(res.status === 200, `got ${res.status}: ${JSON.stringify(res.body)}`);
+      revision = res.body.episode.revision;
+    });
+  }
+
+  await step(`${prefix}recommend → status:recommendation-ready`, async () => {
+    const res = await send({ type: "recommend", expectedRevision: revision });
+    assert(res.status === 200, `got ${res.status}: ${JSON.stringify(res.body)}`);
+    assert(
+      res.body?.episode?.status === "recommendation-ready",
+      `expected status=recommendation-ready, got ${res.body.episode.status}`,
+    );
+    revision = res.body.episode.revision;
+  });
+
+  await step(`${prefix}create-hold → status:held, solo ready-to-book`, async () => {
+    const res = await send({ type: "create-hold", expectedRevision: revision });
+    assert(res.status === 200, `got ${res.status}: ${JSON.stringify(res.body)}`);
+    assert(
+      res.body?.episode?.status === "held",
+      `expected status=held (dual-key presence), got ${res.body.episode.status}`,
+    );
+    assert(
+      res.body?.episode?.hold?.status === "active",
+      `hold should be active: ${JSON.stringify(res.body.episode.hold)}`,
+    );
+    assert(
+      res.body?.nextDecision?.kind === "ready-to-book",
+      `expected nextDecision=ready-to-book after solo hold, got ${JSON.stringify(res.body?.nextDecision)}`,
+    );
+    revision = res.body.episode.revision;
+  });
+
+  return { episodeId, revision, send };
+}
+
+async function runSoloCommitPath() {
+  console.log("  Solo commit path (hold → book, no invite)\n");
+
+  const { episodeId, revision, send } = await walkToSoloHold("solo: ");
+
+  await step("solo: record-commitment without invite → status:booked", async () => {
+    const res = await send({
+      type: "record-commitment",
+      expectedRevision: revision,
+      bookingRootHash: `0g-solo-smoke-${Date.now().toString(36)}`,
+      depositTxId: `0xsolo-smoke-${Date.now().toString(36)}`,
+      bookedAt: new Date().toISOString(),
+    });
+    assert(res.status === 200, `got ${res.status}: ${JSON.stringify(res.body)}`);
+    assert(
+      res.body?.episode?.status === "booked",
+      `expected status=booked, got ${res.body.episode.status}`,
+    );
+    assert(
+      !res.body?.episode?.coordination?.inviteExpiresAt,
+      "solo path must not require an invite branch",
+    );
+  });
+
+  await step("solo: DELETE /api/episodes/[id] removes the episode", async () => {
+    const res = await jsonRequest("DELETE", `/api/episodes/${episodeId}`);
+    assert(res.status === 200, `got ${res.status}: ${JSON.stringify(res.body)}`);
+  });
+}
+
+async function runInviteJourney() {
+  console.log("  Invite branch journey\n");
 
   // 1. Capture an intention.
   let episodeId = null;
@@ -236,13 +343,17 @@ async function main() {
     revision = res.body.episode.revision;
   });
 
-  await step("create-hold → status:held", async () => {
+  await step("create-hold → status:held, solo ready-to-book", async () => {
     const res = await send({ type: "create-hold", expectedRevision: revision });
     assert(res.status === 200, `got ${res.status}: ${JSON.stringify(res.body)}`);
     assert(res.body?.episode?.status === "held",
       `expected status=held, got ${res.body.episode.status}`);
     assert(res.body?.episode?.hold?.status === "active",
       `hold should be active: ${JSON.stringify(res.body.episode.hold)}`);
+    // Solo path: hold unlocks commitment without forcing an invite branch
+    // (docs/decisions/0008-agentic-commitment.md).
+    assert(res.body?.nextDecision?.kind === "ready-to-book",
+      `expected nextDecision=ready-to-book after solo hold, got ${JSON.stringify(res.body?.nextDecision)}`);
     revision = res.body.episode.revision;
   });
 
@@ -414,6 +525,18 @@ async function main() {
     const res = await jsonRequest("GET", `/api/episodes/${episodeId}`);
     assert(res.status === 404, `expected 404 after delete, got ${res.status}`);
   });
+}
+
+async function main() {
+  console.log(`\nArdum journey smoke — ${baseUrl}\n`);
+  await waitForServer();
+
+  if (!inviteOnly) {
+    await runSoloCommitPath();
+  }
+  if (!soloOnly) {
+    await runInviteJourney();
+  }
 
   const passed = steps.filter((s) => s.ok).length;
   const failed = steps.length - passed;

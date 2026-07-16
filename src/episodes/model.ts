@@ -141,6 +141,7 @@ export type NextDecision = {
     | "invite-participant"
     | "await-responses"
     | "ready-to-book"
+    | "preparation"
     | "resume";
   prompt: string;
   primaryLabel: string;
@@ -228,41 +229,50 @@ export function nextDecision(episode: Episode): NextDecision {
       primaryLabel: "Show me",
     };
   }
-  if (
-    episode.hold?.status === "active" &&
-    !episode.coordination?.inviteExpiresAt
-  ) {
+  if (episode.status === "booked" || episode.commitment?.status === "booked") {
     return {
-      kind: "invite-participant",
-      prompt: "Who else needs to be part of this decision?",
-      primaryLabel: "Invite someone",
+      kind: "preparation",
+      prompt: "You're booked. Your preparation plan has started.",
+      primaryLabel: "Begin preparation",
     };
   }
-  if (
-    episode.coordination?.inviteExpiresAt &&
-    episode.coordination.responses.length === 0
-  ) {
-    return {
-      kind: "await-responses",
-      prompt: "The invitation is out. I’ll keep the hold in view.",
-      primaryLabel: "Check for a response",
-    };
-  }
-  if (
-    episode.hold?.status === "active" &&
-    episode.coordination?.responses.some((response) => response.decision === "yes")
-  ) {
+  // Soft hold is the planning gate. Solo may commit without inviting.
+  // Coordination is an optional branch opened only via create-invite.
+  // Dual-key: status may stay "held" while kind is ready-to-book (solo);
+  // status "ready-to-book" is multi-party. See ADR 0008 §7.
+  if (episode.hold?.status === "active") {
+    const coordination = episode.coordination;
+    const inviteOpen = Boolean(coordination?.inviteExpiresAt);
+
+    if (inviteOpen) {
+      if (coordination!.responses.length === 0) {
+        return {
+          kind: "await-responses",
+          prompt: "The invitation is out. I’ll keep the hold in view.",
+          primaryLabel: "Check for a response",
+        };
+      }
+      if (
+        coordination!.responses.some((response) => response.decision === "yes")
+      ) {
+        return {
+          kind: "ready-to-book",
+          prompt: "The important pieces now agree. I can secure this for you.",
+          primaryLabel: "Secure my place",
+        };
+      }
+      return {
+        kind: "review-hold",
+        prompt:
+          "Not everyone is ready yet. Your option is still held — nothing has been charged.",
+        primaryLabel: "Review the hold",
+      };
+    }
+
     return {
       kind: "ready-to-book",
-      prompt: "The important pieces now agree.",
-      primaryLabel: "Review the commitment",
-    };
-  }
-  if (episode.hold?.status === "active") {
-    return {
-      kind: "review-hold",
-      prompt: "Your option is being held. Nothing has been charged.",
-      primaryLabel: "Review the hold",
+      prompt: "The pieces that matter now agree. I can secure this for you.",
+      primaryLabel: "Secure my place",
     };
   }
   return {

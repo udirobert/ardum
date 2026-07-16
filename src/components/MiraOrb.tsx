@@ -7,7 +7,7 @@
 // src/agent/mira-presence.ts (operational projection). See
 // docs/design/mira-presence.md.
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { readAestheticVector } from "@/aesthetics/aesthetic-store";
@@ -29,7 +29,21 @@ import { useMiraImpulse } from "@/components/MiraImpulse";
 
 const MiraScene = dynamic(() => import("./MiraScene"), { ssr: false });
 
+/**
+ * Warm the hero scene chunk (three/fiber/postprocessing) before the render
+ * tree reaches a scene-tier orb. Call from surfaces that will show one —
+ * module identity matches the dynamic() import above, so this is a pure
+ * prefetch, not a second copy.
+ */
+export function preloadMiraScene() {
+  if (typeof window !== "undefined") void import("./MiraScene");
+}
+
 const SCENE_MIN_PX = 64;
+// Crossfade from the instant 2D field to the 3D scene once it has a GL
+// context; release the 2D context shortly after the fade completes.
+const SCENE_FADE_MS = 900;
+const UNDERLAY_RELEASE_MS = 1300;
 
 type MiraOrbProps = {
   /** Journey posture — projected from episode or activity helpers. */
@@ -41,11 +55,12 @@ type MiraOrbProps = {
   className?: string;
   aestheticVector?: AestheticVector | null;
   /**
-   * Marks this orb as the page's primary presence: it becomes the shared
-   * element that morphs across route transitions. At most one orb per page
-   * may be shared — duplicate names skip the view transition entirely.
+   * Fill the parent container as an ambient field instead of a fixed-size
+   * badge. Always renders the hero scene; drops the ring/badge chrome.
+   * The shell field (MiraField) is the one persistent fill orb; page-level
+   * orbs are inline signatures.
    */
-  shared?: boolean;
+  fill?: boolean;
 };
 
 // Ardum base palette (sRGB 0–1).
@@ -135,6 +150,7 @@ uniform float u_bloom;
 uniform float u_asymmetry;
 uniform float u_reaction;
 uniform float u_metaball; // 1 = full morph, 0 = circle mask (inline tier)
+uniform float u_lift;     // raises the field center (fill tier matches hero framing)
 uniform vec3  u_dark;
 uniform vec3  u_warm;
 uniform vec3  u_light;
@@ -193,7 +209,8 @@ float metaballField(vec2 p, float t) {
 
 void main() {
   vec2 uv = gl_FragCoord.xy / u_res;
-  vec2 p = uv - 0.5;
+  vec2 p = uv - vec2(0.5, 0.5 + u_lift);
+  p.x *= u_res.x / u_res.y;
   float t = u_time * u_speed;
 
   float field = metaballField(p, u_time);
@@ -250,7 +267,7 @@ export default function MiraOrb({
   children,
   className,
   aestheticVector,
-  shared = false,
+  fill = false,
 }: MiraOrbProps) {
   const orbRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -263,10 +280,16 @@ export default function MiraOrb({
     active: boolean;
   }>({ startedAt: 0, active: false });
 
-  const tier = renderTier(size);
+  const tier = fill ? "hero" : renderTier(size);
   const effectivePresence = mergePresence(presence, activity);
   const ring = ringStyle(effectivePresence.posture);
-  const useScene = size >= SCENE_MIN_PX;
+  const useScene = fill || size >= SCENE_MIN_PX;
+  // Fill tier: the 2D field paints at first frame while the scene chunk
+  // loads, then fades out and releases its GL context.
+  const [sceneReady, setSceneReady] = useState(false);
+  const [underlayGone, setUnderlayGone] = useState(false);
+  const handleSceneReady = useCallback(() => setSceneReady(true), []);
+  const drawsUnderlay = fill && !underlayGone;
   const [storedVector] = useState(() =>
     typeof window !== "undefined" ? readAestheticVector() : null,
   );
@@ -299,6 +322,15 @@ export default function MiraOrb({
   }, [effectivePresence.posture, useScene]);
 
   useEffect(() => {
+    if (!fill || !sceneReady || underlayGone) return;
+    const timer = window.setTimeout(
+      () => setUnderlayGone(true),
+      UNDERLAY_RELEASE_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [fill, sceneReady, underlayGone]);
+
+  useEffect(() => {
     paletteRef.current = vectorToPalette(resolvedVector);
   }, [resolvedVector]);
 
@@ -320,7 +352,7 @@ export default function MiraOrb({
   }, [effectivePresence.reaction?.eventId]);
 
   useEffect(() => {
-    if (useScene) return;
+    if (useScene && !drawsUnderlay) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     if (liveGLOrbs >= MAX_GL_ORBS) return;
@@ -374,6 +406,7 @@ export default function MiraOrb({
       asymmetry: gl.getUniformLocation(prog, "u_asymmetry"),
       reaction: gl.getUniformLocation(prog, "u_reaction"),
       metaball: gl.getUniformLocation(prog, "u_metaball"),
+      lift: gl.getUniformLocation(prog, "u_lift"),
       dark: gl.getUniformLocation(prog, "u_dark"),
       warm: gl.getUniformLocation(prog, "u_warm"),
       light: gl.getUniformLocation(prog, "u_light"),
@@ -393,21 +426,24 @@ export default function MiraOrb({
       cream: [...initPal.cream] as RGB,
     };
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const px = Math.round(size * dpr);
-    canvas.width = px;
-    canvas.height = px;
-    gl.viewport(0, 0, px, px);
-    gl.uniform2f(u.res, px, px);
+    const dpr = Math.min(window.devicePixelRatio || 1, fill ? 1.5 : 2);
+    const fitCanvas = () => {
+      const rect = fill ? canvas.getBoundingClientRect() : null;
+      const px = Math.max(1, Math.round((rect?.width ?? size) * dpr));
+      const py = Math.max(1, Math.round((rect?.height ?? size) * dpr));
+      canvas.width = px;
+      canvas.height = py;
+      gl.viewport(0, 0, px, py);
+      gl.uniform2f(u.res, px, py);
+    };
+    fitCanvas();
     gl.uniform1f(u.metaball, tier === "inline" ? 0 : 1);
+    gl.uniform1f(u.lift, fill ? 0.08 : 0);
 
     liveGLOrbs++;
 
     const targetMorph = (): MorphParams =>
-      morphParamsForTier(
-        presenceRef.current,
-        renderTier(size),
-      );
+      morphParamsForTier(presenceRef.current, tier);
 
     const cur: MorphParams = { ...targetMorph() };
     let raf = 0;
@@ -465,6 +501,17 @@ export default function MiraOrb({
       if (!reduced) raf = requestAnimationFrame(draw);
     };
 
+    let resizeObserver: ResizeObserver | null = null;
+    if (fill && typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        fitCanvas();
+        // Resizing the backing store clears the canvas; the animated path
+        // repaints next frame, the static path must repaint here.
+        if (reduced) draw(start + 3200);
+      });
+      resizeObserver.observe(canvas);
+    }
+
     if (reduced) {
       draw(start + 3200);
     } else {
@@ -473,11 +520,52 @@ export default function MiraOrb({
 
     return () => {
       if (raf) cancelAnimationFrame(raf);
+      resizeObserver?.disconnect();
       liveGLOrbs = Math.max(0, liveGLOrbs - 1);
       const lose = gl.getExtension("WEBGL_lose_context");
       lose?.loseContext();
     };
-  }, [size, reduced, tier, useScene]);
+  }, [size, reduced, tier, useScene, fill, drawsUnderlay]);
+
+  if (fill) {
+    return (
+      <div className={`relative h-full w-full ${className ?? ""}`}>
+        {!underlayGone && (
+          <canvas
+            ref={canvasRef}
+            aria-hidden
+            className="absolute inset-0 h-full w-full"
+            style={{
+              opacity: sceneReady ? 0 : 1,
+              transition: `opacity ${SCENE_FADE_MS}ms ease`,
+            }}
+          />
+        )}
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            opacity: sceneReady ? 1 : 0,
+            transition: `opacity ${SCENE_FADE_MS}ms ease`,
+          }}
+        >
+          <MiraScene
+            fill
+            size={size}
+            morph={morph}
+            palette={palette}
+            reactionPulse={reactionPulse}
+            impulse={impulse}
+            onReady={handleSceneReady}
+          />
+        </div>
+        <span aria-live="polite" aria-atomic="true" className="sr-only">
+          {presenceAnnouncement(effectivePresence)}
+        </span>
+        {children}
+      </div>
+    );
+  }
 
   const ringRadius = (size - 8) / 2;
   const ringCircumference = 2 * Math.PI * ringRadius;
@@ -494,11 +582,7 @@ export default function MiraOrb({
       {useScene ? (
         <div
           className="relative"
-          style={{
-            width: size,
-            height: size,
-            viewTransitionName: shared ? "mira-orb" : undefined,
-          }}
+          style={{ width: size, height: size }}
           aria-hidden
         >
           <MiraScene
@@ -539,7 +623,6 @@ export default function MiraOrb({
           background:
             "radial-gradient(circle at 35% 30%, rgba(168,90,58,0.35), rgba(168,90,58,0.08) 60%, transparent 80%)",
           border: "1px solid rgba(168,90,58,0.15)",
-          viewTransitionName: shared ? "mira-orb" : undefined,
         }}
         aria-hidden
       >

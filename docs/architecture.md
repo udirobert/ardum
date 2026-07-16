@@ -122,14 +122,55 @@ and ID factories keep local behavior and tests deterministic.
 Soft holds are explicitly non-binding. Their provider, reference, status, and
 expiry are always visible.
 
+### Hold, solo, and coordination
+
+A hold is the planning gate before commitment. Coordination is an **optional
+branch** of an active hold, not a prerequisite of holding:
+
+```text
+recommend → hold
+  → solo / no multi-party branch → ready to book
+  → invite branch open → await responses → ready to book when agreement rules pass
+  → release / revise / monitor
+```
+
+`nextDecision` must expose a commit path for solo practitioners (including a
+social constraint of solitude) without forcing an invitation. Multi-party
+agreement remains required only when that branch was opened.
+
+**Dual-key (intentional):** after a solo hold, `episode.status` remains
+`held` (presence stays `holding`) while `nextDecision.kind` is
+`ready-to-book` (primary CTA: secure place). Status `ready-to-book` is
+reserved for multi-party agreement. Never derive the commit CTA from status
+alone — always use `nextDecision`. Full rationale:
+[0008-agentic-commitment](decisions/0008-agentic-commitment.md) §7.
+
 ## Commitment execution
 
-Booking and payment begin only after the episode reaches `ready_to_book` and the
-person explicitly commits. Existing wallet, account, escrow, and attestation
-integrations sit behind a lazy commitment provider.
+Booking and payment begin only after the episode is ready to book and the
+person **explicitly grants** commitment (amount and bounds). Existing wallet,
+account, escrow, and attestation integrations sit behind a lazy commitment
+provider.
+
+The product model is **grant, then ambient execution**:
+
+| Layer | Responsibility |
+|---|---|
+| Episode / `nextDecision` | Whether commitment is the primary human decision |
+| UI ceremony | Ready → identity only if missing → confirm amount and bounds |
+| Commitment provider | Identity, routing, deposit, escrow, attestation; normalized status |
+| Mira presence | `resolving` while securing, `arriving` when settled |
 
 The provider returns normalized status and verifiable references. Technical
-steps are available in details and logs, not narrated as the central product.
+steps (account upgrade, chain routing, storage writes, wallet addresses) stay
+in adapters, details, and logs — **not** named primary UI phases. Demo and
+missing-provider failures use human failure copy; they must not surface env or
+stack configuration as product text.
+
+Success updates the episode commitment and lands the person on preparation and
+continuous care, not a receipt of hashes. See
+[product-vision.md](product-vision.md) and
+[design/experience-layer.md](design/experience-layer.md).
 
 ## Mira presence
 
@@ -207,13 +248,17 @@ npm run smoke:journey                          # localhost:3000
 npm run smoke:journey -- https://ardum.app     # deployed
 ```
 
-It walks the canonical path — capture → clarify → recommend → reject with
+It walks two regression paths — **solo commit** (hold → book, no invite) and the
+**invite branch** — capture → clarify → recommend → reject with
 feedback → idempotent retry of the same command → stale-revision 409 →
-re-recommend → monitor → hold → invite → participant response → resume after
-reload → record commitment → delete → confirm 404 — and pins the MatchResult
-shape (`retreatRootHash`, `priceUsd`) consumed by the UI. Cookie handling is
-done in-script so the journey exercises the signed HttpOnly actor cookie the
-way a browser would.
+re-recommend → monitor → hold (asserting solo `ready-to-book`) → optional
+invite branch → participant response → resume after reload → record commitment
+→ delete → confirm 404 — and pins the MatchResult shape (`retreatRootHash`,
+`priceUsd`) consumed by the UI. Cookie handling is done in-script so the
+journey exercises the signed HttpOnly actor cookie the way a browser would.
+
+Flags: `--solo-only` (solo path only), `--invite-only` (invite branch only).
+Default runs both.
 
 The journey is the canary that nothing in the contract has been quietly broken
 by a route-handler, parser, or service-layer change.

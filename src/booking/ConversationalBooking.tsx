@@ -1,16 +1,13 @@
 "use client";
 
-// ConversationalBooking — the booking flow as a dialogue with Mira,
-// not a 4-step wizard. Mira narrates each step. The user clicks to
-// advance the conversation. The technical steps (Magic login, UA
-// upgrade, deposit, attestation) happen inline as part of the
-// conversation, not as a progress bar.
+// ConversationalBooking — commitment as a grant ceremony, not a
+// multi-phase rail walkthrough (docs/decisions/0008-agentic-commitment.md).
 //
-// The key difference from BookingFlow: the user never feels like
-// they're in a checkout. They're in a conversation with a guide who
-// is handling everything for them.
+// Human moments: identity only if missing → confirm amount and bounds.
+// Magic login, account upgrade, deposit routing, and attestation run
+// ambiently under "Securing your place…". Rails stay under disclosure.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import MiraOrb from "@/components/MiraOrb";
 import { presenceFromActivity } from "@/agent/mira-presence";
@@ -37,16 +34,10 @@ type ConversationalBookingProps = {
   operatorAddress: string;
   signals: { energy?: string; budget?: string; social?: string };
   onClose: () => void;
+  onBooked?: () => void;
 };
 
-type Phase =
-  | "signIn"
-  | "upgrading"
-  | "depositing"
-  | "breathing"
-  | "attesting"
-  | "done"
-  | "error";
+type Surface = "grant" | "securing" | "done" | "error";
 
 export default function ConversationalBooking({
   episodeId,
@@ -57,89 +48,86 @@ export default function ConversationalBooking({
   operatorAddress,
   signals,
   onClose,
+  onBooked,
 }: ConversationalBookingProps) {
   const {
     address,
+    sessionReady,
     configured: magicConfigured,
     connectWithUI,
     connecting: authConnecting,
+    returningPayer,
     signPersonalMessage,
   } = useMagicAuth();
   const {
     configured: uaConfigured,
     delegated,
-    delegating,
     ensureDelegated,
-    fetchBalance,
-    balance,
     sendDeposit,
     error: uaError,
   } = useUniversalAccount();
 
-  const [phase, setPhase] = useState<Phase>("signIn");
+  const [surface, setSurface] = useState<Surface>("grant");
   const [error, setError] = useState<string | null>(null);
   const [depositTxId, setDepositTxId] = useState<string | null>(null);
   const [bookingRootHash, setBookingRootHash] = useState<string | null>(null);
+  const [securingLabel, setSecuringLabel] = useState("Securing your place…");
 
   const dialogue = bookingDialogue(depositUsd, retreatTitle);
+  const amountLabel = `$${depositUsd.toLocaleString()}`;
 
-  // Derive the effective phase from underlying auth/UA state.
-  // This avoids set-state-in-effect cascading renders.
-  const effectivePhase: Phase =
-    phase === "done" || phase === "error"
-      ? phase
-      : phase === "attesting"
-        ? "attesting"
-        : phase === "breathing"
-          ? "breathing"
-          : !address
-            ? "signIn"
-            : !delegated
-              ? "upgrading"
-              : "depositing";
-
-  // Auto-trigger delegation when we reach that phase
-  useEffect(() => {
-    if (effectivePhase === "upgrading" && !delegated && !delegating) {
-      ensureDelegated();
-    }
-  }, [effectivePhase, delegated, delegating, ensureDelegated]);
-
-  // Fetch balance when delegation completes
-  useEffect(() => {
-    if (delegated) {
-      fetchBalance();
-    }
-  }, [delegated, fetchBalance]);
-
-  const handleDeposit = useCallback(async () => {
+  const runCommitment = useCallback(async () => {
     if (!address) return;
-    setPhase("breathing"); // breath cycle starts with the deposit
 
-    const receiver = ESCROW_CONTRACT_ADDRESS || operatorAddress;
-    const amount = usdToTokenUnits(depositUsd);
+    setSurface("securing");
+    setError(null);
+    setSecuringLabel("Securing your place…");
 
-    const result = await sendDeposit({
-      receiver,
-      amount,
-      tokenAddress: USDC_ADDRESS,
-      tokenChainId: SETTLE_CHAIN_ID,
-    });
-
-    if (!result) {
-      setError(uaError ?? "Deposit failed.");
-      setPhase("error");
+    if (!uaConfigured) {
+      setError(
+        "I couldn't complete that yet. Your hold is still active — nothing was charged.",
+      );
+      setSurface("error");
       return;
     }
 
-    setDepositTxId(result.transactionId);
-    // The breath cycle (12s total) continues through the attestation
-    // phase. The user sees the exhale + "Confirmed" as the booking
-    // attestation is written to 0G Storage.
-    setPhase("attesting");
-
-    // Write booking attestation to 0G Storage
     try {
+      if (!delegated) {
+        setSecuringLabel("Preparing your account…");
+        const ok = await ensureDelegated();
+        if (!ok) {
+          setError(
+            uaError ??
+              "I couldn't complete that yet. Your hold is still active — nothing was charged.",
+          );
+          setSurface("error");
+          return;
+        }
+      }
+
+      setSecuringLabel("Securing your place…");
+      const receiver = ESCROW_CONTRACT_ADDRESS || operatorAddress;
+      const amount = usdToTokenUnits(depositUsd);
+
+      const result = await sendDeposit({
+        receiver,
+        amount,
+        tokenAddress: USDC_ADDRESS,
+        tokenChainId: SETTLE_CHAIN_ID,
+      });
+
+      if (!result) {
+        setError(
+          uaError ??
+            "I couldn't complete that yet. Your hold is still active — nothing was charged.",
+        );
+        setSurface("error");
+        return;
+      }
+
+      setDepositTxId(result.transactionId);
+      setSecuringLabel("Confirming your place…");
+
       const rootHash = `booking-${retreatRootHash.slice(0, 16)}-${Date.now().toString(36)}`;
       const booking: BookingAttestation = {
         rootHash,
@@ -178,34 +166,53 @@ export default function ConversationalBooking({
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Booking attestation failed.");
+      if (!res.ok) {
+        throw new Error(
+          json.error ??
+            "I couldn't finish securing that. Your hold is still active — nothing was charged.",
+        );
+      }
 
       setBookingRootHash(json.rootHash ?? rootHash);
-      setPhase("done");
+      onBooked?.();
+      setSurface("done");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Booking attestation failed.");
-      setPhase("error");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "I couldn't complete that yet. Your hold is still active — nothing was charged.",
+      );
+      setSurface("error");
     }
   }, [
-    episodeId,
-    expectedRevision,
     address,
-    depositUsd,
+    uaConfigured,
+    delegated,
+    ensureDelegated,
+    uaError,
     operatorAddress,
+    depositUsd,
+    sendDeposit,
     retreatRootHash,
     retreatTitle,
-    sendDeposit,
-    uaError,
     signPersonalMessage,
+    episodeId,
+    expectedRevision,
+    onBooked,
   ]);
 
-  // ── Done phase: the commitment ────────────────────────────────────
-  // The booking is complete. This is not a receipt — it's Mira's
-  // closing lines, the preparation plan shown by default (it's the
-  // payoff, not an optional extra), and the provenance collapsed to a
-  // single quiet line. The share/referral is a sentence in Mira's
-  // voice, not a card with a button.
-  if (effectivePhase === "done") {
+  const handleContinueIdentity = useCallback(async () => {
+    const next = await connectWithUI();
+    if (!next) {
+      setError(
+        "Sign-in didn't finish. Your hold is still active — nothing was charged.",
+      );
+      setSurface("error");
+    }
+  }, [connectWithUI]);
+
+  // ── Done: preparation is the landing, not a receipt ────────────────
+  if (surface === "done") {
     const plan = preparationPlan(
       {
         id: retreatRootHash,
@@ -230,7 +237,6 @@ export default function ConversationalBooking({
 
     return (
       <div className="mt-8 fade-in-up">
-        {/* Mira's closing lines — the letter continues */}
         <div className="flex items-start gap-4 mb-8">
           <MiraOrb
             size={48}
@@ -249,14 +255,15 @@ export default function ConversationalBooking({
           </div>
         </div>
 
-        {/* Provenance — a single quiet line, not the hero */}
-        <p className="tag opacity-50 mb-8 ml-16 break-all">
-          deposit held in escrow on Arbitrum
-          {depositTxId ? ` · tx ${depositTxId.slice(0, 18)}…` : ""}
-          {bookingRootHash ? ` · 0G ${bookingRootHash.slice(0, 22)}…` : ""}
-        </p>
+        <details className="ml-16 mb-8 opacity-70">
+          <summary className="tag cursor-pointer">How this is secured</summary>
+          <p className="tag mt-3 break-all leading-relaxed">
+            Deposit held in escrow until you arrive
+            {depositTxId ? ` · ref ${depositTxId.slice(0, 18)}…` : ""}
+            {bookingRootHash ? ` · record ${bookingRootHash.slice(0, 22)}…` : ""}
+          </p>
+        </details>
 
-        {/* Preparation plan — shown by default, woven into the letter */}
         <div className="ml-16 mb-8">
           <p className="font-serif text-2xl tracking-tight mb-1 mira-line">
             {plan.title}
@@ -288,7 +295,19 @@ export default function ConversationalBooking({
           </ol>
         </div>
 
-        {/* Share — woven into Mira's voice, not a card */}
+        {/* Continuity after commitment — worry collapse, not a dashboard */}
+        <div className="ml-16 mb-8 border-l-2 border-[color:var(--accent-soft)] pl-5">
+          <p className="tag mb-2">what Mira will watch next</p>
+          {dialogue.watchNext.map((line, i) => (
+            <p
+              key={i}
+              className="text-sm leading-relaxed text-[color:var(--muted)] max-w-prose"
+            >
+              {line}
+            </p>
+          ))}
+        </div>
+
         <div className="ml-16 mb-8">
           <div className="flex items-start gap-3 mb-3">
             <MiraOrb
@@ -305,11 +324,18 @@ export default function ConversationalBooking({
             <button
               type="button"
               onClick={() => {
-                const url = typeof window !== "undefined"
-                  ? `${window.location.origin}/match/${retreatRootHash}?ref=booked`
-                  : "";
+                const url =
+                  typeof window !== "undefined"
+                    ? `${window.location.origin}/match/${retreatRootHash}?ref=booked`
+                    : "";
                 const text = `I booked ${retreatTitle} through Ardum — an agent matched me. ${url}`;
-                const nav = navigator as Navigator & { share?: (data: { title?: string; text?: string; url?: string }) => Promise<void> };
+                const nav = navigator as Navigator & {
+                  share?: (data: {
+                    title?: string;
+                    text?: string;
+                    url?: string;
+                  }) => Promise<void>;
+                };
                 if (typeof nav.share === "function") {
                   nav.share({ title: `Ardum — ${retreatTitle}`, text, url }).catch(() => {
                     nav.clipboard?.writeText(text).catch(() => {});
@@ -331,7 +357,6 @@ export default function ConversationalBooking({
           </div>
         </div>
 
-        {/* Close — quiet, not a button. The vision continues below. */}
         <button
           type="button"
           onClick={onClose}
@@ -343,17 +368,20 @@ export default function ConversationalBooking({
     );
   }
 
-  // ── Error phase ────────────────────────────────────────────────────
-  if (effectivePhase === "error") {
+  // ── Error ──────────────────────────────────────────────────────────
+  if (surface === "error") {
     return (
       <div className="mt-8 fade-in-up">
         <div className="flex items-center gap-4 mb-4">
           <MiraOrb size={48} presence={presenceFromActivity("idle")} />
           <div className="flex-1">
             <p className="text-lg leading-relaxed text-[color:var(--accent-ink)]">
-              Something didn&apos;t go through. That&apos;s okay — nothing was lost.
+              Something didn&apos;t go through. That&apos;s okay — nothing was
+              lost.
             </p>
-            <p className="text-sm text-[color:var(--muted)] mt-2">{error}</p>
+            {error && (
+              <p className="text-sm text-[color:var(--muted)] mt-2">{error}</p>
+            )}
           </div>
         </div>
         <div className="ml-16 flex gap-3">
@@ -361,7 +389,7 @@ export default function ConversationalBooking({
             type="button"
             onClick={() => {
               setError(null);
-              setPhase(address ? "upgrading" : "signIn");
+              setSurface("grant");
             }}
             className="px-5 py-2.5 rounded-sm bg-foreground text-background text-sm"
           >
@@ -379,34 +407,91 @@ export default function ConversationalBooking({
     );
   }
 
-  // ── Active conversation phases ─────────────────────────────────────
-  const phaseLines: Record<Phase, string[]> = {
-    signIn: dialogue.signIn,
-    upgrading: dialogue.upgrading,
-    depositing: dialogue.depositing,
-    breathing: ["Breathe with me. Inhale as I sign your deposit. Hold as it settles. Exhale when it confirms."],
-    attesting: dialogue.attesting,
-    done: [],
-    error: [],
-  };
+  // ── Securing: ambient rails under human status ─────────────────────
+  if (surface === "securing") {
+    return (
+      <div className="mt-8 fade-in-up">
+        <div className="flex items-start gap-4 mb-6">
+          <MiraOrb
+            size={48}
+            presence={presenceFromActivity("processing")}
+            activity="processing"
+            className="flex-shrink-0 mt-1"
+          />
+          <div className="space-y-2 flex-1">
+            {dialogue.securing.map((line, i) => (
+              <p
+                key={i}
+                className={`text-lg leading-relaxed mira-line mira-line-${Math.min(i + 1, 5)}`}
+              >
+                {line}
+              </p>
+            ))}
+            <p className="text-sm text-[color:var(--muted)]">{securingLabel}</p>
+          </div>
+        </div>
+        <div className="ml-16">
+          <BreathSync active={true} />
+        </div>
+      </div>
+    );
+  }
 
-  const orbActivity =
-    effectivePhase === "attesting" || (effectivePhase === "upgrading" && delegating)
-      ? "processing"
-      : "speaking";
+  // ── Grant: wait for session → identity only if missing → confirm ───
+  // Return bookers with a restored Magic session land on Confirm $X only
+  // (ADR 0008 §6). Never flash identity CTA while session is restoring.
+  if (!sessionReady) {
+    return (
+      <div className="mt-8 fade-in-up">
+        <div className="flex items-start gap-4 mb-6">
+          <MiraOrb
+            size={48}
+            presence={presenceFromActivity("processing")}
+            activity="processing"
+            className="flex-shrink-0 mt-1"
+          />
+          <div className="space-y-2 flex-1">
+            {dialogue.restoring.map((line, i) => (
+              <p
+                key={i}
+                className={`text-lg leading-relaxed mira-line mira-line-${Math.min(i + 1, 5)}`}
+              >
+                {line}
+              </p>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const needsIdentity = !address;
+  const grantLines = needsIdentity
+    ? dialogue.needIdentity
+    : returningPayer || delegated
+      ? dialogue.readyReturning
+      : dialogue.ready;
 
   return (
-    <div className="mt-8 fade-in-up">
-      {/* Mira dialogue for current phase */}
+    <div className="mt-8 fade-in-up" data-testid="grant-ceremony">
       <div className="flex items-start gap-4 mb-6">
         <MiraOrb
           size={48}
-          presence={presenceFromActivity("idle")}
-          activity={orbActivity}
+          presence={presenceFromActivity("speaking")}
+          activity="speaking"
           className="flex-shrink-0 mt-1"
         />
-        <div className="space-y-2 flex-1">
-          {phaseLines[effectivePhase].map((line, i) => (
+        <div
+          className="space-y-2 flex-1"
+          data-testid={
+            needsIdentity
+              ? "grant-copy-identity"
+              : returningPayer || delegated
+                ? "grant-copy-returning"
+                : "grant-copy-ready"
+          }
+        >
+          {grantLines.map((line, i) => (
             <p
               key={i}
               className={`text-lg leading-relaxed mira-line mira-line-${Math.min(i + 1, 5)}`}
@@ -417,104 +502,51 @@ export default function ConversationalBooking({
         </div>
       </div>
 
-      {/* Action area — what the user does right now */}
       <div className="ml-16">
-        {/* Sign in phase */}
-        {effectivePhase === "signIn" && !address && (
-          <div>
-            {!magicConfigured && (
-              <p className="text-xs text-[color:var(--muted)] mb-3">
-                Demo mode: Magic env vars not set. Configure{" "}
-                <code className="tag">NEXT_PUBLIC_MAGIC_API_KEY</code> to enable
-                social login.
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={connectWithUI}
-              disabled={!magicConfigured || authConnecting}
-              className="px-6 py-3 rounded-sm bg-foreground text-background disabled:opacity-50 hover:bg-[color:var(--accent-ink)] transition-colors"
-            >
-              {authConnecting ? "Connecting…" : "Sign in with Google"}
-            </button>
-          </div>
-        )}
-
-        {/* Upgrading phase — automatic, show status */}
-        {effectivePhase === "upgrading" && (
-          <div className="flex items-center gap-3">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft" />
-            <span className="tag">
-              {delegating ? "Upgrading your account…" : "Preparing…"}
-            </span>
-            {!uaConfigured && (
-              <span className="text-xs text-[color:var(--muted)]">
-                (Particle env vars not set — demo mode)
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Depositing phase — user clicks to confirm */}
-        {effectivePhase === "depositing" && (
-          <div>
-            {balance && (
-              <p className="tag mb-3">
-                Unified balance: ${balance.totalUsd.toLocaleString()} across chains
-              </p>
-            )}
-            <p className="text-sm text-[color:var(--muted)] mb-4 max-w-prose">
-              Breathe with the circle. Your deposit settles as you exhale.
-            </p>
-            <button
-              type="button"
-              onClick={handleDeposit}
-              disabled={!uaConfigured}
-              className="px-6 py-3 rounded-sm bg-[color:var(--accent)] text-background disabled:opacity-50 hover:bg-[color:var(--accent-ink)] transition-colors"
-            >
-              Deposit ${depositUsd.toLocaleString()} →
-            </button>
-            {!uaConfigured && (
-              <p className="text-xs text-[color:var(--muted)] mt-2">
-                (Particle env vars not set — demo mode)
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Breathing phase — deposit is being sent, breath cycle plays */}
-        {effectivePhase === "breathing" && (
-          <BreathSync active={true} />
-        )}
-
-        {/* Attesting phase — breath cycle continues, 0G Storage write */}
-        {effectivePhase === "attesting" && (
-          <div>
-            <BreathSync active={true} />
-            <div className="flex items-center gap-3 justify-center -mt-4">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft" />
-              <span className="tag">Writing to 0G Storage…</span>
-            </div>
-          </div>
-        )}
-
-        {/* Cancel option */}
-        {effectivePhase !== "attesting" && effectivePhase !== "breathing" && (
+        {needsIdentity ? (
           <button
             type="button"
-            onClick={onClose}
-            className="mt-4 text-sm text-[color:var(--muted)] hover:text-foreground transition-colors block"
+            data-testid="grant-continue-identity"
+            onClick={() => void handleContinueIdentity()}
+            disabled={!magicConfigured || authConnecting}
+            className="px-6 py-3 rounded-sm bg-foreground text-background disabled:opacity-50 hover:bg-[color:var(--accent-ink)] transition-colors"
           >
-            Cancel
+            {authConnecting ? "Connecting…" : "Continue with Google"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            data-testid="grant-confirm-deposit"
+            onClick={() => void runCommitment()}
+            className="px-6 py-3 rounded-sm bg-[color:var(--accent)] text-background hover:bg-[color:var(--accent-ink)] transition-colors"
+          >
+            Confirm deposit of {amountLabel}
           </button>
         )}
 
-        {/* Wallet address — subtle, not the hero */}
-        {address && (
-          <p className="tag mt-4 opacity-50">
-            wallet: {address.slice(0, 6)}…{address.slice(-4)}
+        {!magicConfigured && needsIdentity && (
+          <p className="text-sm text-[color:var(--muted)] mt-3 max-w-prose">
+            Secure sign-in isn&apos;t available here yet. Your hold is still
+            active — nothing was charged.
           </p>
         )}
+
+        <details className="mt-5 opacity-70">
+          <summary className="tag cursor-pointer">How this is secured</summary>
+          <p className="text-sm text-[color:var(--muted)] mt-3 max-w-prose leading-relaxed">
+            Your deposit is held until you arrive. The operator does not receive
+            it before check-in. Technical references (settlement, escrow,
+            reservation record) stay inspectable after you confirm.
+          </p>
+        </details>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-4 text-sm text-[color:var(--muted)] hover:text-foreground transition-colors block"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );

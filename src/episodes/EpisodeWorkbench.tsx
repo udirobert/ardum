@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import MiraOrb from "@/components/MiraOrb";
+import MiraOrb, { preloadMiraScene } from "@/components/MiraOrb";
+import { useMiraField } from "@/components/MiraField";
 import DecisionSlide from "@/components/DecisionSlide";
 import StaggerReveal from "@/components/StaggerReveal";
 import {
@@ -11,11 +12,7 @@ import {
   EnergyChoice,
   SocialChoice,
 } from "@/components/MiraChoices";
-import { MiraImpulseProvider } from "@/components/MiraImpulse";
 import { readAestheticVector } from "@/aesthetics/aesthetic-store";
-import {
-  presenceFromActivity,
-} from "@/agent/mira-presence";
 import type { MatchResult } from "@/matching/types";
 import type { BudgetBand, EnergyState } from "@/calibration/schema";
 import { BUDGET_BANDS, ENERGY_STATES } from "@/calibration/schema";
@@ -29,7 +26,8 @@ import type {
 } from "./model";
 import type { EpisodeDetailPayload } from "./detail-payload";
 import { createAbortableRunner } from "@/lib/abortableFetch";
-import { matchLetter } from "@/agent/mira-voice";
+import { matchLetter, bookingDialogue, preparationPlan } from "@/agent/mira-voice";
+import type { MemoryContext } from "@/memory/semantic-memory";
 
 type Props = { episodeId: string };
 
@@ -37,6 +35,10 @@ const CommitmentPanel = dynamic(
   () => import("@/booking/CommitmentPanel"),
   { ssr: false },
 );
+
+// Warm the hero scene chunk as soon as the episode bundle evaluates — the
+// shell field is this page's atmosphere.
+preloadMiraScene();
 
 type EpisodePayload = EpisodeDetailPayload & {
   shareToken?: string;
@@ -63,6 +65,18 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
   const [activeLens, setActiveLens] = useState<PerspectiveName>("balanced");
   const [lensData, setLensData] = useState<PerspectivesPayload | null>(null);
   const [lensLoading, setLensLoading] = useState(false);
+  const [aestheticVector] = useState(() =>
+    typeof window !== "undefined" ? readAestheticVector() : null,
+  );
+
+  // The shell field carries the episode's journey posture; the veil dims the
+  // moving orb enough for the workbench's dense content to stay legible.
+  useMiraField({
+    presence: payload?.miraPresence ?? null,
+    activity: busy || !payload ? "processing" : "idle",
+    aestheticVector,
+    veil: 0.4,
+  });
 
   // One coordinator per derived-view fetcher. Both layers of
   // defense (AbortController + monotonic epoch) live inside
@@ -259,15 +273,10 @@ useEffect(() => {
 
   if (!payload) {
     return (
-      <section className="mx-auto max-w-2xl px-6 sm:px-10 py-20">
-        <div className="flex items-center gap-4">
-          <MiraOrb
-            size={48}
-            presence={presenceFromActivity("processing")}
-            shared
-          />
-          <p aria-live="polite">{error ?? "Returning to your intention…"}</p>
-        </div>
+      <section className="dusk mx-auto max-w-2xl px-6 sm:px-10 min-h-[calc(100svh-56px)] flex items-center justify-center text-center">
+        <p aria-live="polite" className="font-serif text-2xl tracking-tight">
+          {error ?? "Returning to your intention…"}
+        </p>
       </section>
     );
   }
@@ -292,16 +301,23 @@ useEffect(() => {
     recommendation && memory && memory.isReturning
       ? matchLetter(recommendation, practitionerSignals, memory)
       : null;
-  const aestheticVector = readAestheticVector();
   const isClarifyStep =
     nextDecision.kind === "clarify-energy" ||
     nextDecision.kind === "clarify-budget" ||
     nextDecision.kind === "clarify-social";
 
+  // Secondary tools (lenses, counterfactuals, alternatives): expand when
+  // uncertainty is high or the person is questioning the fit; collapse under
+  // an active hold when the journey is calm (ADR 0008 / experience-layer).
+  const highUncertainty =
+    (episode.recommendation?.uncertainties.length ?? 0) > 0;
+  const holdActive = episode.hold?.status === "active";
+  const expandSecondaryTools =
+    feedbackOpen || highUncertainty || !holdActive;
+
   return (
-    <MiraImpulseProvider>
-    <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
-      <div className="flex items-center justify-between gap-4 mb-10">
+    <section className="dusk mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24 min-h-[calc(100svh-56px)]">
+      <div className="mb-10">
         <button
           type="button"
           onClick={() => router.push("/")}
@@ -309,29 +325,22 @@ useEffect(() => {
         >
           ← your intentions
         </button>
-        <p className="tag">revision {episode.revision}</p>
       </div>
 
-      <div className="flex items-start gap-5 mb-8">
-        <MiraOrb
-          size={64}
-          presence={miraPresence}
-          activity={busy ? "processing" : "idle"}
-          aestheticVector={aestheticVector}
-          shared
-        />
-        <div>
-          <p className="tag mb-2">what you are making space for</p>
-          <h1 className="font-serif text-4xl sm:text-5xl tracking-tight leading-tight">
-            {intention.statement}
-          </h1>
-        </div>
+      <div className="mb-8">
+        <p className="tag mb-2">what you are making space for</p>
+        <h1 className="font-serif text-4xl sm:text-5xl tracking-tight leading-tight">
+          {intention.statement}
+        </h1>
       </div>
 
       <div
         className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 sm:p-8 surface-card"
         aria-live="polite"
       >
+        {/* Letter with one ask — no revision counters or operator tags in the
+            primary card (docs/design/experience-layer.md). Journey history and
+            provenance live in quiet disclosures below. */}
         {isClarifyStep ? (
           <DecisionSlide
             decisionKind={nextDecision.kind}
@@ -392,9 +401,21 @@ useEffect(() => {
               </StaggerReveal>
             )}
           </DecisionSlide>
+        ) : episode.status === "booked" && recommendation ? (
+          <BookedLanding
+            recommendation={recommendation}
+            depositUsd={recommendation.priceUsd}
+            signals={{
+              energy: intention.constraints.energy,
+              budget: intention.constraints.budget,
+              social: intention.constraints.social,
+            }}
+            memory={memory}
+            miraPresence={miraPresence}
+            commitment={episode.commitment}
+          />
         ) : (
           <>
-        <p className="tag mb-3">the next decision</p>
         <h2 className="font-serif text-3xl tracking-tight mb-6">
           {nextDecision.prompt}
         </h2>
@@ -494,6 +515,7 @@ useEffect(() => {
                 energyData={energyData}
                 energyLoading={energyLoading}
                 onPickEnergy={runCounterfactualEnergy}
+                expandSecondaryTools={expandSecondaryTools}
               />
             ) : (
               <>
@@ -538,7 +560,7 @@ useEffect(() => {
                   energyLoading={energyLoading}
                   onPickEnergy={runCounterfactualEnergy}
                   holdActive={false}
-                  variant="open"
+                  expanded={expandSecondaryTools}
                 />
               </>
             )}
@@ -554,21 +576,24 @@ useEffect(() => {
             {nextDecision.kind === "ready-to-book" && (
               <div className="border-t border-[color:var(--hairline)] pt-6">
                 <p className="why mb-3">
-                  Mira moves from holding to booking. A real deposit and
-                  attestation happen here. You can change your mind before
-                  that line.
+                  Confirm amount and bounds. Mira handles the rest. You can
+                  change your mind before that line.
                 </p>
                 {!commitmentOpen ? (
                   <PrimaryButton
                     disabled={busy}
                     onClick={() => setCommitmentOpen(true)}
                   >
-                    Review the commitment
+                    {nextDecision.primaryLabel}
                   </PrimaryButton>
                 ) : (
                   <CommitmentPanel
                     episode={episode}
                     onClose={() => setCommitmentOpen(false)}
+                    onBooked={() => {
+                      setCommitmentOpen(false);
+                      void load();
+                    }}
                   />
                 )}
               </div>
@@ -630,8 +655,8 @@ useEffect(() => {
         )}
       </div>
 
-      <div className="mt-12">
-        <p className="tag mb-4">what has happened</p>
+      <details className="mt-12 opacity-80">
+        <summary className="tag cursor-pointer mb-4">the journey so far</summary>
         <ol className="space-y-3">
           {episode.events
             .slice()
@@ -645,9 +670,97 @@ useEffect(() => {
               </li>
             ))}
         </ol>
-      </div>
+      </details>
     </section>
-    </MiraImpulseProvider>
+  );
+}
+
+function BookedLanding({
+  recommendation,
+  depositUsd,
+  signals,
+  memory,
+  miraPresence,
+  commitment,
+}: {
+  recommendation: MatchResult;
+  depositUsd: number;
+  signals: { energy?: string; budget?: string; social?: string };
+  memory: MemoryContext | undefined;
+  miraPresence: EpisodeDetailPayload["miraPresence"];
+  commitment: Episode["commitment"];
+}) {
+  const dialogue = bookingDialogue(depositUsd, recommendation.retreatTitle);
+  const plan = preparationPlan(recommendation, signals, memory);
+
+  return (
+    <div className="space-y-8" data-testid="booked-landing">
+      <div className="flex items-start gap-4">
+        <MiraOrb size={48} presence={miraPresence} className="flex-shrink-0 mt-1" />
+        <div className="space-y-3 flex-1">
+          {dialogue.done.map((line, i) => (
+            <p
+              key={i}
+              className={`text-lg leading-relaxed mira-line mira-line-${Math.min(i + 1, 5)}`}
+            >
+              {line}
+            </p>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="font-serif text-2xl tracking-tight mb-1">{plan.title}</p>
+        <p className="text-sm text-[color:var(--muted)] mb-6">
+          Five minutes a day. Start tonight.
+        </p>
+        <ol className="space-y-5">
+          {plan.days.map((day) => (
+            <li key={day.day} className="flex gap-4">
+              <span className="font-serif text-3xl text-[color:var(--accent-soft)] leading-none w-10 flex-shrink-0">
+                {day.day}
+              </span>
+              <div className="flex-1">
+                <div className="flex items-baseline justify-between gap-3 mb-1">
+                  <p className="font-serif text-lg tracking-tight">{day.title}</p>
+                  <span className="tag opacity-60 flex-shrink-0">{day.duration}</span>
+                </div>
+                <p className="text-sm text-[color:var(--muted)] leading-relaxed">
+                  {day.description}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div className="border-l-2 border-[color:var(--accent-soft)] pl-5">
+        <p className="tag mb-2">what Mira will watch next</p>
+        {dialogue.watchNext.map((line, i) => (
+          <p
+            key={i}
+            className="text-sm leading-relaxed text-[color:var(--muted)] max-w-prose"
+          >
+            {line}
+          </p>
+        ))}
+      </div>
+
+      {commitment && (
+        <details className="opacity-70">
+          <summary className="tag cursor-pointer">How this is secured</summary>
+          <p className="tag mt-3 break-all leading-relaxed">
+            Deposit held in escrow until you arrive
+            {commitment.depositTxId
+              ? ` · ref ${commitment.depositTxId.slice(0, 18)}…`
+              : ""}
+            {commitment.bookingRootHash
+              ? ` · record ${commitment.bookingRootHash.slice(0, 22)}…`
+              : ""}
+          </p>
+        </details>
+      )}
+    </div>
   );
 }
 
@@ -799,13 +912,10 @@ function EnergyCounterfactualOutcome({
   );
 }
 
-// Surfaces the alternatives + lens toggle as a single component, in
-// two contexts: open when no hold is active (the natural secondary
-// inspection after the primary decision is shown), and collapsed as a
-// <details> disclosure when a hold IS active (Mira's hold is unaffected;
-// this is purely a confidence check, not a re-commit). The copy adapts
-// per `holdActive` so the user is never misled into thinking their hold
-// moved.
+// Surfaces the alternatives + lens toggle as a single component.
+// Expanded when uncertainty is high, feedback is open, or no hold yet;
+// collapsed under a calm active hold (confidence check only — never
+// mutates the hold). See docs/design/experience-layer.md.
 function ExploreOtherFits({
   alternatives,
   recommendation,
@@ -823,7 +933,7 @@ function ExploreOtherFits({
   energyLoading,
   onPickEnergy,
   holdActive,
-  variant,
+  expanded,
 }: {
   alternatives: MatchResult[];
   recommendation: MatchResult | undefined;
@@ -841,7 +951,7 @@ function ExploreOtherFits({
   energyLoading: boolean;
   onPickEnergy: (energy: EnergyState | null) => void;
   holdActive: boolean;
-  variant: "open" | "details";
+  expanded: boolean;
 }) {
   const body = (
     <div className="space-y-5">
@@ -1020,11 +1130,13 @@ function ExploreOtherFits({
       </div>
     );
 
-  if (variant === "details") {
+  if (!expanded) {
     return (
       <details className="mt-5 border-t border-[color:var(--hairline)] pt-5">
         <summary className="tag cursor-pointer">
-          still curious what else fitted?
+          {holdActive
+            ? "still curious what else fitted?"
+            : "other ways of looking"}
         </summary>
         <div className="mt-4">{body}</div>
       </details>
@@ -1060,6 +1172,7 @@ function HoldPanel({
   energyData,
   energyLoading,
   onPickEnergy,
+  expandSecondaryTools,
 }: {
   episode: Episode;
   participant: string;
@@ -1082,8 +1195,12 @@ function HoldPanel({
   energyData: CounterfactualResult | null;
   energyLoading: boolean;
   onPickEnergy: (energy: EnergyState | null) => void;
+  expandSecondaryTools: boolean;
 }) {
   const hold = episode.hold!;
+  const inviteOpen = Boolean(episode.coordination?.inviteExpiresAt);
+  const hasResponses = Boolean(episode.coordination?.responses.length);
+
   return (
     <div className="border border-[color:var(--accent-soft)] rounded-sm p-5">
       <p className="tag mb-2">non-binding planning hold</p>
@@ -1094,9 +1211,9 @@ function HoldPanel({
         Nothing has been booked or charged.
       </p>
 
-      {episode.coordination?.responses.length ? (
+      {hasResponses ? (
         <div className="mb-5">
-          {episode.coordination.responses.map((response) => (
+          {episode.coordination!.responses.map((response) => (
             <p key={response.participantId} className="text-sm">
               {episode.coordination?.participantName} responded{" "}
               <strong>{response.decision}</strong>.
@@ -1129,43 +1246,48 @@ function HoldPanel({
             Mira can&apos;t recover this link if you close the tab — copy it now.
           </p>
         </div>
-      ) : episode.coordination?.inviteExpiresAt ? (
+      ) : inviteOpen ? (
         <p className="text-sm text-[color:var(--muted)] mb-5">
           The invitation is active. For privacy, its token is shown only when
           created. Ask Mira to check for a response.
         </p>
       ) : (
-        <div className="mb-5">
-          <label className="block text-sm mb-2" htmlFor="participant-name">
-            Who else needs to be part of this decision?
-          </label>
-          <div className="flex gap-2">
-            <input
-              id="participant-name"
-              value={participant}
-              onChange={(event) => setParticipant(event.target.value)}
-              placeholder="Their first name"
-              maxLength={80}
-              className="min-w-0 flex-1 border border-[color:var(--hairline)] bg-background px-3 py-2"
-            />
-            <button
-              type="button"
-              disabled={!participant.trim() || busy}
-              onClick={onInvite}
-              className="px-4 py-2 bg-foreground text-background disabled:opacity-40"
-            >
-              Create invite
-            </button>
+        <details className="mb-5">
+          <summary className="text-sm text-[color:var(--muted)] cursor-pointer hover:text-foreground">
+            Someone else needs to agree?
+          </summary>
+          <div className="mt-4">
+            <label className="block text-sm mb-2" htmlFor="participant-name">
+              Invite them to this decision
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="participant-name"
+                value={participant}
+                onChange={(event) => setParticipant(event.target.value)}
+                placeholder="Their first name"
+                maxLength={80}
+                className="min-w-0 flex-1 border border-[color:var(--hairline)] bg-background px-3 py-2"
+              />
+              <button
+                type="button"
+                disabled={!participant.trim() || busy}
+                onClick={onInvite}
+                className="px-4 py-2 bg-foreground text-background disabled:opacity-40"
+              >
+                Create invite
+              </button>
+            </div>
+            <p className="text-xs text-[color:var(--muted)] mt-2">
+              The link shares only that an invitation exists—never your private
+              intention or constraints. Solo paths do not require an invite.
+            </p>
           </div>
-          <p className="text-xs text-[color:var(--muted)] mt-2">
-            The link shares only that an invitation exists—never your private
-            intention or constraints.
-          </p>
-        </div>
+        </details>
       )}
 
       <div className="flex flex-wrap gap-3">
-        {episode.coordination?.inviteExpiresAt && (
+        {inviteOpen && (
           <button
             type="button"
             disabled={busy}
@@ -1201,7 +1323,7 @@ function HoldPanel({
         energyLoading={energyLoading}
         onPickEnergy={onPickEnergy}
         holdActive={true}
-        variant="details"
+        expanded={expandSecondaryTools}
       />
     </div>
   );

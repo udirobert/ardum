@@ -5,6 +5,7 @@ import type {} from "react/canary";
 import { ViewTransition } from "react";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import SmoothScroll from "@/components/SmoothScroll";
+import { MiraFieldProvider } from "@/components/MiraField";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -60,8 +61,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <MiraFieldProvider>
         <header
-          className="px-6 sm:px-10 pt-6 pb-2 flex items-baseline justify-between"
+          className="relative z-10 bg-[color:var(--background)] px-6 sm:px-10 pt-6 pb-2 flex items-baseline justify-between"
           style={{ viewTransitionName: "site-header" }}
         >
           <Link
@@ -74,14 +76,14 @@ export default function RootLayout({
             the shape of your practice
           </span>
         </header>
-        <main className="flex-1">
+        <main className="relative z-10 flex-1">
           <SmoothScroll>
             <ViewTransition enter="page-in" exit="page-out">
               {children}
             </ViewTransition>
           </SmoothScroll>
         </main>
-        <footer className="px-6 sm:px-10 py-6 rule border-t mt-12">
+        <footer className="relative z-10 bg-[color:var(--background)] px-6 sm:px-10 py-6 rule border-t mt-12">
           <div className="flex flex-wrap items-baseline justify-between gap-4">
             <div>
               <p className="font-serif text-lg tracking-tight">
@@ -102,6 +104,7 @@ export default function RootLayout({
             </nav>
           </div>
         </footer>
+        </MiraFieldProvider>
       </body>
     </html>
   );

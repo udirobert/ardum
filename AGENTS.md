@@ -8,10 +8,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 Read `docs/product-vision.md` and `docs/architecture.md` before changing product
 copy, domain behavior, persistence, recommendation, memory, or booking.
+Commitment and booking surfaces also follow
+`docs/decisions/0008-agentic-commitment.md` and `docs/design/experience-layer.md`.
 
 Ardum manages a persistent life intention. Recommendations, holds,
 coordination, and bookings are downstream actions. Do not organize the primary
 experience as a marketplace, ranked-results page, or conversational checkout.
+Commitment is a scoped grant, not a multi-phase rail walkthrough. Solo booking
+is first-class; coordination is an optional branch of a hold.
 
 # Core engineering principles
 

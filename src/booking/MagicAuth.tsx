@@ -35,12 +35,51 @@ function readMagicEnv(): MagicEnv | null {
   return { apiKey };
 };
 
+/** Browser hint that this device has completed payment identity before.
+ *  Not authority — only avoids identity theater while Magic restores session
+ *  and lets grant copy welcome returning bookers (ADR 0008 §6). */
+export const PAYMENT_IDENTITY_HINT_KEY = "ardum:payment-identity";
+
+export function rememberPaymentIdentity(address: string): void {
+  try {
+    localStorage.setItem(PAYMENT_IDENTITY_HINT_KEY, address.toLowerCase());
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+export function hasPaymentIdentityHint(): boolean {
+  try {
+    return Boolean(localStorage.getItem(PAYMENT_IDENTITY_HINT_KEY));
+  } catch {
+    return false;
+  }
+}
+
+/** Dev-only: simulate a restored Magic session for grant UI smoke walks. */
+function smokeRestoreAddress(): string | null {
+  if (process.env.NODE_ENV !== "development") return null;
+  if (typeof window === "undefined") return null;
+  if (new URLSearchParams(window.location.search).get("smokeRestore") !== "1") {
+    return null;
+  }
+  try {
+    return localStorage.getItem(PAYMENT_IDENTITY_HINT_KEY);
+  } catch {
+    return null;
+  }
+}
+
 type MagicAuthState = {
   magic: Magic | null;
   address: string | null;
+  /** False only while Magic session restore is in flight. */
+  sessionReady: boolean;
   configured: boolean;
   connecting: boolean;
   error: string | null;
+  /** True when this browser has previously completed payment identity. */
+  returningPayer: boolean;
   connectWithUI: () => Promise<string | null>;
   disconnect: () => Promise<void>;
   signPersonalMessage: (message: string) => Promise<string>;
@@ -57,37 +96,73 @@ export function MagicAuthProvider({ children }: { children: ReactNode }) {
   const env = useMemo(() => readMagicEnv(), []);
   const [magic, setMagic] = useState<Magic | null>(null);
   const [address, setAddress] = useState<string | null>(null);
+  // When Magic is not configured, there is no session to restore.
+  const [sessionReady, setSessionReady] = useState(!env);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [returningPayer, setReturningPayer] = useState(
+    () => typeof window !== "undefined" && hasPaymentIdentityHint(),
+  );
 
   // Initialise the Magic instance on mount (client-only).
   // setState is called inside an async callback, not synchronously in the
   // effect body, so it doesn't trigger the set-state-in-effect lint rule.
   useEffect(() => {
-    if (!env) return;
+    /** Dev-only smoke walks (?smokeRestore=1). Never overrides a live Magic session. */
+    const applySmokeRestore = () => {
+      const smokeAddr = smokeRestoreAddress();
+      if (!smokeAddr) return;
+      setAddress((prev) => prev ?? smokeAddr);
+      setReturningPayer(true);
+    };
+
+    if (!env) {
+      queueMicrotask(() => {
+        applySmokeRestore();
+        setSessionReady(true);
+      });
+      return;
+    }
+    let cancelled = false;
     let instance: Magic;
     const init = async () => {
-      instance = new Magic(env.apiKey, {
-        network: {
-          rpcUrl: "https://arb1.arbitrum.io/rpc",
-          chainId: 42161, // Arbitrum One — where EIP-7702 delegation targets
-        },
-      });
-      setMagic(instance);
-
-      // Check if already authenticated from a previous session
       try {
-        const loggedIn = await instance.user.isLoggedIn();
-        if (loggedIn) {
-          const info = await instance.user.getInfo();
-          const ethAddress = info.wallets?.ethereum?.publicAddress;
-          if (ethAddress) setAddress(ethAddress);
+        instance = new Magic(env.apiKey, {
+          network: {
+            rpcUrl: "https://arb1.arbitrum.io/rpc",
+            chainId: 42161, // Arbitrum One — where EIP-7702 delegation targets
+          },
+        });
+        if (cancelled) return;
+        setMagic(instance);
+
+        // Restore durable Magic session so return bookers land on Confirm $X
+        // without identity theater (ADR 0008 §6).
+        try {
+          const loggedIn = await instance.user.isLoggedIn();
+          if (loggedIn) {
+            const info = await instance.user.getInfo();
+            const ethAddress = info.wallets?.ethereum?.publicAddress;
+            if (ethAddress && !cancelled) {
+              setAddress(ethAddress);
+              rememberPaymentIdentity(ethAddress);
+              setReturningPayer(true);
+            }
+          }
+        } catch {
+          // ignore — surface as needs identity after sessionReady
         }
-      } catch {
-        // ignore
+      } finally {
+        if (!cancelled) {
+          applySmokeRestore();
+          setSessionReady(true);
+        }
       }
     };
-    init();
+    void init();
+    return () => {
+      cancelled = true;
+    };
   }, [env]);
 
   const connectWithUI = useCallback(async (): Promise<string | null> => {
@@ -101,7 +176,11 @@ export function MagicAuthProvider({ children }: { children: ReactNode }) {
       // connectWithUI shows Magic's social login modal (Google, Apple, etc.)
       const addresses = await magic.wallet.connectWithUI();
       const addr = addresses?.[0] ?? null;
-      if (addr) setAddress(addr);
+      if (addr) {
+        setAddress(addr);
+        rememberPaymentIdentity(addr);
+        setReturningPayer(true);
+      }
       return addr;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login failed.");
@@ -116,6 +195,7 @@ export function MagicAuthProvider({ children }: { children: ReactNode }) {
     try {
       await magic.user.logout();
       setAddress(null);
+      // Keep payment-identity hint so grant can welcome them back next time.
     } catch {
       // ignore
     }
@@ -145,9 +225,11 @@ export function MagicAuthProvider({ children }: { children: ReactNode }) {
   const value: MagicAuthState = {
     magic,
     address,
+    sessionReady,
     configured: !!env,
     connecting,
     error,
+    returningPayer,
     connectWithUI,
     disconnect,
     signPersonalMessage,

@@ -11,6 +11,7 @@ import {
 import { vectorFingerprint } from "./vector-fingerprint";
 import type { RetreatVisionArtifact } from "./resolve-retreat-vision";
 import StaggerReveal from "@/components/StaggerReveal";
+import { CREAM, DUSK_HEADING, DUSK_MUTED } from "./dusk-theme";
 
 type Props = {
   vector: AestheticVector;
@@ -94,22 +95,28 @@ export default function RetreatVision({
     <div className="w-full max-w-4xl mx-auto text-center">
       <StaggerReveal>
         <p className="tag mb-2 t-stagger-line">your retreat vision</p>
-        <h2 className="font-serif text-3xl sm:text-5xl tracking-tight mb-4 t-stagger-line t-stagger-line--2">
+        <h2
+          className="font-serif text-3xl sm:text-5xl tracking-tight mb-4 t-stagger-line t-stagger-line--2"
+          style={DUSK_HEADING}
+        >
           This is the atmosphere I see forming.
         </h2>
         {qualities.length > 0 && (
-          <p className="text-[color:var(--muted)] mb-8 t-stagger-line t-stagger-line--2">
+          <p className="mb-8 t-stagger-line t-stagger-line--2" style={DUSK_MUTED}>
             {qualities.join(" · ")} — held in a single frame.
           </p>
         )}
       </StaggerReveal>
 
-      <div className="relative aspect-video w-full overflow-hidden rounded-sm border border-[color:var(--hairline)] shadow-2xl vision-ken-burns">
+      <div className="relative aspect-video w-full max-h-[48svh] overflow-hidden rounded-sm border border-[rgba(246,239,227,0.18)] shadow-2xl vision-ken-burns">
         {!resolvedVision && !error && (
-          <div className="absolute inset-0 vision-shimmer bg-[color:var(--surface)]" />
+          <div className="absolute inset-0 vision-shimmer" />
         )}
         {error && (
-          <p className="absolute inset-0 flex items-center justify-center text-sm text-[color:var(--muted)] px-6">
+          <p
+            className="absolute inset-0 flex items-center justify-center text-sm px-6"
+            style={DUSK_MUTED}
+          >
             {error}
           </p>
         )}
@@ -144,7 +151,10 @@ export default function RetreatVision({
       </div>
 
       {resolvedVision && (
-        <p className="mt-6 text-sm text-[color:var(--muted)] italic max-w-xl mx-auto leading-relaxed">
+        <p
+          className="mt-6 text-sm italic max-w-xl mx-auto leading-relaxed"
+          style={DUSK_MUTED}
+        >
           {intention
             ? `A place that could hold "${intention.slice(0, 80)}${intention.length > 80 ? "…" : ""}".`
             : "A place that could hold what you have not named yet."}
@@ -155,7 +165,8 @@ export default function RetreatVision({
         type="button"
         onClick={onContinue}
         disabled={!resolvedVision && !error}
-        className="mt-10 px-10 py-3.5 rounded-sm bg-foreground text-background disabled:opacity-40"
+        className="mt-10 px-10 py-3.5 rounded-sm disabled:opacity-40"
+        style={{ background: CREAM, color: "#1a120d" }}
       >
         Continue →
       </button>

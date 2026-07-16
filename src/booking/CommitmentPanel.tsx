@@ -7,9 +7,11 @@ import type { Episode } from "@/episodes/model";
 export default function CommitmentPanel({
   episode,
   onClose,
+  onBooked,
 }: {
   episode: Episode;
   onClose: () => void;
+  onBooked?: () => void;
 }) {
   const recommendation = episode.recommendation?.result;
   const intention = episode.intentions.at(-1);
@@ -33,6 +35,7 @@ export default function CommitmentPanel({
           social: intention.constraints.social,
         }}
         onClose={onClose}
+        onBooked={onBooked}
       />
     </BookingProviders>
   );

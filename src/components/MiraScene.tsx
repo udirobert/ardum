@@ -4,7 +4,14 @@
 // orbiting glass satellites, around a warm transmission core. Posture,
 // valence, and reactions arrive as MorphParams and are eased per frame.
 
-import { useEffect, useMemo, useRef } from "react";
+import {
+  Component,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, MeshTransmissionMaterial } from "@react-three/drei";
 import {
@@ -16,6 +23,7 @@ import {
 import { BlendFunction } from "postprocessing";
 import * as THREE from "three";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { useWebGLAvailable } from "@/hooks/useWebGLAvailable";
 import type { MorphParams } from "@/agent/mira-presence";
 import { MIRA_FRAG, MIRA_VERT } from "./mira-scene-shaders";
 
@@ -27,6 +35,10 @@ type Props = {
   palette: { dark: RGB; warm: RGB; light: RGB; cream: RGB };
   reactionPulse: number;
   impulse?: number;
+  /** Fill the parent instead of rendering a fixed `size` square. */
+  fill?: boolean;
+  /** Fires once the scene can be shown — GL created, or static reduced-motion frame mounted. */
+  onReady?: () => void;
 };
 
 const SHELL_RADIUS = 0.62;
@@ -270,12 +282,15 @@ function GlassCore({ impulse }: { impulse: number }) {
   );
 }
 
-function Backdrop() {
+function Backdrop({ fill }: { fill: boolean }) {
   const { scene } = useThree();
   useEffect(() => {
     /* eslint-disable-next-line react-hooks/immutability -- transparent canvas over page background */
     scene.background = null;
   }, [scene]);
+  // The soft plane lifts badge-tier scenes off light pages; over the
+  // full-bleed dusk field it reads as a pale column, so fill drops it.
+  if (fill) return null;
   return (
     <mesh position={[0, 0, -2]} scale={[6, 6, 1]}>
       <planeGeometry />
@@ -284,11 +299,109 @@ function Backdrop() {
   );
 }
 
-function SceneInner(props: Omit<Props, "size">) {
+function StaticOrbFallback({
+  fill,
+  size,
+}: {
+  fill: boolean;
+  size: number;
+}) {
+  const boxStyle = fill
+    ? ({ width: "100%", height: "100%" } as const)
+    : ({ width: size, height: size } as const);
+  return (
+    <div
+      className={fill ? "" : "rounded-full"}
+      style={{
+        ...boxStyle,
+        background: fill
+          ? "radial-gradient(circle at 50% 42%, rgba(168,90,58,0.45), rgba(38,22,16,0.9) 55%, rgba(13,9,8,1))"
+          : "radial-gradient(circle at 35% 30%, rgba(168,90,58,0.55), rgba(110,57,37,0.9))",
+      }}
+    />
+  );
+}
+
+/** Catches postprocessing failures (common in headless / limited GL). */
+class PostFxErrorBoundary extends Component<
+  { children: ReactNode; onFailed: () => void },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch() {
+    this.props.onFailed();
+  }
+
+  render() {
+    if (this.state.failed) return null;
+    return this.props.children;
+  }
+}
+
+function PostProcessing({
+  fill,
+  impulse,
+  onFailed,
+}: {
+  fill: boolean;
+  impulse: number;
+  onFailed: () => void;
+}) {
+  const { gl } = useThree();
+  const [ready, setReady] = useState(false);
+
+  // EffectComposer reads renderer alpha on first paint; defer until the
+  // r3f loop has a live GL context (headless Chrome otherwise throws).
+  useEffect(() => {
+    if (!gl?.domElement) return;
+    const id = requestAnimationFrame(() => setReady(true));
+    return () => cancelAnimationFrame(id);
+  }, [gl]);
+
+  if (!ready) return null;
+
+  return (
+    <PostFxErrorBoundary onFailed={onFailed}>
+      <EffectComposer enableNormalPass={false}>
+        <Bloom
+          intensity={(fill ? 0.85 : 1.0) + impulse * 0.5}
+          luminanceThreshold={fill ? 0.55 : 0.4}
+          luminanceSmoothing={0.85}
+          mipmapBlur
+        />
+        <ChromaticAberration
+          blendFunction={BlendFunction.NORMAL}
+          offset={
+            new THREE.Vector2(fill ? 0.0006 : 0.0015, fill ? 0.0006 : 0.0015)
+          }
+        />
+        <Vignette eskil={false} offset={0.2} darkness={0.55} />
+      </EffectComposer>
+    </PostFxErrorBoundary>
+  );
+}
+
+function SceneInner({
+  fill = false,
+  skipPostFx = false,
+  onPostFxFailed,
+  ...props
+}: Omit<Props, "size"> & {
+  skipPostFx?: boolean;
+  onPostFxFailed: () => void;
+}) {
   const impulse = props.impulse ?? 0;
+  const [postFxFailed, setPostFxFailed] = useState(false);
+  const disablePostFx = skipPostFx || postFxFailed;
+
   return (
     <>
-      <Backdrop />
+      <Backdrop fill={fill} />
       <ambientLight intensity={0.4} color="#f6e8dc" />
       <directionalLight position={[-2, 3, 2]} intensity={1.6} color="#ffe8d0" />
       <directionalLight position={[2, -1, -2]} intensity={0.35} color="#6e3925" />
@@ -296,21 +409,43 @@ function SceneInner(props: Omit<Props, "size">) {
       <Environment preset="sunset" />
       <GlassCore impulse={impulse} />
       <CapsuleShell {...props} impulse={impulse} />
-      <EffectComposer enableNormalPass={false}>
-        <Bloom
-          intensity={1.0 + impulse * 0.5}
-          luminanceThreshold={0.4}
-          luminanceSmoothing={0.85}
-          mipmapBlur
+      {!disablePostFx && (
+        <PostProcessing
+          fill={fill}
+          impulse={impulse}
+          onFailed={() => {
+            setPostFxFailed(true);
+            onPostFxFailed();
+          }}
         />
-        <ChromaticAberration
-          blendFunction={BlendFunction.NORMAL}
-          offset={new THREE.Vector2(0.0015, 0.0015)}
-        />
-        <Vignette eskil={false} offset={0.2} darkness={0.55} />
-      </EffectComposer>
+      )}
     </>
   );
+}
+
+/** Catches Canvas / scene failures and falls back to the static orb. */
+class SceneCanvasErrorBoundary extends Component<
+  {
+    children: ReactNode;
+    fallback: ReactNode;
+    onFailed: () => void;
+  },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch() {
+    this.props.onFailed();
+  }
+
+  render() {
+    if (this.state.failed) return this.props.fallback;
+    return this.props.children;
+  }
 }
 
 export default function MiraScene({
@@ -319,39 +454,54 @@ export default function MiraScene({
   palette,
   reactionPulse,
   impulse = 0,
+  fill = false,
+  onReady,
 }: Props) {
   const reduced = useReducedMotion();
-  const dpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio : 1, 2);
+  const webglAvailable = useWebGLAvailable();
+  const [canvasFailed, setCanvasFailed] = useState(false);
+  const rawDpr = typeof window !== "undefined" ? window.devicePixelRatio : 1;
+  // Bloom runs over the whole framebuffer, so a full-bleed canvas at dpr 2 on
+  // a large display is costly. The orb reads soft, so a lighter cap is free.
+  const dpr = Math.min(rawDpr, fill ? 1.75 : 2);
+  const boxStyle = fill
+    ? ({ width: "100%", height: "100%" } as const)
+    : ({ width: size, height: size } as const);
 
-  if (reduced) {
-    return (
-      <div
-        className="rounded-full"
-        style={{
-          width: size,
-          height: size,
-          background:
-            "radial-gradient(circle at 35% 30%, rgba(168,90,58,0.55), rgba(110,57,37,0.9))",
-        }}
-      />
-    );
+  useEffect(() => {
+    if (reduced || !webglAvailable || canvasFailed) onReady?.();
+  }, [reduced, webglAvailable, canvasFailed, onReady]);
+
+  if (reduced || !webglAvailable || canvasFailed) {
+    return <StaticOrbFallback fill={fill} size={size} />;
   }
 
   return (
-    <div style={{ width: size, height: size }} className="relative">
-      <Canvas
-        dpr={dpr}
-        camera={{ position: [0, 0, 3.2], fov: 42 }}
-        gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
-        style={{ width: size, height: size }}
-      >
-        <SceneInner
-          morph={morph}
-          palette={palette}
-          reactionPulse={reactionPulse}
-          impulse={impulse}
-        />
-      </Canvas>
-    </div>
+    <SceneCanvasErrorBoundary
+      onFailed={() => setCanvasFailed(true)}
+      fallback={<StaticOrbFallback fill={fill} size={size} />}
+    >
+      <div style={boxStyle} className="relative">
+        <Canvas
+          dpr={dpr}
+          // Fill mode: pull back so capsule tips keep a margin of dusk instead
+          // of clipping, and lift the orb up-frame so its glowing core sits
+          // behind the question while the input console sits over dimmer field.
+          camera={{ position: fill ? [0, -0.5, 3.5] : [0, 0, 3.2], fov: 42 }}
+          gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
+          style={boxStyle}
+          onCreated={() => onReady?.()}
+        >
+          <SceneInner
+            fill={fill}
+            morph={morph}
+            palette={palette}
+            reactionPulse={reactionPulse}
+            impulse={impulse}
+            onPostFxFailed={() => {}}
+          />
+        </Canvas>
+      </div>
+    </SceneCanvasErrorBoundary>
   );
 }

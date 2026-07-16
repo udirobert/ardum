@@ -1,4 +1,4 @@
-// Client-side aesthetic vector cache — drives CloudField + Mira orb palette.
+// Client-side aesthetic vector cache — drives the Mira orb palette.
 // localStorage persists across visits on this device (disposable cache).
 
 import {

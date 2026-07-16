@@ -1,12 +1,10 @@
 "use client";
 
-// ClassInvitation — the drop-in class payment reframed as a spontaneous
-// invitation from Mira, not a checkout button. The agent opens with
-// empathy ("Can't commit to the full retreat? I understand."), then
-// offers a single class as a low-stakes alternative.
+// ClassInvitation — drop-in class as a low-stakes grant ceremony, not a
+// checkout or rail walkthrough (docs/decisions/0008-agentic-commitment.md).
 //
-// The x402 payment is invisible inside the conversation. The user
-// clicks "Join tomorrow's class" and Mira handles the rest.
+// Human moments: identity only if missing → confirm amount.
+// x402 / settlement run ambiently under securing status.
 
 import { useCallback, useState } from "react";
 import MiraOrb from "@/components/MiraOrb";
@@ -24,7 +22,7 @@ type ClassInvitationProps = {
   onClose: () => void;
 };
 
-type Phase = "inviting" | "signIn" | "paying" | "done" | "error";
+type Surface = "grant" | "securing" | "done" | "error";
 
 export default function ClassInvitation({
   retreatRootHash,
@@ -35,27 +33,30 @@ export default function ClassInvitation({
 }: ClassInvitationProps) {
   const {
     address,
+    sessionReady,
     connectWithUI,
     signPersonalMessage,
+    connecting: authConnecting,
     configured: magicConfigured,
+    returningPayer,
   } = useMagicAuth();
-  const [phase, setPhase] = useState<Phase>("inviting");
+  const [surface, setSurface] = useState<Surface>("grant");
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [securingLabel, setSecuringLabel] = useState(
+    "Joining you to tomorrow's class…",
+  );
 
   const invitation = classInvitation(retreatTitle, classPriceUsd, signals);
 
-  const handleJoin = useCallback(async () => {
-    if (!address) {
-      setPhase("signIn");
-      return;
-    }
+  const runJoin = useCallback(async () => {
+    if (!address) return;
 
-    setPhase("paying");
+    setSurface("securing");
     setError(null);
+    setSecuringLabel("Joining you to tomorrow's class…");
 
     try {
-      // 1. Request access — server responds with 402
       const res = await fetch(`/api/classes/access?retreat=${retreatRootHash}`, {
         method: "GET",
       });
@@ -70,7 +71,7 @@ export default function ClassInvitation({
           description: `Class access: ${retreatTitle}`,
         };
 
-        // 2. Sign payment intent
+        setSecuringLabel("Confirming with you…");
         const paymentIntent = JSON.stringify({
           amount: paymentRequirements.amount,
           token: paymentRequirements.token,
@@ -82,7 +83,7 @@ export default function ClassInvitation({
         });
         const signature = await signPersonalMessage(paymentIntent);
 
-        // 3. Retry with payment
+        setSecuringLabel("Securing your place…");
         const payRes = await fetch(`/api/classes/access`, {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -95,14 +96,17 @@ export default function ClassInvitation({
         });
 
         if (!payRes.ok) {
-          const errBody = await payRes.json();
-          throw new Error(errBody.error ?? "Payment verification failed.");
+          const errBody = await payRes.json().catch(() => ({}));
+          throw new Error(
+            (errBody as { error?: string }).error ??
+              "I couldn't complete that yet. Nothing was charged.",
+          );
         }
 
         const result = await payRes.json();
         setTxHash(result.txHash ?? null);
 
-        // 4. Write class-access attestation (best-effort)
+        // Best-effort access record — payment already succeeded
         const attestation: ClassAccessAttestation = {
           rootHash: `class-${retreatRootHash.slice(0, 12)}-${Date.now().toString(36)}`,
           kind: "class-access",
@@ -129,23 +133,39 @@ export default function ClassInvitation({
             signature: attSignature,
           }),
         }).catch(() => {
-          // Best-effort — payment already succeeded
+          // Payment already succeeded
         });
 
-        setPhase("done");
+        setSurface("done");
       } else if (res.ok) {
-        setPhase("done");
+        setSurface("done");
       } else {
-        throw new Error(`Unexpected response: ${res.status}`);
+        throw new Error(
+          "I couldn't complete that yet. Nothing was charged.",
+        );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Payment failed.");
-      setPhase("error");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "I couldn't complete that yet. Nothing was charged.",
+      );
+      setSurface("error");
     }
   }, [address, classPriceUsd, retreatRootHash, retreatTitle, signPersonalMessage]);
 
-  // ── Done ───────────────────────────────────────────────────────────
-  if (phase === "done") {
+  const handleContinueIdentity = useCallback(async () => {
+    const next = await connectWithUI();
+    if (!next) {
+      setError(
+        "Sign-in didn't finish. Nothing was charged.",
+      );
+      setSurface("error");
+    }
+  }, [connectWithUI]);
+
+  // ── Done: practice is the landing ──────────────────────────────────
+  if (surface === "done") {
     return (
       <div className="mt-8 fade-in-up">
         <div className="flex items-start gap-4 mb-6">
@@ -155,17 +175,23 @@ export default function ClassInvitation({
             className="flex-shrink-0 mt-1"
           />
           <div className="space-y-2 flex-1">
-            <p className="text-lg leading-relaxed mira-line">
-              You&apos;re in. Tomorrow&apos;s practice starts at 6am.
-            </p>
-            <p className="text-lg leading-relaxed mira-line mira-line-2">
-              I&apos;ll send a reminder 30 minutes before. No prep needed — just
-              arrive as you are.
-            </p>
+            {invitation.done.map((line, i) => (
+              <p
+                key={i}
+                className={`text-lg leading-relaxed mira-line mira-line-${Math.min(i + 1, 5)}`}
+              >
+                {line}
+              </p>
+            ))}
           </div>
         </div>
         {txHash && (
-          <p className="tag break-all opacity-50 mb-4 ml-16">tx: {txHash}</p>
+          <details className="ml-16 mb-4 opacity-70">
+            <summary className="tag cursor-pointer">How this is secured</summary>
+            <p className="tag mt-3 break-all leading-relaxed">
+              Access confirmed · ref {txHash.slice(0, 18)}…
+            </p>
+          </details>
         )}
         <button
           type="button"
@@ -179,22 +205,28 @@ export default function ClassInvitation({
   }
 
   // ── Error ──────────────────────────────────────────────────────────
-  if (phase === "error") {
+  if (surface === "error") {
     return (
       <div className="mt-8 fade-in-up">
         <div className="flex items-center gap-4 mb-4">
           <MiraOrb size={48} presence={presenceFromActivity("idle")} />
           <div className="flex-1">
             <p className="text-lg leading-relaxed text-[color:var(--accent-ink)]">
-              The payment didn&apos;t go through. Nothing was charged.
+              That didn&apos;t go through. That&apos;s okay — nothing was
+              charged.
             </p>
-            <p className="text-sm text-[color:var(--muted)] mt-2">{error}</p>
+            {error && (
+              <p className="text-sm text-[color:var(--muted)] mt-2">{error}</p>
+            )}
           </div>
         </div>
         <div className="ml-16 flex gap-3">
           <button
             type="button"
-            onClick={() => setPhase("inviting")}
+            onClick={() => {
+              setError(null);
+              setSurface("grant");
+            }}
             className="px-5 py-2.5 rounded-sm bg-foreground text-background text-sm"
           >
             Try again
@@ -211,76 +243,77 @@ export default function ClassInvitation({
     );
   }
 
-  // ── Paying ─────────────────────────────────────────────────────────
-  if (phase === "paying") {
+  // ── Securing: ambient rails ────────────────────────────────────────
+  if (surface === "securing") {
     return (
       <div className="mt-8 fade-in-up">
-        <div className="flex items-center gap-4 mb-4">
-          <MiraOrb size={48} presence={presenceFromActivity("processing")} />
-          <div className="flex-1">
-            <p className="text-lg leading-relaxed mira-line">
-              Handling the payment now…
-            </p>
-            <p className="text-sm text-[color:var(--muted)] mt-2">
-              ${classPriceUsd} via x402 — settling on Base.
-            </p>
+        <div className="flex items-start gap-4 mb-4">
+          <MiraOrb
+            size={48}
+            presence={presenceFromActivity("processing")}
+            activity="processing"
+            className="flex-shrink-0 mt-1"
+          />
+          <div className="flex-1 space-y-2">
+            {invitation.securing.map((line, i) => (
+              <p
+                key={i}
+                className={`text-lg leading-relaxed mira-line mira-line-${Math.min(i + 1, 5)}`}
+              >
+                {line}
+              </p>
+            ))}
+            <p className="text-sm text-[color:var(--muted)]">{securingLabel}</p>
           </div>
         </div>
         <div className="ml-16 flex items-center gap-3">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-[color:var(--accent)] pulse-soft" />
-          <span className="tag">Processing…</span>
+          <span className="tag">One moment…</span>
         </div>
       </div>
     );
   }
 
-  // ── Sign in needed ─────────────────────────────────────────────────
-  if (phase === "signIn" && !address) {
+  // ── Grant: wait for session → identity if needed → confirm ─────────
+  if (!sessionReady) {
     return (
       <div className="mt-8 fade-in-up">
-        <div className="flex items-center gap-4 mb-4">
-          <MiraOrb size={48} presence={presenceFromActivity("speaking")} />
+        <div className="flex items-start gap-4 mb-4">
+          <MiraOrb
+            size={48}
+            presence={presenceFromActivity("processing")}
+            activity="processing"
+            className="flex-shrink-0 mt-1"
+          />
           <p className="text-lg leading-relaxed flex-1">
-            Sign in first — I&apos;ll handle the rest.
+            One moment — I&apos;m finding your place…
           </p>
-        </div>
-        <div className="ml-16">
-          {!magicConfigured && (
-            <p className="text-xs text-[color:var(--muted)] mb-3">
-              Demo mode: Magic not configured.
-            </p>
-          )}
-          <button
-            type="button"
-            onClick={connectWithUI}
-            disabled={!magicConfigured}
-            className="px-5 py-2.5 rounded-sm bg-foreground text-background disabled:opacity-50 text-sm"
-          >
-            Sign in with Google
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="ml-3 text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
-          >
-            Cancel
-          </button>
         </div>
       </div>
     );
   }
 
-  // ── Initial invitation ─────────────────────────────────────────────
+  const needsIdentity = !address;
+  const grantLines = needsIdentity
+    ? invitation.needIdentity
+    : returningPayer
+      ? [
+          `Welcome back. Tomorrow's practice at ${retreatTitle} is open.`,
+          invitation.lines[1] ?? invitation.confirmLabel,
+        ]
+      : invitation.lines;
+
   return (
     <div className="mt-8 fade-in-up">
       <div className="flex items-start gap-4 mb-6">
         <MiraOrb
           size={48}
           presence={presenceFromActivity("speaking")}
+          activity="speaking"
           className="flex-shrink-0 mt-1"
         />
         <div className="space-y-2 flex-1">
-          {invitation.lines.map((line, i) => (
+          {grantLines.map((line, i) => (
             <p
               key={i}
               className={`text-lg leading-relaxed mira-line mira-line-${Math.min(i + 1, 5)}`}
@@ -292,17 +325,43 @@ export default function ClassInvitation({
       </div>
 
       <div className="ml-16">
-        <button
-          type="button"
-          onClick={handleJoin}
-          className="px-6 py-3 rounded-sm bg-[color:var(--accent)] text-background hover:bg-[color:var(--accent-ink)] transition-colors"
-        >
-          {invitation.cta} →
-        </button>
+        {needsIdentity ? (
+          <button
+            type="button"
+            onClick={() => void handleContinueIdentity()}
+            disabled={!magicConfigured || authConnecting}
+            className="px-6 py-3 rounded-sm bg-foreground text-background disabled:opacity-50 hover:bg-[color:var(--accent-ink)] transition-colors"
+          >
+            {authConnecting ? "Connecting…" : "Continue with Google"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void runJoin()}
+            className="px-6 py-3 rounded-sm bg-[color:var(--accent)] text-background hover:bg-[color:var(--accent-ink)] transition-colors"
+          >
+            {invitation.confirmLabel}
+          </button>
+        )}
+
+        {!magicConfigured && needsIdentity && (
+          <p className="text-sm text-[color:var(--muted)] mt-3 max-w-prose">
+            Secure sign-in isn&apos;t available here yet. Nothing was charged.
+          </p>
+        )}
+
+        <details className="mt-5 opacity-70">
+          <summary className="tag cursor-pointer">How this is secured</summary>
+          <p className="text-sm text-[color:var(--muted)] mt-3 max-w-prose leading-relaxed">
+            One session only. You confirm the amount; Mira handles payment. No
+            longer commitment to the full retreat.
+          </p>
+        </details>
+
         <button
           type="button"
           onClick={onClose}
-          className="ml-4 text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
+          className="mt-4 text-sm text-[color:var(--muted)] hover:text-foreground transition-colors block"
         >
           Maybe later
         </button>

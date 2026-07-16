@@ -18,6 +18,7 @@ import {
 } from "./aesthetic-store";
 import { useMiraImpulse } from "@/components/MiraImpulse";
 import StaggerReveal from "@/components/StaggerReveal";
+import { CREAM, DUSK_HEADING, DUSK_MUTED } from "./dusk-theme";
 
 const RetreatVision = dynamic(() => import("./RetreatVision"), { ssr: false });
 
@@ -27,9 +28,11 @@ type Phase = "calibrate" | "vision";
 
 type Props = {
   onComplete: (pref: UserPreference) => void;
+  /** Fires after every reaction so the hero orb's palette retunes live. */
+  onVector?: (vector: UserPreference["vector"]) => void;
 };
 
-export default function AestheticCalibration({ onComplete }: Props) {
+export default function AestheticCalibration({ onComplete, onVector }: Props) {
   const { fire } = useMiraImpulse();
   const [pref, setPref] = useState<UserPreference>(() =>
     typeof window !== "undefined" ? readAestheticPreference() : emptyPreference(),
@@ -93,6 +96,7 @@ export default function AestheticCalibration({ onComplete }: Props) {
     const dwellMs = performance.now() - shownAt.current;
     const nextPref = updatePreference(pref, current, reaction, dwellMs);
     const nextShown = new Set(shown).add(current.id);
+    onVector?.(nextPref.vector);
 
     window.setTimeout(() => {
       setPref(nextPref);
@@ -119,30 +123,39 @@ export default function AestheticCalibration({ onComplete }: Props) {
     <div className="w-full max-w-4xl mx-auto text-center aesthetic-calibrate">
       <StaggerReveal>
         <p className="tag mb-2 t-stagger-line">before words</p>
-        <h2 className="font-serif text-3xl sm:text-5xl tracking-tight mb-3 t-stagger-line t-stagger-line--2">
+        <h2
+          className="font-serif text-3xl sm:text-5xl tracking-tight mb-3 t-stagger-line t-stagger-line--2"
+          style={DUSK_HEADING}
+        >
           Show me what feels closer.
         </h2>
-        <p className="text-[color:var(--muted)] mb-8 t-stagger-line t-stagger-line--2">
-          Swipe or tap. Your atmosphere shifts as you choose.
+        <p
+          className="mb-8 t-stagger-line t-stagger-line--2"
+          style={DUSK_MUTED}
+        >
+          Swipe or tap. I shift as you choose.
         </p>
       </StaggerReveal>
 
-      <div className="h-1 rounded-full bg-[color:var(--hairline)] mb-6 overflow-hidden max-w-md mx-auto">
+      <div
+        className="h-1 rounded-full mb-6 overflow-hidden max-w-md mx-auto"
+        style={{ background: "rgba(246,239,227,0.16)" }}
+      >
         <div
-          className="h-full bg-[color:var(--accent)] transition-all duration-500"
-          style={{ width: `${progress}%` }}
+          className="h-full transition-all duration-500"
+          style={{ width: `${progress}%`, background: "#d8a892" }}
         />
       </div>
 
       {qualities.length > 0 && (
-        <p className="tag mb-6 italic text-[color:var(--accent-ink)]">
+        <p className="tag mb-6 italic" style={{ color: "#e5b394" }}>
           leaning toward {qualities.join(", ")}
         </p>
       )}
 
       {current && (
         <div
-          className={`relative aspect-[4/3] w-full max-w-3xl mx-auto overflow-hidden rounded-sm border border-[color:var(--hairline)] shadow-2xl transition-all duration-300 aesthetic-calibrate-frame ${
+          className={`relative aspect-[4/3] w-full max-w-3xl max-h-[48svh] mx-auto overflow-hidden rounded-sm border border-[rgba(246,239,227,0.18)] shadow-2xl transition-all duration-300 aesthetic-calibrate-frame ${
             exiting === "resonate"
               ? "scale-[1.04] opacity-0 rotate-1"
               : exiting === "skip"
@@ -188,7 +201,8 @@ export default function AestheticCalibration({ onComplete }: Props) {
           type="button"
           disabled={!current || !!exiting}
           onClick={() => react("skip")}
-          className="px-6 py-3 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent)] disabled:opacity-40"
+          className="px-6 py-3 rounded-sm border disabled:opacity-40"
+          style={{ borderColor: "rgba(246,239,227,0.3)", color: CREAM }}
         >
           Not this
         </button>
@@ -196,7 +210,8 @@ export default function AestheticCalibration({ onComplete }: Props) {
           type="button"
           disabled={!current || !!exiting}
           onClick={() => react("resonate")}
-          className="px-8 py-3 rounded-sm bg-foreground text-background disabled:opacity-40"
+          className="px-8 py-3 rounded-sm disabled:opacity-40"
+          style={{ background: CREAM, color: "#1a120d" }}
         >
           This feels right
         </button>

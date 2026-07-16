@@ -1,20 +1,8 @@
 "use client";
 
-// BreathSync — visualizes the on-chain deposit transaction as a breath
-// cycle. Inhale = signing, hold = settling on-chain, exhale = confirmed.
-//
-// This is the marquee detail that ties the crypto primitive to the
-// yoga primitive. Instead of a transaction spinner, the user sees
-// a breathing circle that maps to both the breath they'll practice
-// at the retreat AND the transaction settling on Arbitrum.
-//
-// The cycle:
-//   Phase 1 (inhale, 4s): circle expands, "Signing your deposit…"
-//   Phase 2 (hold, 2s): circle holds at full, "Settling on Arbitrum…"
-//   Phase 3 (exhale, 6s): circle contracts, "Confirmed. Your spot is held."
-//
-// The timing matches a relaxed breathing ratio (4-2-6) — the same
-// ratio that many of the retreats teach.
+// BreathSync — ambient ritual while Mira secures a commitment.
+// Maps to a relaxed 4-2-6 breath (practice language), not chain names.
+// Labels stay human per docs/decisions/0008-agentic-commitment.md.
 
 import { useEffect, useState } from "react";
 
@@ -27,10 +15,15 @@ type BreathSyncProps = {
   onComplete?: () => void;
 };
 
-const PHASES: { phase: BreathPhase; duration: number; label: string; scale: number }[] = [
-  { phase: "inhale", duration: 4000, label: "Signing your deposit…", scale: 1.6 },
-  { phase: "hold", duration: 2000, label: "Settling on Arbitrum…", scale: 1.6 },
-  { phase: "exhale", duration: 6000, label: "Confirmed. Your spot is held.", scale: 1.0 },
+const PHASES: {
+  phase: BreathPhase;
+  duration: number;
+  label: string;
+  scale: number;
+}[] = [
+  { phase: "inhale", duration: 4000, label: "Confirming with you…", scale: 1.6 },
+  { phase: "hold", duration: 2000, label: "Securing the place…", scale: 1.6 },
+  { phase: "exhale", duration: 6000, label: "Held.", scale: 1.0 },
 ];
 
 export default function BreathSync({ active, onComplete }: BreathSyncProps) {
@@ -38,7 +31,6 @@ export default function BreathSync({ active, onComplete }: BreathSyncProps) {
 
   const currentPhase = PHASES[phaseIndex];
   const isSettled = phaseIndex >= PHASES.length;
-  // Derive scale from phase index — no separate state needed
   const scale = currentPhase?.scale ?? 1.0;
 
   useEffect(() => {
@@ -46,12 +38,11 @@ export default function BreathSync({ active, onComplete }: BreathSyncProps) {
 
     const phase = PHASES[phaseIndex];
 
-    // Advance to next phase after duration
     const timer = setTimeout(() => {
       if (phaseIndex < PHASES.length - 1) {
         setPhaseIndex(phaseIndex + 1);
       } else {
-        setPhaseIndex(PHASES.length); // settled
+        setPhaseIndex(PHASES.length);
         onComplete?.();
       }
     }, phase.duration);
@@ -63,9 +54,7 @@ export default function BreathSync({ active, onComplete }: BreathSyncProps) {
 
   return (
     <div className="flex flex-col items-center justify-center py-8">
-      {/* Breath circle */}
       <div className="relative w-32 h-32 flex items-center justify-center">
-        {/* Outer ring — the breath container */}
         <div
           className="absolute inset-0 rounded-full border border-[color:var(--accent-soft)]"
           style={{
@@ -73,17 +62,16 @@ export default function BreathSync({ active, onComplete }: BreathSyncProps) {
             transition: `transform ${currentPhase?.duration ?? 0}ms ease-in-out`,
           }}
         />
-        {/* Inner orb — Mira's breathing body */}
         <div
           className="w-20 h-20 rounded-full"
           style={{
-            background: "radial-gradient(circle at 30% 30%, var(--accent), var(--accent-ink))",
+            background:
+              "radial-gradient(circle at 30% 30%, var(--accent), var(--accent-ink))",
             transform: `scale(${scale * 0.7 + 0.3})`,
             transition: `transform ${currentPhase?.duration ?? 0}ms ease-in-out`,
             opacity: isSettled ? 0.9 : 0.7,
           }}
         />
-        {/* Ripple effect on settle */}
         {isSettled && (
           <div
             className="absolute inset-0 rounded-full border-2 border-[color:var(--accent)]"
@@ -94,7 +82,6 @@ export default function BreathSync({ active, onComplete }: BreathSyncProps) {
         )}
       </div>
 
-      {/* Phase label */}
       <div className="mt-6 h-6">
         {!isSettled && currentPhase && (
           <p
@@ -106,12 +93,11 @@ export default function BreathSync({ active, onComplete }: BreathSyncProps) {
         )}
         {isSettled && (
           <p className="text-sm text-[color:var(--accent)] fade-in-up tracking-wide">
-            Confirmed. Your spot is held.
+            Held.
           </p>
         )}
       </div>
 
-      {/* Phase indicator dots */}
       <div className="flex gap-2 mt-4">
         {PHASES.map((p, i) => (
           <span
@@ -126,13 +112,6 @@ export default function BreathSync({ active, onComplete }: BreathSyncProps) {
           />
         ))}
       </div>
-
-      {/* Breathing ratio label — ties to yoga practice */}
-      {!isSettled && (
-        <p className="tag mt-4 opacity-50">
-          4-2-6 breathing ratio
-        </p>
-      )}
     </div>
   );
 }

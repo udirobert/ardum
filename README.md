@@ -19,6 +19,10 @@ to outcome.
   person.
 - **Earned agency.** Monitoring, sharing, holding, and booking require explicit,
   scoped consent.
+- **Grant, don’t execute.** Commitment is a scoped authority grant; Mira runs
+  payment and evidence rails. Stack vocabulary stays secondary.
+- **Solo first-class.** Coordination is an optional branch of a hold, not a
+  gate to booking.
 - **Memory with boundaries.** Retained information is inspectable, correctable,
   exportable, and deletable.
 - **Confidence over confirmation.** Success is when the person can stop
@@ -27,6 +31,8 @@ to outcome.
 The canonical product direction is in
 [`docs/product-vision.md`](docs/product-vision.md). System boundaries and
 sources of truth are in [`docs/architecture.md`](docs/architecture.md).
+Agentic commitment is
+[`docs/decisions/0008-agentic-commitment.md`](docs/decisions/0008-agentic-commitment.md).
 Architectural decisions are recorded as ADRs in
 [`docs/decisions/`](docs/decisions/).
 
@@ -36,16 +42,18 @@ Architectural decisions are recorded as ADRs in
 capture or resume an intention
   → clarify the next uncertainty
   → recommend one action
-  → monitor
+  → monitor (optional)
   → place a non-binding hold
-  → coordinate the people involved
-  → commit when confidence is high enough
+  → coordinate only if others must agree (optional branch)
+  → grant commitment when confidence is high enough
+  → prepare (practice begins; rails stay inspectable, not central)
 ```
 
 Mira remains present throughout the journey, but technical systems stay behind
 clear boundaries. The episode database owns operational state. Semantic memory
 adds context. Verifiable evidence supports recommendations. Payment and booking
-providers execute an explicit commitment.
+providers execute an **explicit grant** — the person confirms amount and bounds;
+Mira handles the rest.
 
 A non-committing re-ranking under a different priority balance is available
 at any point. Balanced, restorative, and movement lenses share the same
@@ -103,13 +111,16 @@ divergence at the boundary, not in production:
   migration's primary-key and cascade rules. See
   `src/episodes/repositories/contract.suite.ts` and the architecture doc for
   the scenarios pinned down.
-- `npm run smoke:journey [-- URL]` walks the canonical intake-to-booking
+- `npm run smoke:grant [-- URL]` walks the return-booker grant ceremony in a
+  real browser (cold Magic session → identity CTA; dev `?smokeRestore=1` hook
+  → Welcome back + Confirm deposit). Requires agent-browser.
+- `npm run smoke:journey [-- URL]` walks solo hold → book and the invite-branch
   journey against a live server (default `http://localhost:3000`) and
   asserts status transitions, the MatchResult shape, idempotent retry
   behavior, the 409 path for stale revisions, and the returning
-  practitioner scenario (memory projection from siblings). Run it after
-  any change to the API surface, repository contract, or service
-  orchestration.
+  practitioner scenario (memory projection from siblings). Flags:
+  `--solo-only`, `--invite-only`. Run it after any change to the API
+  surface, repository contract, or service orchestration.
 - `npm run smoke:ui [-- URL]` walks the server-rendered visible
   surface — the home-page returning-practitioner greeting
   (`data-testid="returning-greeting"`) and the /memory summary card

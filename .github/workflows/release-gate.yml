@@ -62,8 +62,13 @@ jobs:
         run: |
           nohup npm run start > server.log 2>&1 &
           echo $! > server.pid
+          # smoke:journey waits up to 30s; give the server a head start.
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000 >/dev/null && break
+            sleep 1
+          done
 
-      - name: Smoke journey (in-workflow)
+      - name: Smoke journey (solo + invite, in-workflow)
         run: npm run smoke:journey
 
       - name: Smoke journey (nightly against an external preview)

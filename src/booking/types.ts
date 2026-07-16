@@ -56,17 +56,10 @@ export type ClassAccessAttestation = {
   createdAt: string;
 };
 
-// The full booking flow state surfaced to the UI
+// Commitment surface state (grant ceremony — not multi-phase rail steps).
+// Internal provider hops are ambient under "securing".
 export type BookingState = {
-  step:
-    | "idle"
-    | "authenticating" // Magic social login in progress
-    | "delegating" // EIP-7702 upgrade in progress
-    | "depositing" // UA cross-chain transfer in flight
-    | "confirming" // waiting for on-chain confirmation
-    | "attesting" // writing booking attestation to 0G
-    | "done"
-    | "error";
+  step: "idle" | "grant" | "securing" | "done" | "error";
   magicAddress: string | null;
   uaDelegated: boolean;
   depositTxId: string | null;

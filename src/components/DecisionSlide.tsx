@@ -13,6 +13,7 @@ const SLIDE_INDEX: Partial<Record<NextDecision["kind"], number>> = {
   "invite-participant": 4,
   "await-responses": 4,
   "ready-to-book": 4,
+  preparation: 4,
   resume: 4,
 };
 

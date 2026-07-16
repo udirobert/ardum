@@ -138,45 +138,52 @@ export function matchLetter(
   return { lines, cta, recognitionLineCount };
 }
 
-// ── Booking conversation ────────────────────────────────────────────
-// The booking flow is a conversation, not a wizard. Mira narrates
-// each step. These are the lines that appear as the flow progresses.
+// ── Booking grant ceremony ──────────────────────────────────────────
+// Commitment is a scoped grant, not a multi-phase rail walkthrough
+// (docs/decisions/0008-agentic-commitment.md). Mira states amount and
+// bounds; rails run ambiently under securing status.
 
 export function bookingDialogue(depositUsd: number, retreatTitle: string) {
+  const amount = `$${depositUsd.toLocaleString()}`;
   return {
-    signIn: [
-      `I'll hold your spot on ${retreatTitle}.`,
-      `Sign in with Google — I'll handle the wallet, the chain, the gas. You won't see any of it.`,
+    ready: [
+      `The pieces that matter now agree. I can secure your place on ${retreatTitle}.`,
+      `Deposit ${amount}. Held until you arrive. I will not spend more without asking.`,
     ],
-    upgrading: [
-      `Good. I'm upgrading your account now.`,
-      `This is a one-time step. A Universal Account lets you pay from any chain, any token. You won't need to do this again.`,
+    /** Returning payer with a restored session — skip identity theater. */
+    readyReturning: [
+      `Welcome back. I can secure your place on ${retreatTitle}.`,
+      `Deposit ${amount}. Held until you arrive. Confirm when you're ready — I already have what I need from you.`,
     ],
-    depositing: [
-      `Your account is ready. The deposit is $${depositUsd.toLocaleString()}.`,
-      `I'll route it cross-chain and settle on Arbitrum. The operator won't touch it until you arrive.`,
+    needIdentity: [
+      `I'll secure your place on ${retreatTitle}.`,
+      `Continue with Google — I'll handle the rest. You won't manage wallets or chains.`,
     ],
-    attesting: [
-      `Deposit confirmed. I'm writing the booking to 0G Storage now.`,
-      `This is your proof of reservation — stored permanently, verifiable by anyone.`,
-    ],
+    restoring: ["One moment — I'm finding your place…"],
+    securing: ["Securing your place…"],
     done: [
       `You're booked.`,
       `I've started your preparation plan. It's based on what I've learned about your energy, your practice, and what this retreat offers.`,
       `Five minutes a day. Start tonight.`,
     ],
+    /** Closes the worry loop after commitment (product-vision measures). */
+    watchNext: [
+      `I'll keep watching your place until you arrive — the deposit stays held, the check-in window stays open, and I'll surface anything that would change the plan.`,
+    ],
   };
 }
 
 // ── Drop-in class invitation ────────────────────────────────────────
-// The class payment is reframed as a spontaneous invitation from Mira,
-// not a checkout button.
+// Low-stakes grant, same contract as full commitment: human confirms
+// amount and bounds; Mira handles payment rails ambiently
+// (docs/decisions/0008-agentic-commitment.md).
 
 export function classInvitation(
   retreatTitle: string,
   classPriceUsd: number,
   signals: PractitionerSignals,
 ) {
+  const amount = `$${classPriceUsd.toLocaleString()}`;
   const opener: Record<string, string> = {
     low: `Can't commit to the full retreat? I understand. Your energy is low right now.`,
     settled: `Not ready for the full retreat? That's fine.`,
@@ -189,10 +196,20 @@ export function classInvitation(
   return {
     lines: [
       line,
-      `Tomorrow's 6am practice at ${retreatTitle} is open. ${classPriceUsd} dollars — I'll handle the payment. One session, no commitment.`,
+      `Tomorrow's 6am practice at ${retreatTitle} is open. ${amount} — one session, no longer commitment.`,
       `If it resonates, the full retreat will still be here.`,
     ],
-    cta: `Join tomorrow's class`,
+    needIdentity: [
+      `Tomorrow's practice at ${retreatTitle} is open.`,
+      `Continue with Google — I'll handle the rest. One session, nothing more.`,
+    ],
+    securing: ["Joining you to tomorrow's class…"],
+    done: [
+      `You're in. Tomorrow's practice starts at 6am.`,
+      `I'll send a reminder 30 minutes before. No prep needed — just arrive as you are.`,
+    ],
+    cta: `Join tomorrow's class · ${amount}`,
+    confirmLabel: `Confirm ${amount} for tomorrow's class`,
   };
 }
 

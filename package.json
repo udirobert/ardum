@@ -11,6 +11,7 @@
     "smoke": "tsx scripts/smoke-signature.ts",
     "smoke:journey": "node scripts/smoke-journey.mjs",
     "smoke:ui": "node scripts/smoke-ui.mjs",
+    "smoke:grant": "node scripts/smoke-grant-returning.mjs",
     "e2e:loop": "node scripts/e2e-loop.mjs",
     "verify:automation": "node scripts/verify-automation.mjs",
     "check:supabase": "node scripts/check-supabase.mjs",

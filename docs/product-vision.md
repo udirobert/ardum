@@ -57,6 +57,7 @@ Examples:
   tomorrow.”
 - “A re-ranking under different priorities is available at any point. It
   is read-only. A hold is never changed by it.”
+- “The pieces that matter now agree. I can secure this for you.”
 
 ## Agency is earned
 
@@ -70,6 +71,90 @@ Authority is explicit and scoped:
 
 Granting one authority never implies another. Every automated action is
 inspectable and reversible where the provider permits it.
+
+Authority compounds only by explicit grant. Returning practitioners who already
+have a durable payment identity should not re-walk infrastructure theater;
+they should face the same human decision with less ceremony.
+
+## Division of labor (agentic era)
+
+| Who | Owns |
+|---|---|
+| **Person** | Intention, values under tradeoff, consent, final commitment |
+| **Mira** | Clarification, ranking, monitoring, holds, coordination ops, payment plumbing, evidence, recovery |
+| **System** | Provenance, reversibility, scoped permissions, inspectability |
+
+Anything the person is asked to do that is not preference or consent is product
+debt. Agentic does not mean chatty: state (the episode), not a chat log, is the
+spine. Autonomy runs within bounds; the person is not co-piloting rails.
+
+## Commitment is a grant, not an execution walkthrough
+
+Booking is a **terminal commitment of authority**, not a phase of the app and
+not a protocol walkthrough. The person grants a scoped action; Mira executes
+inside that grant.
+
+The primary path is a short ceremony:
+
+1. **Ready?** — confidence and tradeoffs are clear enough to proceed.
+2. **Identity only if missing** — progressive sign-in when no durable payment
+   identity exists; not a wallet tutorial.
+3. **Confirm amount and bounds** — deposit amount, hold-until-arrival (or
+   plain refund rule), and that Mira will not spend more without asking.
+
+Rails (account upgrade, cross-chain routing, escrow, attestation storage,
+chain names, wallet addresses) are **true and inspectable**. They are never
+the story on the primary path. They live under secondary disclosure such as
+“How this is secured,” details, and logs — consistent with “not a chatbot
+wrapped around checkout.”
+
+Ambient progress uses Mira’s journey posture (`resolving` → `arriving`) and
+calm human status (“Securing your place…” → “You’re booked.”), not named
+infra phases. Ritual can remain (for example a breath cycle) only when labels
+stay human; practice language may not re-center the stack.
+
+Success lands on **preparation**, not a receipt. The prep plan is the default
+payoff; provenance stays a quiet line. Conversion is an outcome of confidence;
+worry collapse after commitment is the product win.
+
+The full decision record for gates, solo path, and surface hierarchy is
+[0008-agentic-commitment](docs/decisions/0008-agentic-commitment.md). Experience
+detail is in [design/experience-layer.md](design/experience-layer.md).
+
+## Hold, solo, and coordination
+
+A non-binding hold is the planning primitive: time-bounded, non-charging,
+inspectable. After a hold, the journey branches:
+
+```text
+recommend
+  → hold
+       → secure my place          (solo / no others required — primary path)
+       → invite someone who must agree  (optional multi-party branch)
+       → watch / revise / release
+```
+
+**Solo is first-class.** Coordination is an optional branch of the hold, not
+the only door to commitment. A social preference of solitude must never force
+an invitation that cannot complete. Multi-party agreement remains required when
+the person has opened that branch and others must still respond.
+
+## Secondary tools stay secondary
+
+Lenses, counterfactuals, alternatives, technical provenance, and provider
+status exist to build or restore confidence. They never mutate a hold and never
+compete with the one primary decision. When a hold is active and uncertainty is
+low, secondary tools shrink into disclosure. When uncertainty is high or the
+person asks “what if,” they expand.
+
+Copy hierarchy on every journey surface:
+
+1. Mira’s letter (meaning)
+2. the human decision (action)
+3. status (what Mira is doing)
+4. provenance (how it is secured)
+
+Never reverse that order.
 
 ## Memory is a relationship boundary
 
@@ -99,10 +184,13 @@ Ardum is not:
 - a chatbot wrapped around checkout;
 - a dashboard of model reasoning;
 - an urgency engine;
-- a system that silently converts memory into permission.
+- a system that silently converts memory into permission;
+- a wallet, chain, or storage onboarding funnel on the primary path.
 
 Browsing, alternatives, technical provenance, and provider status can exist as
-secondary tools. They do not define the primary journey.
+secondary tools. They do not define the primary journey. Infra differentiators
+may prove trust to partners and skeptics in secondary surfaces; they do not tax
+the practitioner path for confidence.
 
 ## Measures of success
 
@@ -114,6 +202,7 @@ Ardum should optimize for:
 - coordination work absorbed;
 - corrections incorporated without restarting;
 - avoidable worry after commitment;
-- trust demonstrated through accurate, bounded memory.
+- trust demonstrated through accurate, bounded memory;
+- infrastructure steps the person never had to learn.
 
 Conversion is an outcome of confidence, not the north-star metric.
