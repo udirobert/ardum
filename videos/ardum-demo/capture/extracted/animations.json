@@ -1,0 +1,52 @@
+{
+  "summary": {
+    "webAnimations": 1,
+    "cssDeclarations": 5,
+    "scrollTargets": 3,
+    "cdpAnimations": 19,
+    "canvases": 1
+  },
+  "namedAnimations": [],
+  "scrollTriggeredElements": 3,
+  "representativeAnimations": [
+    {
+      "type": "CSSAnimation",
+      "playState": "running",
+      "animationName": "drift",
+      "targetSelector": "body.min-h-full.flex.flex-col",
+      "targetRect": {
+        "x": 0,
+        "y": 0,
+        "width": 1920,
+        "height": 1262.5,
+        "top": 0,
+        "right": 1920,
+        "bottom": 1262.5,
+        "left": 0
+      },
+      "keyframes": [
+        {
+          "offset": 0,
+          "easing": "ease-in-out",
+          "composite": "auto",
+          "transform": "translate(-1.5%)",
+          "computedOffset": 0
+        },
+        {
+          "offset": 1,
+          "easing": "ease-in-out",
+          "composite": "auto",
+          "transform": "translate(1.5%)",
+          "computedOffset": 1
+        }
+      ],
+      "timing": {
+        "duration": 90000,
+        "delay": 0,
+        "iterations": null,
+        "easing": "linear",
+        "direction": "alternate"
+      }
+    }
+  ]
+}

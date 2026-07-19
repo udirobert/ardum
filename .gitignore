@@ -48,3 +48,7 @@ blog.md
 *.tsbuildinfo
 next-env.d.ts
 
+videos/ardum-demo/renders/
+videos/ardum-demo/audio/
+videos/ardum-demo/snapshots/
+videos/ardum-demo/capture-proof/

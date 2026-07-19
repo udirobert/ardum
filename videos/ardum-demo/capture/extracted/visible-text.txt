@@ -1,0 +1,15 @@
+[span] Mira is steady.
+[a] Ardum
+[span] the shape of your practice
+[p] before words
+[h2] Show me what feels closer.
+[p] Swipe or tap. I shift as you choose.
+[p] Sunlight filtering through dense jungle canopy
+[span] ← not this
+[span] this →
+[button] Not this
+[button] This feels right
+[p] Ardum is
+[p] reversed.
+[p] A mudra seals your practice. Ardum helps give an intention shape, then carries it quietly toward action.
+[a] your intention & privacy
