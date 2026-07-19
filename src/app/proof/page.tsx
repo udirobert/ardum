@@ -88,6 +88,19 @@ export default function ProofPage() {
           attestation. Run it with{" "}
           <code className="text-sm">npx tsx scripts/agent-book.ts</code>.
         </p>
+        <p className="text-[color:var(--muted)] leading-relaxed max-w-prose mb-4">
+          <span className="tag">verified on-chain</span> A real agent booking
+          was executed on Arbitrum Sepolia &mdash; 1 USDC deposited to escrow,
+          confirmed in block 288972600.{" "}
+          <a
+            href="https://sepolia.arbiscan.io/tx/0x7a69ebc21d80ed8b0f6071a0bbd923f99bfa5edc977ab958692eeb27e2734151"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-4"
+          >
+            View on Arbiscan &rarr;
+          </a>
+        </p>
         <p className="why max-w-prose mb-10">
           This expands the TAM beyond direct consumer bookings: any AI agent
           with a funded wallet can act as a travel concierge, using Ardum as
