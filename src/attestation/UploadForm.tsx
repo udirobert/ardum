@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import WalletButton from "./WalletButton";
 import OperatorWalletButton from "@/booking/OperatorWalletButton";
 import { canonicalAttestationMessage } from "./sign";
@@ -64,19 +65,34 @@ export default function UploadForm() {
   const [error, setError] = useState<string | null>(null);
   const [breathOpen, setBreathOpen] = useState(false);
 
-  // Step 1 — The retreat
-  const [title, setTitle] = useState("");
-  const [location, setLocation] = useState("");
-  const [durationDays, setDurationDays] = useState(7);
-  const [priceUsd, setPriceUsd] = useState(1800);
-  const [capacity, setCapacity] = useState(12);
+  // Pre-fill from URL search params (agent sends operator here with data)
+  const searchParams = useSearchParams();
 
-  // Step 2 — The practice
-  const [description, setDescription] = useState("");
-  const [practiceStyle, setPracticeStyle] = useState<PracticeStyle[]>([]);
-  const [energyFit, setEnergyFit] = useState<EnergyFit[]>([]);
-  const [socialFit, setSocialFit] = useState<SocialFit[]>([]);
-  const [breathPhase, setBreathPhase] = useState<BreathPhase[]>([]);
+  // Step 1 — The retreat (pre-filled from query params if present)
+  const [title, setTitle] = useState(() => searchParams.get("title") ?? "");
+  const [location, setLocation] = useState(() => searchParams.get("location") ?? "");
+  const [durationDays, setDurationDays] = useState(() => Number(searchParams.get("durationDays") ?? 7));
+  const [priceUsd, setPriceUsd] = useState(() => Number(searchParams.get("priceUsd") ?? 1800));
+  const [capacity, setCapacity] = useState(() => Number(searchParams.get("capacity") ?? 12));
+
+  // Step 2 — The practice (pre-filled from query params if present)
+  const [description, setDescription] = useState(() => searchParams.get("description") ?? "");
+  const [practiceStyle, setPracticeStyle] = useState<PracticeStyle[]>(() => {
+    const p = searchParams.get("practiceStyle");
+    return p ? p.split(",").filter(Boolean) : [];
+  });
+  const [energyFit, setEnergyFit] = useState<EnergyFit[]>(() => {
+    const p = searchParams.get("energyFit");
+    return p ? (p.split(",").filter(Boolean) as EnergyFit[]) : [];
+  });
+  const [socialFit, setSocialFit] = useState<SocialFit[]>(() => {
+    const p = searchParams.get("socialFit");
+    return p ? (p.split(",").filter(Boolean) as SocialFit[]) : [];
+  });
+  const [breathPhase, setBreathPhase] = useState<BreathPhase[]>(() => {
+    const p = searchParams.get("breathPhase");
+    return p ? (p.split(",").filter(Boolean) as BreathPhase[]) : [];
+  });
 
   // Step 3 — Optional breath cycle (advanced)
   const [includeCycle, setIncludeCycle] = useState(false);
@@ -155,7 +171,7 @@ export default function UploadForm() {
         createdAt: new Date().toISOString(),
       };
 
-      setSigningStep("waiting for wallet signature…");
+      setSigningStep("Publishing your retreat…");
       const message = canonicalAttestationMessage(attestation);
       const signature = await personalSign(message, attestor!);
       setSigningStep(null);
@@ -192,16 +208,16 @@ export default function UploadForm() {
   if (result) {
     return (
       <section className="border border-[color:var(--accent-soft)] bg-[color:var(--surface)] rounded-sm p-8 fade-in-up max-w-2xl surface-card">
-        <p className="tag mb-1">written · {result.storedOn}</p>
+        <p className="tag mb-1">published</p>
         <h2 className="font-serif text-3xl tracking-tight mb-3">{title}</h2>
         <p className="why mb-3">
-          Attested by{" "}
-          <span className="tag not-italic">
-            {attestor?.slice(0, 6)}…{attestor?.slice(-4)}
-          </span>
-          . It&apos;s now part of the matching pool.
+          Your retreat is now in the matching pool. When a practitioner
+          describes what they need, Mira will consider your retreat as a
+          match.
         </p>
-        <p className="tag break-all">{result.rootHash}</p>
+        <p className="text-xs text-[color:var(--muted)] break-all">
+          Reference: {result.rootHash}
+        </p>
         <button
           type="button"
           onClick={() => {
@@ -384,28 +400,28 @@ export default function UploadForm() {
 
       {step === 2 && (
         <div className="fade-in-up" key="step-2">
-          <p className="tag mb-6">step 3 of 3 · write it</p>
+          <p className="tag mb-6">step 3 of 3 · publish</p>
           <h2 className="font-serif text-4xl tracking-tight leading-tight mb-3">
-            Sign and write to 0G Storage.
+            Sign in to publish your retreat.
           </h2>
           <p className="why mb-8 max-w-prose">
-            Your wallet signature proves you wrote this claim. The server
-            verifies the signature before storing anything.
+            Your signature proves this listing came from you. Sign in with
+            Google — no wallet or crypto knowledge needed.
           </p>
 
           <div className="mb-8">
-            <p className="tag mb-2">attestor</p>
+            <p className="tag mb-2">your account</p>
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-[color:var(--muted)] mb-2">
-                  Gasless (Particle Auth + ZeroDev) — recommended
+                  Sign in with Google — recommended
                 </p>
                 <OperatorWalletButton onConnect={setAttestor} />
               </div>
               <div className="h-px bg-[color:var(--hairline)]" />
               <div>
                 <p className="text-xs text-[color:var(--muted)] mb-2">
-                  Classic wallet (MetaMask / Rabby)
+                  Connect a crypto wallet (advanced)
                 </p>
                 <WalletButton onConnect={setAttestor} />
               </div>
@@ -519,10 +535,10 @@ export default function UploadForm() {
               className="px-6 py-3 rounded-sm bg-[color:var(--accent)] text-background disabled:opacity-50 hover:bg-[color:var(--accent-ink)] transition-colors"
             >
               {signingStep
-                ? "signing…"
+                ? "Publishing…"
                 : submitting
-                ? "writing…"
-                : "Sign & write attestation →"}
+                ? "Publishing…"
+                : "Publish retreat →"}
             </button>
           </div>
         </div>

@@ -1,8 +1,8 @@
 "use client";
 
-// Operator wallet button — replaces the MetaMask WalletButton for operators.
+// Operator wallet button — the operator's sign-in surface.
 // Uses Particle Auth (social login) + ZeroDev Kernel (gas sponsorship) so
-// operators never need MetaMask or ETH to attest retreats.
+// operators never need MetaMask or ETH to list retreats.
 //
 // This is an ALTERNATIVE to the existing WalletButton.tsx — operators can
 // choose either flow. The existing MetaMask path stays for backward compat.
@@ -15,21 +15,11 @@ export default function OperatorWalletButton({
 }: {
   onConnect: (address: string) => void;
 }) {
-  const {
-    address,
-    smartAccountAddress,
-    configured,
-    error,
-    connect,
-    sessionKeyActive,
-    createSessionKey,
-    sendGaslessTx,
-  } = useOperatorAuth();
+  const { address, configured, error, connect, createSessionKey } =
+    useOperatorAuth();
 
   const [connecting, setConnecting] = useState(false);
   const [creatingSession, setCreatingSession] = useState(false);
-  const [gaslessTxHash, setGaslessTxHash] = useState<string | null>(null);
-  const [sendingGasless, setSendingGasless] = useState(false);
 
   // Notify parent when address changes — no setState in effect body
   useEffect(() => {
@@ -49,22 +39,12 @@ export default function OperatorWalletButton({
     setConnecting(false);
   }
 
-  async function handleGaslessTx() {
-    setSendingGasless(true);
-    setGaslessTxHash(null);
-    const hash = await sendGaslessTx();
-    if (hash) setGaslessTxHash(hash);
-    setSendingGasless(false);
-  }
-
   if (!configured) {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-xs text-[color:var(--muted)] max-w-sm">
-          Operator social login (Particle Auth + ZeroDev) is not configured.
-          Set <code className="tag">NEXT_PUBLIC_PARTICLE_*</code> and{" "}
-          <code className="tag">NEXT_PUBLIC_ZERODEV_API_KEY</code> to enable
-          gasless attestation writes.
+          Google sign-in is not configured yet. You can still publish with a
+          crypto wallet below.
         </p>
       </div>
     );
@@ -80,15 +60,12 @@ export default function OperatorWalletButton({
         disabled={connecting || connected}
         className="px-5 py-2.5 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors disabled:opacity-60 text-left"
       >
-        {!connected && !connecting && "Sign in with Google (gasless)"}
+        {!connected && !connecting && "Sign in with Google"}
         {connecting && "Connecting…"}
         {connected && address && (
           <>
-            <span className="text-[color:var(--accent-ink)]">connected · </span>
+            <span className="text-[color:var(--accent-ink)]">signed in · </span>
             <span className="tag">{address.slice(0, 6)}…{address.slice(-4)}</span>
-            {sessionKeyActive && (
-              <span className="text-[color:var(--accent-ink)]"> · session key active</span>
-            )}
           </>
         )}
         {error && !connecting && !connected && error}
@@ -96,49 +73,14 @@ export default function OperatorWalletButton({
 
       {creatingSession && (
         <p className="text-xs text-[color:var(--muted)] max-w-sm">
-          Creating ZeroDev session key…
+          Setting up your account…
         </p>
       )}
 
-      {smartAccountAddress && (
-        <div className="text-xs text-[color:var(--muted)] max-w-sm space-y-1">
-          <p>
-            <span className="tag">smart account</span>{" "}
-            <span className="break-all">{smartAccountAddress.slice(0, 10)}…{smartAccountAddress.slice(-8)}</span>
-          </p>
-          <p>
-            Gasless ERC-4337 account via ZeroDev Kernel. The operator EOA
-            signs once; the session key handles batch attestation writes
-            without re-signing each one.
-          </p>
-          <button
-            type="button"
-            onClick={handleGaslessTx}
-            disabled={sendingGasless}
-            className="mt-2 px-3 py-1.5 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors text-xs disabled:opacity-50"
-          >
-            {sendingGasless ? "Sending gasless tx…" : "Test gasless tx (ZeroDev paymaster)"}
-          </button>
-          {gaslessTxHash && (
-            <p className="break-all">
-              <span className="tag">tx</span>{" "}
-              <a
-                href={`https://sepolia.arbiscan.io/tx/${gaslessTxHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-2"
-              >
-                {gaslessTxHash.slice(0, 18)}…
-              </a>
-            </p>
-          )}
-        </div>
-      )}
-
-      {sessionKeyActive && !smartAccountAddress && (
+      {connected && (
         <p className="text-xs text-[color:var(--muted)] max-w-sm">
-          Gas sponsored by ZeroDev · session key enables batch attestation
-          writes without re-signing each one.
+          Your retreat listing will be signed by your Google account.
+          Practitioners will see it in their matches.
         </p>
       )}
     </div>
