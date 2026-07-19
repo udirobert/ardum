@@ -16,6 +16,9 @@ export type InviteRecord = {
 export interface EpisodeRepository {
   create(episode: Episode): Promise<Episode>;
   getOwned(actorId: string, episodeId: string): Promise<Episode | undefined>;
+  /** Get any episode by ID, regardless of actor. For agent API calls where
+   *  identity is proven by signature, not cookie. */
+  get(episodeId: string): Promise<Episode | undefined>;
   listOwned(actorId: string): Promise<Episode[]>;
   listDue(now: Date): Promise<Episode[]>;
   save(

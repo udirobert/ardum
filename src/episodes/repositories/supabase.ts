@@ -52,6 +52,18 @@ export async function getOwned(
   return data?.state as Episode | undefined;
 }
 
+export async function get(
+  episodeId: string,
+): Promise<Episode | undefined> {
+  const { data, error } = await client()
+    .from("episodes")
+    .select("state")
+    .eq("id", episodeId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.state as Episode | undefined;
+}
+
 export async function listOwned(actorId: string): Promise<Episode[]> {
   const { data, error } = await client()
     .from("episodes")

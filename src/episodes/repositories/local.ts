@@ -35,6 +35,13 @@ export async function getOwned(
   return clone(episode);
 }
 
+export async function get(
+  episodeId: string,
+): Promise<Episode | undefined> {
+  const episode = episodes.get(episodeId);
+  return episode ? clone(episode) : undefined;
+}
+
 export async function listOwned(actorId: string): Promise<Episode[]> {
   return [...episodes.values()]
     .filter((episode) => episode.actorId === actorId)

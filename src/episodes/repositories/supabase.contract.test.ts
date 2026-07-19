@@ -161,6 +161,10 @@ describe.skipIf(!LIVE)("Supabase live: episode repository contract", () => {
         supabase
           .getOwned(toUuid(actorId), toUuid(episodeId))
           .then((ep) => (ep ? stripEpisode(ep) : undefined)),
+      get: (episodeId) =>
+        supabase
+          .get(toUuid(episodeId))
+          .then((ep) => (ep ? stripEpisode(ep) : undefined)),
       listOwned: (actorId) =>
         supabase.listOwned(toUuid(actorId)).then(filterOwnRun),
       listDue: (_now) => supabase.listDue(_now).then(filterOwnRun),

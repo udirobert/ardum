@@ -117,12 +117,14 @@ export async function applyEpisodeCommand(
   actorId: string,
   episodeId: string,
   command: EpisodeCommand,
-  dependencies: { clock?: Clock; ids?: IdFactory } = {},
+  dependencies: { clock?: Clock; ids?: IdFactory; skipOwnershipCheck?: boolean } = {},
 ): Promise<ActionResult> {
   const clock = dependencies.clock ?? systemClock;
   const ids = dependencies.ids ?? cryptoIds;
   const now = clock.now();
-  const stored = await episodeRepository.getOwned(actorId, episodeId);
+  const stored = dependencies.skipOwnershipCheck
+    ? await episodeRepository.get(episodeId)
+    : await episodeRepository.getOwned(actorId, episodeId);
   if (!stored) throw new Error("Episode not found.");
   if (
     command.idempotencyKey &&
@@ -387,7 +389,7 @@ export async function applyEpisodeCommand(
   };
   return {
     episode: await episodeRepository.save(
-      actorId,
+      dependencies.skipOwnershipCheck ? stored.actorId : actorId,
       updated,
       command.expectedRevision,
     ),
