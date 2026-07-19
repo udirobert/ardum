@@ -72,6 +72,31 @@ export default function ProofPage() {
 
       <RevealSection delay={200}>
         <h2 className="font-serif text-2xl tracking-tight mb-3">
+          Agent-driven booking
+        </h2>
+        <p className="text-[color:var(--muted)] leading-relaxed max-w-prose mb-4">
+          Any agent can use Ardum&rsquo;s booking infrastructure to book
+          retreats on behalf of its users. The agent holds a funded EOA,
+          upgrades it via EIP-7702 to a Particle Universal Account, and
+          routes a cross-chain deposit to escrow &mdash; the user never
+          touches a wallet, sees a chain name, or pays gas.
+        </p>
+        <p className="text-[color:var(--muted)] leading-relaxed max-w-prose mb-4">
+          The full flow is driven via the Ardum API: capture intention &rarr;
+          clarify constraints &rarr; recommend &rarr; hold &rarr; EIP-7702
+          upgrade &rarr; cross-chain deposit &rarr; signed booking
+          attestation. Run it with{" "}
+          <code className="text-sm">npx tsx scripts/agent-book.ts</code>.
+        </p>
+        <p className="why max-w-prose mb-10">
+          This expands the TAM beyond direct consumer bookings: any AI agent
+          with a funded wallet can act as a travel concierge, using Ardum as
+          the commitment and settlement layer.
+        </p>
+      </RevealSection>
+
+      <RevealSection delay={240}>
+        <h2 className="font-serif text-2xl tracking-tight mb-3">
           Reservation record
         </h2>
         <p className="text-[color:var(--muted)] leading-relaxed max-w-prose mb-4">
@@ -89,7 +114,7 @@ export default function ProofPage() {
         </p>
       </RevealSection>
 
-      <RevealSection delay={240}>
+      <RevealSection delay={280}>
         <h2 className="font-serif text-2xl tracking-tight mb-3">
           What stays off the primary path
         </h2>
