@@ -4,11 +4,23 @@
 // via EIP-7702 to a chain-abstracted account — one balance across chains,
 // cross-chain transfers without manual bridging.
 //
-// Flow (verified against Particle-Network/ua-7702-magic-demo):
-//   1. Construct UniversalAccount with Magic EOA as ownerAddress
-//   2. ensureDelegated() → checks + performs EIP-7702 delegation on Arbitrum
-//   3. createTransferTransaction() → builds cross-chain deposit tx
-//   4. Magic signs the rootHash → sendTransaction() → settles on Arbitrum
+// Flow (verified against Particle-Network/ua-7702-magic-demo and the
+// Particle EIP-7702 wallets reference at
+// developers.particle.network/universal-accounts/ua-reference/web/eip7702-wallets):
+//   1. Construct UniversalAccount with Magic EOA as ownerAddress (useEIP7702)
+//   2. createTransferTransaction() → builds the cross-chain deposit tx;
+//      each userOp carries eip7702Auth { address, chainId, nonce } when the
+//      EOA is not yet delegated on that chain.
+//   3. For every userOp needing delegation, sign the 7702 authorization with
+//      Magic's wallet.sign7702Authorization and serialize {v,r,s} → hex.
+//   4. Sign the transaction rootHash with Magic (personal_sign).
+//   5. sendTransaction(tx, rootHashSignature, authorizations) — the SDK
+//      submits the Type-4 tx carrying the authorizationList and the cross-
+//      chain value move in one broadcast. Settlement lands on Arbitrum.
+//
+// ensureDelegated() is a read-only status check (getEIP7702Deployments) so
+// the grant ceremony can show "Preparing your account…" only on the first
+// deposit. The actual delegation is performed inline by sendDeposit.
 
 import {
   createContext,
@@ -19,14 +31,16 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useMagicAuth } from "./MagicAuth";
+import { Signature } from "ethers";
+import { useMagicAuth, type Magic7702Authorization } from "./MagicAuth";
+import { SETTLE_CHAIN_ID } from "./constants";
+import type {
+  EIP7702Authorization,
+  ITransaction,
+  IAssetsResponse,
+  UniversalAccount as UniversalAccountType,
+} from "@particle-network/universal-account-sdk";
 import type { UnifiedBalance } from "./types";
-
-// The Particle UA SDK has a package.json exports issue that prevents
-// TypeScript from resolving its .d.ts file. We declare a minimal module
-// shape here and cast at the boundary.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type UniversalAccountInstance = any;
 
 type ParticleEnv = {
   projectId: string;
@@ -41,9 +55,6 @@ function readParticleEnv(): ParticleEnv | null {
   if (!projectId || !clientKey || !appId) return null;
   return { projectId, clientKey, appId };
 }
-
-// Arbitrum One chain ID — where deposits settle
-const ARBITRUM_CHAIN_ID = 42161;
 
 type UniversalAccountState = {
   configured: boolean;
@@ -68,7 +79,8 @@ export function UniversalAccountProvider({ children }: { children: ReactNode }) 
     useMagicAuth();
   const env = useMemo(() => readParticleEnv(), []);
 
-  const [uaInstance, setUaInstance] = useState<UniversalAccountInstance | null>(null);
+  const [uaInstance, setUaInstance] =
+    useState<UniversalAccountType | null>(null);
   const [delegated, setDelegated] = useState(false);
   const [delegating, setDelegating] = useState(false);
   const [balance, setBalance] = useState<UnifiedBalance | null>(null);
@@ -101,18 +113,19 @@ export function UniversalAccountProvider({ children }: { children: ReactNode }) 
 
         setUaInstance(ua);
 
-        // Check if already delegated on Arbitrum
+        // Read current delegation status so the grant ceremony can skip the
+        // "Preparing your account…" beat for returning practitioners.
         try {
           const deployments = await ua.getEIP7702Deployments();
           if (deployments && !cancelled) {
             const isDelegated = Array.isArray(deployments) &&
               deployments.some(
-                (d: { chainId?: number }) => d.chainId === ARBITRUM_CHAIN_ID,
+                (d: { chainId?: number }) => d.chainId === SETTLE_CHAIN_ID,
               );
             if (isDelegated) setDelegated(true);
           }
         } catch {
-          // Not yet delegated — ensureDelegated() handles it
+          // Not yet delegated — sendDeposit will handle it inline.
         }
       } catch (err) {
         if (!cancelled) {
@@ -130,6 +143,8 @@ export function UniversalAccountProvider({ children }: { children: ReactNode }) 
     };
   }, [env, magicAddress]);
 
+  // Read-only delegation probe. The actual Type-4 delegation is performed
+  // inline by sendDeposit on the first cross-chain transfer.
   const ensureDelegated = useCallback(async (): Promise<boolean> => {
     if (!uaInstance) {
       setError("Universal Account not initialised.");
@@ -140,57 +155,34 @@ export function UniversalAccountProvider({ children }: { children: ReactNode }) 
     setDelegating(true);
     setError(null);
     try {
-      // 1. Check current delegation status
       const deployments = await uaInstance.getEIP7702Deployments();
       const alreadyDelegated = Array.isArray(deployments) &&
         deployments.some(
-          (d: { chainId?: number }) => d.chainId === ARBITRUM_CHAIN_ID,
+          (d: { chainId?: number }) => d.chainId === SETTLE_CHAIN_ID,
         );
       if (alreadyDelegated) {
         setDelegated(true);
         return true;
       }
-
-      // 2. Get authorization params for Arbitrum
-      const authParams = await uaInstance.getEIP7702Auth([ARBITRUM_CHAIN_ID]);
-      if (!authParams || authParams.length === 0) {
-        throw new Error("No EIP-7702 auth params returned for Arbitrum.");
-      }
-
-      // 3. Sign the authorization with Magic's 7702 API
-      for (const param of authParams) {
-        const signature = await sign7702Authorization({
-          contractAddress: param.address,
-          chainId: param.chainId,
-          nonce: param.nonce,
-        });
-
-        // 4. The UA SDK handles the Type-4 tx submission internally when
-        // we pass the signature back. In the reference demo, the flow is:
-        //   sign7702Authorization → serialize → pass to UA sendTransaction
-        // The actual Type-4 submission happens as part of the first
-        // transaction via sendTransaction().
-        void signature;
-      }
-
-      setDelegated(true);
-      return true;
+      // Not yet delegated — that's fine. sendDeposit will sign and submit the
+      // 7702 authorization inline with the first transaction.
+      return false;
     } catch (err) {
       setError(
         err instanceof Error
-          ? `EIP-7702 delegation failed: ${err.message}`
-          : "EIP-7702 delegation failed.",
+          ? `Delegation check failed: ${err.message}`
+          : "Delegation check failed.",
       );
       return false;
     } finally {
       setDelegating(false);
     }
-  }, [uaInstance, delegated, sign7702Authorization]);
+  }, [uaInstance, delegated]);
 
   const fetchBalance = useCallback(async () => {
     if (!uaInstance) return;
     try {
-      const result = await uaInstance.getPrimaryAssets();
+      const result: IAssetsResponse = await uaInstance.getPrimaryAssets();
       setBalance({
         totalUsd: result?.totalAmountInUSD ?? 0,
         tokens: [],
@@ -199,6 +191,18 @@ export function UniversalAccountProvider({ children }: { children: ReactNode }) 
       // Balance fetch is non-critical
     }
   }, [uaInstance]);
+
+  // Serialize Magic's {v, r, s} 7702 authorization into the hex signature
+  // the Particle SDK expects in EIP7702Authorization.signature.
+  function serialize7702Signature(auth: Magic7702Authorization): string {
+    // ethers Signature.from accepts v as 27/28 (raw parity) — exactly what
+    // Magic returns. .serialized yields the r||s||v hex string.
+    return Signature.from({
+      r: auth.r,
+      s: auth.s,
+      v: auth.v,
+    }).serialized;
+  }
 
   const sendDeposit = useCallback(
     async (params: {
@@ -211,15 +215,13 @@ export function UniversalAccountProvider({ children }: { children: ReactNode }) 
         setError("Universal Account not initialised.");
         return null;
       }
-      if (!delegated) {
-        setError("Account not delegated. Call ensureDelegated() first.");
-        return null;
-      }
 
       setError(null);
       try {
-        // Build the cross-chain transfer transaction
-        const tx = await uaInstance.createTransferTransaction({
+        // 1. Build the cross-chain transfer transaction. The SDK populates
+        //    userOps[i].eip7702Auth on any chain where the EOA is not yet
+        //    delegated, and eip7702Delegated=false on those userOps.
+        const tx: ITransaction = await uaInstance.createTransferTransaction({
           token: {
             chainId: params.tokenChainId,
             address: params.tokenAddress,
@@ -228,14 +230,43 @@ export function UniversalAccountProvider({ children }: { children: ReactNode }) 
           receiver: params.receiver,
         });
 
-        // Sign the rootHash with Magic (personal_sign via EIP-1193)
+        // 2. Sign the 7702 authorization for every userOp that needs it.
+        //    This is the Type-4 authorizationList — it upgrades the EOA in
+        //    place as part of the same broadcast that moves the deposit.
+        const authorizations: EIP7702Authorization[] = [];
+        for (const userOp of tx.userOps ?? []) {
+          if (userOp.eip7702Auth && !userOp.eip7702Delegated) {
+            const magicAuth = await sign7702Authorization({
+              contractAddress: userOp.eip7702Auth.address,
+              chainId: userOp.eip7702Auth.chainId,
+              nonce: userOp.eip7702Auth.nonce,
+            });
+            authorizations.push({
+              userOpHash: userOp.userOpHash,
+              signature: serialize7702Signature(magicAuth),
+            });
+          }
+        }
+
+        // 3. Sign the transaction rootHash with Magic (personal_sign via
+        //    EIP-1193). This is the owner signature over the whole bundle.
         const { getBytes, hexlify } = await import("ethers");
-        const signature = await signPersonalMessage(
+        const rootSignature = await signPersonalMessage(
           hexlify(getBytes(tx.rootHash)),
         );
 
-        // Broadcast via Particle UA
-        const result = await uaInstance.sendTransaction(tx, signature);
+        // 4. Broadcast. The SDK submits the Type-4 tx (with the 7702
+        //    authorizationList) and the cross-chain value move together.
+        const result = await uaInstance.sendTransaction(
+          tx,
+          rootSignature,
+          authorizations.length > 0 ? authorizations : undefined,
+        );
+
+        // The first successful send with authorizations completes the
+        // delegation; subsequent txs on this chain won't need them.
+        if (authorizations.length > 0) setDelegated(true);
+
         return { transactionId: result.transactionId };
       } catch (err) {
         setError(
@@ -246,7 +277,7 @@ export function UniversalAccountProvider({ children }: { children: ReactNode }) 
         return null;
       }
     },
-    [uaInstance, delegated, signPersonalMessage],
+    [uaInstance, sign7702Authorization, signPersonalMessage],
   );
 
   const value: UniversalAccountState = {

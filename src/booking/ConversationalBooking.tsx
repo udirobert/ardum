@@ -92,17 +92,13 @@ export default function ConversationalBooking({
     }
 
     try {
+      // Read-only delegation probe so the "Preparing your account…" beat
+      // only shows on the first deposit. The actual EIP-7702 upgrade is
+      // performed inline by sendDeposit on the first cross-chain transfer;
+      // a false return here is not an error.
       if (!delegated) {
         setSecuringLabel("Preparing your account…");
-        const ok = await ensureDelegated();
-        if (!ok) {
-          setError(
-            uaError ??
-              "I couldn't complete that yet. Your hold is still active — nothing was charged.",
-          );
-          setSurface("error");
-          return;
-        }
+        await ensureDelegated();
       }
 
       setSecuringLabel("Securing your place…");

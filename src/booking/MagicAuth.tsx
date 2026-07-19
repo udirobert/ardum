@@ -24,6 +24,18 @@ import {
   type ReactNode,
 } from "react";
 import { Magic } from "magic-sdk";
+import { SETTLE_CHAIN_ID, SETTLE_RPC } from "./constants";
+
+// Magic's sign7702Authorization response — see
+// docs.magic.link/embedded-wallets/wallets/features/eip-7702
+export type Magic7702Authorization = {
+  contractAddress: string;
+  chainId: number;
+  nonce: number;
+  v: number; // 27 or 28
+  r: string;
+  s: string;
+};
 
 type MagicEnv = {
   apiKey: string;
@@ -56,13 +68,14 @@ export function hasPaymentIdentityHint(): boolean {
   }
 }
 
-/** Dev-only: simulate a restored Magic session for grant UI smoke walks. */
+/** Local smoke walks only (?smokeRestore=1 on localhost). Never authorization. */
 function smokeRestoreAddress(): string | null {
-  if (process.env.NODE_ENV !== "development") return null;
   if (typeof window === "undefined") return null;
   if (new URLSearchParams(window.location.search).get("smokeRestore") !== "1") {
     return null;
   }
+  const host = window.location.hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") return null;
   try {
     return localStorage.getItem(PAYMENT_IDENTITY_HINT_KEY);
   } catch {
@@ -87,7 +100,7 @@ type MagicAuthState = {
     contractAddress: string;
     chainId: number;
     nonce?: number;
-  }) => Promise<unknown>;
+  }) => Promise<Magic7702Authorization>;
 };
 
 const MagicAuthContext = createContext<MagicAuthState | null>(null);
@@ -108,7 +121,7 @@ export function MagicAuthProvider({ children }: { children: ReactNode }) {
   // setState is called inside an async callback, not synchronously in the
   // effect body, so it doesn't trigger the set-state-in-effect lint rule.
   useEffect(() => {
-    /** Dev-only smoke walks (?smokeRestore=1). Never overrides a live Magic session. */
+    /** Local smoke walks (?smokeRestore=1). Never overrides a live Magic session. */
     const applySmokeRestore = () => {
       const smokeAddr = smokeRestoreAddress();
       if (!smokeAddr) return;
@@ -129,8 +142,12 @@ export function MagicAuthProvider({ children }: { children: ReactNode }) {
       try {
         instance = new Magic(env.apiKey, {
           network: {
-            rpcUrl: "https://arb1.arbitrum.io/rpc",
-            chainId: 42161, // Arbitrum One — where EIP-7702 delegation targets
+            // Bind Magic to the same chain the UA SDK targets — Arbitrum One
+            // in production, Arbitrum Sepolia under NEXT_PUBLIC_USE_TESTNET.
+            // The 7702 authorization chainId must match the settle chain or
+            // the UA SDK will reject the signature.
+            rpcUrl: SETTLE_RPC,
+            chainId: SETTLE_CHAIN_ID,
           },
         });
         if (cancelled) return;
