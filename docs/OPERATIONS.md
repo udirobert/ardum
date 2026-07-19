@@ -1,13 +1,15 @@
 # OPERATIONS
 
-The two operator surfaces that touch real infrastructure are:
+The operator surfaces that touch real infrastructure are:
 
 - `scripts/e2e-loop.mjs` — re-seed attestations on 0G Storage and deploy
   the retail escrow contract on Arbitrum Sepolia.
 - `scripts/verify-automation.mjs` — probe `/api/internal/automation` to
   confirm the scheduler is alive and authorized.
+- `scripts/agent-book.ts` — demonstrate the full agent-driven booking flow
+  (capture → clarify → recommend → hold → on-chain deposit → attestation).
 
-Both are skip-with-exit-0 by default: in demo mode (no secrets
+All are skip-with-exit-0 by default: in demo mode (no secrets
 configured) they print what is missing and exit cleanly, so a CI run
 or the smoke journey can call them without breaking.
 
@@ -136,3 +138,84 @@ adapter honour this — the contract suite in
   exposes only aggregate counts. Keep it that way: freely available
   detail here would leak practitioner activity to anyone who can
   reach the deploy.
+
+## Agent-driven booking
+
+```bash
+npx tsx scripts/agent-book.ts [http://localhost:3000]
+```
+
+What it does, in order:
+
+1. Loads the agent's EOA from `AGENT_BOOKER_PRIVATE_KEY` (funded with
+   ETH + USDC on Arbitrum Sepolia).
+2. **Capture** — POSTs `/api/episodes` with a test intention.
+3. **Clarify** — POSTs energy, budget, and social constraints.
+4. **Recommend** — POSTs the recommend action, gets a retreat match.
+5. **Hold** — POSTs the create-hold action.
+6. **Deposit** — executes an on-chain USDC transfer to the escrow contract.
+   On mainnet chains (Arbitrum One), this routes through Particle UA with
+   EIP-7702. On testnet (Sepolia), it's a direct ERC-20 transfer (UA
+   supports mainnet only).
+7. **Attest** — signs a booking attestation with EIP-191 `personal_sign`
+   and POSTs it to `/api/bookings`.
+8. **Cleanup** — deletes the demo episode so the script can be re-run.
+
+### Prerequisites
+
+`.env.local` must contain:
+
+- `AGENT_BOOKER_PRIVATE_KEY` — funded EOA private key
+- `NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS` — deployed escrow address
+- `NEXT_PUBLIC_USDC_ADDRESS` — USDC token address on the target chain
+- `NEXT_PUBLIC_PARTICLE_*` — Particle Auth config (for UA path on mainnet)
+
+### What "good" looks like
+
+```
+── 7. Agent executes booking (on-chain deposit) ─────────────
+    ✓ Tx hash: 0x7a69ebc21d80ed8b0f6071a0bbd923f99bfa5edc977ab958692eeb27e2734151
+    ✓ Confirmed in block 288972600
+
+── 8. Agent signs booking attestation ───────────────────────
+    ✓ Signature verified: 0x4Ffc3d69…379fBC11
+
+── 9. Agent submits booking to Ardum ────────────────────────
+    ✓ Episode status: booked
+```
+
+A real booking was executed and verified on Arbitrum Sepolia:
+- 1 USDC transferred from agent EOA to escrow contract
+- Confirmed in block 288972600
+- Tx: `0x7a69ebc21d80ed8b0f6071a0bbd923f99bfa5edc977ab958692eeb27e2734151`
+- Escrow balance: 1.0 USDC (verified on-chain)
+
+## Agent API endpoints
+
+Three A2MCP-compatible endpoints for external AI agents. See
+[0009-agent-api](decisions/0009-agent-api.md) for the full decision.
+
+| Endpoint | Type | Purpose |
+|---|---|---|
+| `GET/POST /api/agent/match` | Free | Intention + constraints → matched retreat(s) |
+| `GET/POST /api/agent/attest` | Free | Retreat details → validated attestation + pre-fill URL |
+| `GET/POST /api/agent/book` | Free | Signed booking intent → attestation on 0G + episode booked |
+
+Each `GET` returns a service-discovery response documenting the schema.
+Agents (and marketplace reviewers) can introspect before calling.
+
+### Listing on OKX.AI
+
+To register Ardum as an ASP (Agent Service Provider) on OKX.AI:
+
+1. Install Onchain OS: `npx skills add okx/onchainos-skills --yes -g`
+2. Log in to Agentic Wallet (follow the agent prompts)
+3. Register as A2MCP: `Help me register an A2MCP ASP on OKX.AI`
+   - Service name: `ardum-retreat-matching`
+   - Endpoint: `https://ardum.vercel.app/api/agent/match`
+   - Type: free
+4. List the ASP: `Help me list my ASP on OKX.AI`
+5. Post on X with `#OKXAI` — 90-second demo
+
+Review takes ~24 hours. The endpoint must be live and return HTTP 200
+on `GET` (service discovery) and `POST` (matching).

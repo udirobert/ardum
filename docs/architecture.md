@@ -30,7 +30,7 @@ projector-vs-cognee contract that backs the Semantic context row above are in
 ## Boundaries
 
 ```text
-UI
+UI / Agent API
   → Episode service
       → Episode repository
       → Recommendation policy
@@ -57,6 +57,16 @@ Authentication expands continuity; it does not change the episode contract.
 
 Coordination invitations use random, expiring tokens. Only a hash is stored.
 The invitation view exposes the minimum proposal fields approved by the owner.
+
+### Agent API identity
+
+Agent API calls (`/api/agent/*`) don't use cookies. The booking endpoint
+verifies identity via EIP-191 `personal_sign`: the agent signs a canonical
+message and the server verifies the signature recovers to the claimed
+address. The repository's `get(episodeId)` method (no actor filter) is used
+only on this path; `applyEpisodeCommand` accepts a `skipOwnershipCheck` flag
+for the same purpose. Cookie-based flows are unchanged. See
+[0009-agent-api](decisions/0009-agent-api.md).
 
 ## Persistence
 
@@ -172,6 +182,38 @@ continuous care, not a receipt of hashes. See
 [product-vision.md](product-vision.md) and
 [design/experience-layer.md](design/experience-layer.md).
 
+## Agent API
+
+Three A2MCP-compatible endpoints expose Ardum's booking infrastructure to
+external AI agents. Any agent with a funded wallet can discover retreats,
+execute bookings, and help operators list retreats — without a browser, a
+cookie, or human wallet interaction. See
+[0009-agent-api](decisions/0009-agent-api.md).
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/agent/match` | Intention + constraints → matched retreat(s) + episodeId |
+| `POST /api/agent/attest` | Natural-language retreat details → validated attestation + pre-fill URL |
+| `POST /api/agent/book` | Signed booking intent → attestation on 0G + episode booked |
+
+Each endpoint has a `GET` service-discovery response. Agent calls use
+signature-based identity (EIP-191), not cookies. The agent booking script
+(`scripts/agent-book.ts`) demonstrates the full flow end-to-end.
+
+### Operator identity (Particle Auth + ZeroDev)
+
+The operator flow uses a separate account abstraction system from the
+practitioner flow:
+
+- **Practitioner**: Magic EOA → Particle UA (EIP-7702) → cross-chain deposit
+- **Operator**: Particle Auth EOA → ZeroDev Kernel (ERC-4337) → gasless attestations
+
+Particle Auth social login (Google) provides the operator EOA. ZeroDev
+Kernel sponsors gas. A session key enables batch attestation writes without
+re-signing each one. The /attest surface hides all crypto details behind
+"Sign in with Google" — the operator never sees a wallet address, a chain
+name, or a gas concept.
+
 ## Mira presence
 
 Mira's orb posture is a pure projection from episode state — not from guessed
@@ -213,6 +255,7 @@ enforcement points that keep the architecture honest.
 conformance scenarios against both adapters:
 
 - `getOwned` returns the episode only for its actor and undefined otherwise;
+- `get` returns the episode by ID regardless of actor (agent API path only);
 - `listOwned` returns the actor's episodes, newest first (descending
   `updatedAt`);
 - `create` rejects duplicate episode ids; the Supabase mock enforces the

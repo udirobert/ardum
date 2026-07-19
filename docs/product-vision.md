@@ -197,6 +197,39 @@ secondary tools. They do not define the primary journey. Infra differentiators
 may prove trust to partners and skeptics in secondary surfaces; they do not tax
 the practitioner path for confidence.
 
+## Agent-as-distribution
+
+Ardum's booking infrastructure is exposed as agent-callable A2MCP endpoints.
+Any AI agent with a funded wallet can discover retreats, execute bookings, and
+help operators list retreats — without a browser, a cookie, or human wallet
+interaction. See [0009-agent-api](decisions/0009-agent-api.md).
+
+This is distribution engineered into the product: the agent API is the channel,
+not SEO or paid acquisition. An agent discovers Ardum, integrates the API, and
+starts booking retreats for its users. The agent's users become Ardum users
+without ever visiting ardum.vercel.app. The product IS the channel.
+
+The agent flow is:
+
+1. Agent captures a user's intention via the Ardum API
+2. Agent clarifies constraints (energy, budget, social)
+3. Agent requests a recommendation — gets a retreat match
+4. Agent places a non-binding hold
+5. Agent executes an on-chain USDC deposit to escrow
+6. Agent signs and submits the booking attestation
+
+The user never touches a wallet, sees a chain name, or pays gas. The agent
+executes the full commitment autonomously.
+
+For operators, the agent intake endpoint (`POST /api/agent/attest`) lets an
+agent collect retreat details in natural language, validate them, and generate
+a pre-fill URL. The operator's experience: chat with agent → click link → form
+is pre-filled → sign in with Google → publish. No crypto knowledge needed.
+
+This expands the TAM beyond direct consumer bookings: any AI agent with a
+funded wallet can act as a travel concierge, using Ardum as the commitment and
+settlement layer.
+
 ## Measures of success
 
 Ardum should optimize for:

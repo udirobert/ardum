@@ -79,6 +79,12 @@ without changing it — a confidence check, never an action.
 - **0G Storage** — optional immutable evidence; never episode state
 - **Magic, Particle, Arbitrum** — optional commitment execution, loaded only
   when a person chooses to book
+- **Particle Auth + ZeroDev Kernel** — operator identity (Google social login)
+  and gasless attestation writes; separate from the practitioner's Magic/UA flow
+- **Agent API** — three A2MCP-compatible endpoints (`/api/agent/match`,
+  `/api/agent/attest`, `/api/agent/book`) that expose Ardum's booking
+  infrastructure to external AI agents. See
+  [ADR 0009](docs/decisions/0009-agent-api.md).
 - **MediaPipe** — optional in-browser pose signals; raw frames remain local
 
 ## Develop
@@ -131,7 +137,7 @@ divergence at the boundary, not in production:
 
 ## Operations
 
-Two operator surfaces touch live infrastructure and are documented in
+Three operator surfaces touch live infrastructure and are documented in
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md):
 
 - `npm run e2e:loop` — re-seeds attestations on 0G Storage and deploys
@@ -141,6 +147,29 @@ Two operator surfaces touch live infrastructure and are documented in
 - `npm run verify:automation` — probes `/api/internal/automation` to
   confirm the scheduler is alive and authorized. Exit codes: `0` ok,
   `1` unreachable, `2` unauthorized or missing config.
+- `npx tsx scripts/agent-book.ts` — demonstrates the full agent-driven
+  booking flow (capture → clarify → recommend → hold → on-chain deposit →
+  attestation). A real booking was executed and verified on Arbitrum
+  Sepolia (1 USDC to escrow, block 288972600).
+
+## Agent API
+
+Ardum exposes three A2MCP-compatible endpoints for external AI agents.
+These make Ardum listable as an Agent Service Provider on OKX.AI and
+other agent marketplaces. See [ADR 0009](docs/decisions/0009-agent-api.md).
+
+| Endpoint | Purpose |
+|---|---|
+| `GET/POST /api/agent/match` | Intention + constraints → matched retreat(s) |
+| `GET/POST /api/agent/attest` | Retreat details → validated attestation + pre-fill URL |
+| `GET/POST /api/agent/book` | Signed booking intent → attestation on 0G + episode booked |
+
+Each `GET` returns a service-discovery response. Agent calls use
+signature-based identity (EIP-191 `personal_sign`), not cookies.
+
+The operator flow is de-jargoned: a non-crypto yoga teacher signs in with
+Google, fills out a form, and clicks "Publish retreat." The crypto
+infrastructure (Particle Auth, ZeroDev, 0G, Arbitrum) is real but invisible.
 
 ## Privacy and trust
 
@@ -169,3 +198,30 @@ src/
 
 The structure evolves by consolidating existing modules into these boundaries,
 not by maintaining parallel legacy implementations.
+
+## Next steps
+
+The infrastructure is real and verified. The remaining work is making the
+service real for actual users:
+
+1. **Onboard one real retreat operator.** A non-crypto yoga teacher creates
+   a real attestation via `/attest` (Google sign-in → form → publish). This
+   is the test of whether the de-jargoned UX actually works for someone who
+   doesn't know what a wallet is.
+
+2. **List on OKX.AI as an A2MCP ASP.** Register the matching endpoint
+   (`/api/agent/match`) as a free Agent Service Provider. Review takes ~24
+   hours. See [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for the steps.
+
+3. **Post on X with #OKXAI.** 90-second demo showing an agent calling the
+   match endpoint, getting a retreat recommendation, and executing the
+   booking — with a link to the verified Arbiscan transaction.
+
+4. **Integrate with one real agent.** Not a script — an actual AI agent
+   (travel planner, wellness coach, calendar assistant) that uses Ardum as
+   its booking layer for real users. This is the "do things that don't
+   scale" step that turns the distribution thesis from a claim into
+   evidence.
+
+5. **Expand the retreat pool.** Each real operator attestation replaces a
+   seed entry. The matching pool grows from curated seeds to real inventory.
