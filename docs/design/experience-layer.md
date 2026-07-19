@@ -15,9 +15,12 @@ arrival and episode. Header and footer carry explicit cream backgrounds and
 mask the field; page content floats above it at `z-10`.
 
 Journey surfaces feed the field through `useMiraField({ presence, activity,
-aestheticVector, veil })` — posture comes from operational projections, the
-palette from the aesthetic vector, and `veil` darkens the field where dense
-content needs quiet (the episode workbench uses `0.4`; arrival `0`).
+aestheticVector, veil, fieldTier })` — posture comes from operational projections,
+the palette from the aesthetic vector, `veil` darkens the field where copy
+needs quiet, and `fieldTier` chooses render weight (`ambient` = 2D metaball
+only; `hero` = 3D scene). The episode workbench uses `veil: 0.4` and
+`fieldTier: hero` (default). Arrival uses `fieldTier: ambient` and a raised
+veil so Mira speaks without competing with a form card.
 `MiraImpulseProvider` also lives at the shell level, so any surface's
 impulses reach the field.
 
@@ -34,27 +37,40 @@ Mira is the atmosphere for the entire arrival — every phase renders over
 the shell field. There is no phase where she is a badge watching from the
 sidelines.
 
-1. **First paint** — the hero orb is visible from the first frame. `MiraOrb
-   fill` paints its dependency-free 2D metaball shader immediately
-   (aspect-corrected, field lifted to match the 3D framing) while the
-   `MiraScene` chunk loads, then crossfades to the instanced-capsule scene
-   and releases the 2D GL context. Journey bundles warm the scene chunk at
-   module evaluation (`preloadMiraScene`), and the `/api/episodes` fetch
-   never gates the field — only which copy floats over it.
+**Voice lane (composition contract):** on arrival, Mira is the *medium* for
+the ask — not wallpaper behind a form. Copy and input obey three bindings:
+
+| Binding | Rule |
+|---------|------|
+| **Spatial** | Mira's question lives in the orb's **lower third** (voice lane), not a top-of-page headline stacked above a panel |
+| **Temporal** | Prompt lines appear under `activity: speaking`; the textarea focus maps to `activity: listening`; submit maps to `processing` → `arriving` |
+| **Optical** | `fieldTier: ambient` (2D metaball only) + raised `veil` while typing — the field recedes so language reads first |
+
+No bordered “settings card” on the first intention ask. One serif question,
+one quiet underline input, one primary action. Panel chrome (`DUSK_PANEL`)
+remains for invite (multi-party branch), not for the solo arrival ask.
+
+**Performance tiering:** defer the heavy 3D hero scene until episode /
+commitment climax. Arrival stays on the lightweight 2D field; episode routes
+use `fieldTier: hero` (default) when the recommendation and hold deserve the
+full capsule shell.
+
+Phases:
+
+1. **First paint** — the 2D metaball field is visible from the first frame
+   (`MiraOrb fill` + `fieldTier: ambient`). No 3D chunk load on `/`.
 2. **Aesthetic calibration** — four image reactions (`AestheticCalibration`)
-   build a session vector, presented over the orb in the cream-on-dark
-   treatment (`aesthetics/dusk-theme.ts`). Swipe left/right on mobile;
-   resonate/skip impulses ripple the hero orb and each reaction retunes its
-   palette live (`onVector`). CloudField is gone — the orb is the only
-   atmosphere, so a single WebGL surface is active.
+   build a session vector over the ambient field. Swipe left/right on mobile;
+   resonate/skip impulses ripple the orb and each reaction retunes its
+   palette live (`onVector`).
 3. **Retreat vision** — after calibration, `RetreatVision` resolves a
-   **curated frame** from the local asset catalog (`public/aesthetics/visions/`).
-   Deterministic matching from the aesthetic vector + calibration reactions.
-   Result is cached in `localStorage` by fingerprint — zero runtime API cost.
-4. **Intention / returning** — staggered copy reveal over the orb; the
-   question sits above the orb's glow, the action below it, legibility from
-   top/bottom scrims. Committing an intention plays a kinetic word-gather
-   beat, then the route changes beneath Mira's persistent field.
+   **curated frame** from the local asset catalog
+   (`public/aesthetics/visions/`). Deterministic matching from the aesthetic
+   vector + calibration reactions. Cached in `localStorage` by fingerprint.
+4. **Intention / returning** — voice lane + input lane (see above).
+   Committing an intention plays a kinetic word-gather beat, then the route
+   changes beneath Mira's persistent field; the episode page upgrades to
+   `fieldTier: hero`.
 
 ## Episode workbench
 

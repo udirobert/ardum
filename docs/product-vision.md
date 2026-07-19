@@ -156,6 +156,11 @@ Copy hierarchy on every journey surface:
 
 Never reverse that order.
 
+On **arrival**, Mira's question is bound to the orb lane — spatially in the
+field's lower third, temporally tied to speaking/listening activity, optically
+receded via ambient 2D field + veil while the person types. The first intention
+ask has no form card; see [experience-layer](design/experience-layer.md).
+
 ## Memory is a relationship boundary
 
 Operational truth belongs to the episode repository. Semantic memory can help

@@ -33,7 +33,7 @@ export type MiraPresence = {
   };
 };
 
-export type MiraActivity = "idle" | "processing" | "speaking" | "arriving";
+export type MiraActivity = "idle" | "processing" | "speaking" | "listening" | "arriving";
 
 export type MiraRenderTier = "hero" | "standard" | "inline";
 
@@ -314,6 +314,8 @@ export function presenceFromActivity(activity: MiraActivity): MiraPresence {
       return { posture: "inquiry", valence: 0.15 };
     case "speaking":
       return { posture: "offering", valence: 0 };
+    case "listening":
+      return { posture: "steady", valence: -0.12 };
     case "arriving":
       return { posture: "arriving", valence: -0.15 };
     case "idle":

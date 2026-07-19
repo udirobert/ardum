@@ -136,6 +136,12 @@ describe("presenceFromActivity", () => {
   it("maps idle to steady", () => {
     expect(presenceFromActivity("idle")).toEqual(STEADY_PRESENCE);
   });
+
+  it("maps listening to steady with attentive valence", () => {
+    const p = presenceFromActivity("listening");
+    expect(p.posture).toBe("steady");
+    expect(p.valence).toBeLessThan(0);
+  });
 });
 
 describe("mergePresence", () => {

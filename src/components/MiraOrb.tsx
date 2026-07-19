@@ -61,6 +61,8 @@ type MiraOrbProps = {
    * orbs are inline signatures.
    */
   fill?: boolean;
+  /** When `fill`, `ambient` keeps the lightweight 2D field (arrival voice lane). */
+  fieldTier?: "ambient" | "hero";
 };
 
 // Ardum base palette (sRGB 0–1).
@@ -268,6 +270,7 @@ export default function MiraOrb({
   className,
   aestheticVector,
   fill = false,
+  fieldTier = "hero",
 }: MiraOrbProps) {
   const orbRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -283,13 +286,14 @@ export default function MiraOrb({
   const tier = fill ? "hero" : renderTier(size);
   const effectivePresence = mergePresence(presence, activity);
   const ring = ringStyle(effectivePresence.posture);
-  const useScene = fill || size >= SCENE_MIN_PX;
+  const ambientFill = fill && fieldTier === "ambient";
+  const useScene = (fill && !ambientFill) || size >= SCENE_MIN_PX;
   // Fill tier: the 2D field paints at first frame while the scene chunk
-  // loads, then fades out and releases its GL context.
+  // loads, then crossfades to the instanced-capsule scene. Ambient stays 2D.
   const [sceneReady, setSceneReady] = useState(false);
   const [underlayGone, setUnderlayGone] = useState(false);
   const handleSceneReady = useCallback(() => setSceneReady(true), []);
-  const drawsUnderlay = fill && !underlayGone;
+  const drawsUnderlay = fill && (ambientFill || !underlayGone);
   const [storedVector] = useState(() =>
     typeof window !== "undefined" ? readAestheticVector() : null,
   );
@@ -530,35 +534,37 @@ export default function MiraOrb({
   if (fill) {
     return (
       <div className={`relative h-full w-full ${className ?? ""}`}>
-        {!underlayGone && (
+        {drawsUnderlay && (
           <canvas
             ref={canvasRef}
             aria-hidden
             className="absolute inset-0 h-full w-full"
             style={{
-              opacity: sceneReady ? 0 : 1,
-              transition: `opacity ${SCENE_FADE_MS}ms ease`,
+              opacity: ambientFill || !sceneReady ? 1 : 0,
+              transition: ambientFill ? undefined : `opacity ${SCENE_FADE_MS}ms ease`,
             }}
           />
         )}
-        <div
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            opacity: sceneReady ? 1 : 0,
-            transition: `opacity ${SCENE_FADE_MS}ms ease`,
-          }}
-        >
-          <MiraScene
-            fill
-            size={size}
-            morph={morph}
-            palette={palette}
-            reactionPulse={reactionPulse}
-            impulse={impulse}
-            onReady={handleSceneReady}
-          />
-        </div>
+        {!ambientFill && (
+          <div
+            aria-hidden
+            className="absolute inset-0"
+            style={{
+              opacity: sceneReady ? 1 : 0,
+              transition: `opacity ${SCENE_FADE_MS}ms ease`,
+            }}
+          >
+            <MiraScene
+              fill
+              size={size}
+              morph={morph}
+              palette={palette}
+              reactionPulse={reactionPulse}
+              impulse={impulse}
+              onReady={handleSceneReady}
+            />
+          </div>
+        )}
         <span aria-live="polite" aria-atomic="true" className="sr-only">
           {presenceAnnouncement(effectivePresence)}
         </span>

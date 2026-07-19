@@ -1,5 +1,6 @@
 // Cream-on-dark treatment for surfaces that float over the hero orb's dusk
-// field (calibration, retreat vision, arrival panels).
+// field (calibration, retreat vision). Arrival voice lane uses underline
+// inputs only; panel chrome is for invite / multi-party surfaces.
 
 export const CREAM = "#f6efe3";
 

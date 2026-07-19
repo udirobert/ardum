@@ -37,6 +37,11 @@ type FieldConfig = {
    * workbench) stays legible; 0 lets the orb carry the whole screen.
    */
   veil?: number;
+  /**
+   * `ambient` — 2D metaball field only (arrival voice lane).
+   * `hero` — crossfade to 3D scene (episode climax). Default: hero.
+   */
+  fieldTier?: "ambient" | "hero";
 };
 
 // The dusk field the orb glows within — warm terracotta collapsing to near
@@ -85,6 +90,7 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
               <MiraOrb
                 fill
                 size={480}
+                fieldTier={config?.fieldTier ?? "hero"}
                 presence={config?.presence ?? STEADY_PRESENCE}
                 activity={config?.activity}
                 aestheticVector={config?.aestheticVector}
@@ -116,12 +122,13 @@ export function useMiraField({
   activity,
   aestheticVector,
   veil,
+  fieldTier,
 }: FieldConfig) {
   const setConfig = useContext(MiraFieldContext);
 
   useEffect(() => {
-    setConfig({ presence, activity, aestheticVector, veil });
-  }, [setConfig, presence, activity, aestheticVector, veil]);
+    setConfig({ presence, activity, aestheticVector, veil, fieldTier });
+  }, [setConfig, presence, activity, aestheticVector, veil, fieldTier]);
 
   useEffect(() => () => setConfig(null), [setConfig]);
 }

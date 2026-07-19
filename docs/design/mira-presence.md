@@ -87,11 +87,13 @@ Outside an episode (arrival, booking dialogue, invitations), callers pass an
 activity overlay via `mergePresence()`:
 
 - `processing` → inquiry posture;
-- `speaking` → offering posture;
+- `speaking` → offering posture (prompt reveal on arrival);
+- `listening` → steady posture, slightly negative valence (textarea focused);
 - `arriving` → arriving posture.
 
 Episode projection wins for posture; activity only overrides when explicitly
-merged for transient UI work (submitting, narrating a phase).
+merged for transient UI work (submitting, narrating a phase, or waiting on
+input).
 
 ## Accessibility
 
