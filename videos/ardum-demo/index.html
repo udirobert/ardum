@@ -6,330 +6,361 @@
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body {
-        margin: 0; width: 1920px; height: 1080px; overflow: hidden;
-        background: #1A1714;
-      }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #1A1714; }
       body { font-family: "Geist", "Inter", sans-serif; }
 
-      /* Brand colors from captured tokens */
       :root {
-        --green: #562E1E;
-        --green-deep: #442417;
-        --green-lite: #6B3925;
-        --pink: #A85A3A;
-        --pink-deep: #D8A892;
-        --cream: #F6F1E7;
-        --cream-2: #E9CCC1;
-        --ink: #1A1714;
-        --muted: #524A42;
-        --hairline: #C2B6A2;
+        --green: #562E1E; --green-deep: #442417; --green-lite: #6B3925;
+        --pink: #A85A3A; --pink-deep: #D8A892; --cream: #F6F1E7;
+        --cream-2: #E9CCC1; --ink: #1A1714; --muted: #524A42; --hairline: #C2B6A2;
       }
 
-      /* Font imports */
       @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap');
 
       .serif { font-family: "Instrument Serif", serif; font-weight: 400; }
       .mono { font-family: "JetBrains Mono", monospace; font-weight: 400; text-transform: uppercase; letter-spacing: 0.14em; }
       .geist { font-family: "Geist", sans-serif; }
 
-      /* Frame container */
-      .frame {
-        width: 1920px; height: 1080px; position: absolute; top: 0; left: 0;
-        container-type: size; overflow: hidden;
-      }
+      .frame { width: 1920px; height: 1080px; position: absolute; top: 0; left: 0; overflow: hidden; }
+      .topbar { position: absolute; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 80px; z-index: 10; }
+      .topbar-label, .topbar-mark { font-family: "JetBrains Mono", monospace; font-size: 16px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.18em; }
 
-      /* Topbar (on every frame) */
-      .topbar {
-        position: absolute; top: 0; left: 0; right: 0; height: 60px;
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 0 80px; z-index: 10;
-      }
-      .topbar-label { font-family: "JetBrains Mono", monospace; font-size: 18px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.18em; }
-      .topbar-mark { font-family: "JetBrains Mono", monospace; font-size: 18px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.18em; }
-
-      /* Footline */
-      .footline {
-        position: absolute; bottom: 0; left: 0; right: 0; height: 50px;
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 0 80px; z-index: 10;
-      }
-      .footline-text { font-family: "JetBrains Mono", monospace; font-size: 16px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.14em; }
-
-      /* Hairline */
-      .hairline { height: 2px; width: 100%; }
-
-      /* Screenshot styling */
-      .screenshot {
-        position: absolute; border-radius: 8px; overflow: hidden;
-        box-shadow: 0 0 0 2px var(--hairline);
-      }
+      .screenshot { border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 2px var(--hairline), 0 20px 60px rgba(0,0,0,0.3); }
       .screenshot img { width: 100%; height: 100%; object-fit: cover; }
 
-      /* Terminal styling */
-      .terminal {
-        font-family: "JetBrains Mono", monospace; font-size: 22px; line-height: 1.6;
-        padding: 40px 50px; border-radius: 8px;
-      }
-      .terminal .ok { color: #A67E4F; }
+      .terminal { font-family: "JetBrains Mono", monospace; font-size: 22px; line-height: 1.7; padding: 40px 50px; border-radius: 16px; }
+      .terminal .ok { color: #C9A56E; }
       .terminal .dim { color: #B5A595; }
       .terminal .accent { color: #D8A892; }
 
-      /* Monogram circle */
-      .monogram {
-        width: 80px; height: 80px; border: 2px solid var(--pink); border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
-        font-family: "Instrument Serif", serif; font-size: 36px; color: var(--pink);
+      .monogram { width: 72px; height: 72px; border: 2px solid var(--pink); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: "Instrument Serif", serif; font-size: 32px; color: var(--pink); }
+
+      .chat-bubble { padding: 20px 32px; border-radius: 24px; max-width: 700px; font-family: "Geist", sans-serif; font-size: 26px; line-height: 1.4; }
+      .chat-user { background: var(--pink); color: var(--ink); border-bottom-right-radius: 8px; }
+      .chat-mira { background: rgba(246, 241, 231, 0.1); color: var(--cream); border: 1px solid rgba(216, 168, 146, 0.3); border-bottom-left-radius: 8px; }
+
+      @keyframes kenBurns { 0% { transform: scale(1) translate(0, 0); } 100% { transform: scale(1.12) translate(-2%, -1%); } }
+      .ken-burns { animation: kenBurns 25s ease-out forwards; }
+
+      .filter-chip { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 100px; font-family: "Geist", sans-serif; font-size: 20px; font-weight: 500; border: 1.5px solid var(--hairline); color: var(--muted); background: white; }
+      .step-pill { padding: 24px 40px; border-radius: 16px; text-align: center; min-width: 320px; }
+      .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px; }
+
+      /* Mini pill — smaller, more refined than filter-chip */
+      .mini-pill {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 8px 18px; border-radius: 100px;
+        font-family: "Geist", sans-serif; font-size: 16px; font-weight: 500;
+        border: 1.5px solid var(--hairline); color: var(--muted); background: white;
       }
+      .mini-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pink); }
+
+      /* ═══ Vignette / Orb motif ═══ */
+      .orb {
+        position: absolute; border-radius: 50%; pointer-events: none;
+        background: radial-gradient(circle at 35% 35%, var(--pink-deep), var(--pink) 40%, transparent 70%);
+        filter: blur(8px);
+      }
+      @keyframes orbPulse { 0%, 100% { opacity: 0.3; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.1); } }
+      .orb-pulse { animation: orbPulse 4s ease-in-out infinite; }
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="main" data-start="0" data-duration="75" data-width="1920" data-height="1080">
+    <div id="root" data-composition-id="main" data-start="0" data-duration="90" data-width="1920" data-height="1080">
+
+      <!-- Global vignette overlay (always on top) -->
+      <div id="vignette" class="clip" data-start="0" data-duration="90" data-track-index="10"
+           style="position:absolute;inset:0;z-index:90;pointer-events:none;
+                  background:radial-gradient(ellipse at center, transparent 45%, rgba(26,23,20,0.45) 100%);"></div>
 
       <!-- ═══════════════════════════════════════════════════════════════
-           SCENE 1: The Thesis (0-12s)
-           Dark ground, serif headline fades in, jungle image subtle
+           SCENE 1 (0-8s): "Picture this. You're burned out."
+           Dark + jungle Ken Burns, centered, orb glow
       ═══════════════════════════════════════════════════════════════ -->
-
-      <div id="scene1" class="clip frame" data-start="0" data-duration="12" data-track-index="0"
-           style="background: var(--ink);">
-        <!-- Subtle jungle background -->
-        <div id="s1-bg" class="clip" data-start="0" data-duration="12" data-track-index="1"
-             style="position:absolute;inset:0;opacity:0.15;background:url(assets/jungle.jpg) center/cover;"></div>
-
-        <!-- Topbar -->
+      <div id="scene1" class="clip frame" data-start="0" data-duration="8" data-track-index="0" style="background: var(--ink);">
+        <div id="s1-bg" class="clip" data-start="0" data-duration="8" data-track-index="1" style="position:absolute;inset:0;overflow:hidden;">
+          <img src="assets/jungle.jpg" class="ken-burns" style="width:100%;height:100%;object-fit:cover;opacity:0.22;" />
+        </div>
+        <div class="orb orb-pulse" style="width:300px;height:300px;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.15;"></div>
         <div class="topbar" style="color: var(--cream);">
           <span class="topbar-label">Ardum</span>
-          <span class="topbar-mark">01 / 06</span>
+          <span class="topbar-mark">01 / 10</span>
         </div>
-
-        <!-- Headline -->
-        <div id="s1-text" class="clip" data-start="1" data-duration="11" data-track-index="2"
-             style="position:absolute;left:120px;top:380px;max-width:1400px;">
-          <p class="mono" style="color:var(--pink-deep);font-size:20px;margin-bottom:30px;">the shape of your practice</p>
-          <h1 class="serif" style="color:var(--cream);font-size:88px;line-height:1.05;letter-spacing:-0.02em;margin-bottom:20px;">
-            Most travel products start with <span style="color:var(--pink-deep);">inventory.</span>
+        <div id="s1-text" class="clip center" data-start="0.5" data-duration="7.5" data-track-index="2">
+          <p class="mono" style="color:var(--pink-deep);font-size:18px;margin-bottom:28px;">picture this</p>
+          <h1 class="serif" style="color:var(--cream);font-size:80px;line-height:1.05;letter-spacing:-0.02em;text-align:center;">
+            You're burned out.<br/>You need a retreat.
           </h1>
-          <h1 class="serif" style="color:var(--cream);font-size:88px;line-height:1.05;letter-spacing:-0.02em;opacity:0.7;">
-            Ardum starts with <span style="color:var(--pink);">intention.</span>
-          </h1>
-        </div>
-
-        <!-- Footline -->
-        <div class="footline" style="color:#9B8E7E;">
-          <span class="footline-text">ardum.vercel.app</span>
-          <span class="footline-text">agentic yoga retreat booking</span>
         </div>
       </div>
 
       <!-- ═══════════════════════════════════════════════════════════════
-           SCENE 2: The Journey (12-30s)
-           Cream ground, homepage screenshot, recommendation text
+           SCENE 2 (8-18s): "But every travel site asks: where do you want to go?"
+           Cream, mock travel site with mini pills
       ═══════════════════════════════════════════════════════════════ -->
-
-      <div id="scene2" class="clip frame" data-start="12" data-duration="18" data-track-index="0"
-           style="background: var(--cream);">
-        <!-- Topbar -->
+      <div id="scene2" class="clip frame" data-start="8" data-duration="10" data-track-index="0" style="background: var(--cream);">
         <div class="topbar" style="color: var(--ink);">
           <span class="topbar-label">Ardum</span>
-          <span class="topbar-mark">02 / 06</span>
+          <span class="topbar-mark">02 / 10</span>
         </div>
-
-        <!-- Left: headline + description -->
-        <div id="s2-text" class="clip" data-start="13" data-duration="17" data-track-index="2"
-             style="position:absolute;left:120px;top:140px;max-width:700px;">
-          <p class="mono" style="color:#A75A3A;font-size:18px;margin-bottom:24px;">the journey</p>
-          <h2 class="serif" style="color:var(--ink);font-size:64px;line-height:1.05;letter-spacing:-0.02em;margin-bottom:30px;">
-            You tell Mira what you need.
+        <div id="s2-text" class="clip center" data-start="8.5" data-duration="9.5" data-track-index="2">
+          <h2 class="serif" style="color:var(--ink);font-size:52px;line-height:1.05;letter-spacing:-0.02em;text-align:center;margin-bottom:40px;">
+            But every travel site asks:
           </h2>
-          <p class="geist" style="color:var(--muted);font-size:24px;line-height:1.5;margin-bottom:20px;">
-            She clarifies — energy, budget, solitude or cohort.
-          </p>
-          <p class="geist" style="color:var(--muted);font-size:24px;line-height:1.5;">
-            She recommends <span style="color:var(--ink);font-weight:500;">one retreat.</span> Not a list — one.
-          </p>
-        </div>
-
-        <!-- Right: homepage screenshot -->
-        <div id="s2-screenshot" class="clip screenshot" data-start="14" data-duration="16" data-track-index="3"
-             style="right:80px;top:120px;width:900px;height:840px;">
-          <img src="assets/home-top.png" alt="Ardum homepage" />
-        </div>
-
-        <!-- Footline -->
-        <div class="footline" style="color:#8B7E6E;">
-          <span class="footline-text">intention → recommendation → hold</span>
-          <span class="footline-text">ardum.vercel.app</span>
-        </div>
-      </div>
-
-      <!-- ═══════════════════════════════════════════════════════════════
-           SCENE 3: The Grant (30-45s)
-           Dark ground, grant ceremony concept
-      ═══════════════════════════════════════════════════════════════ -->
-
-      <div id="scene3" class="clip frame" data-start="30" data-duration="15" data-track-index="0"
-           style="background: var(--green);">
-        <!-- Topbar -->
-        <div class="topbar" style="color: var(--cream);">
-          <span class="topbar-label">Ardum</span>
-          <span class="topbar-mark">03 / 06</span>
-        </div>
-
-        <!-- Headline -->
-        <div id="s3-text" class="clip" data-start="31" data-duration="14" data-track-index="2"
-             style="position:absolute;left:120px;top:160px;max-width:1400px;">
-          <p class="mono" style="color:var(--pink-deep);font-size:18px;margin-bottom:24px;">the grant</p>
-          <h2 class="serif" style="color:var(--cream);font-size:72px;line-height:1.05;letter-spacing:-0.02em;margin-bottom:30px;">
-            When you're ready, you grant authority.
-          </h2>
-          <p class="geist" style="color:var(--pink-deep);font-size:28px;line-height:1.4;margin-bottom:16px;">
-            Not a checkout — a grant.
-          </p>
-          <p class="geist" style="color:var(--cream);opacity:0.7;font-size:24px;line-height:1.5;">
-            Mira handles the rest. Magic login, Particle Universal Account,
-            cross-chain deposit to escrow. You never see a wallet, a chain name, or pay gas.
-          </p>
-        </div>
-
-        <!-- Steps -->
-        <div id="s3-steps" class="clip" data-start="33" data-duration="12" data-track-index="3"
-             style="position:absolute;left:120px;bottom:120px;display:flex;gap:20px;">
-          <div style="border:2.5px solid var(--pink);border-radius:8px;padding:20px 30px;width:280px;">
-            <p class="mono" style="color:#D8A892;font-size:14px;margin-bottom:8px;">01</p>
-            <p class="serif" style="color:#F5F3F2;font-size:28px;">Sign in</p>
-            <p class="geist" style="color:#D5C9B9;font-size:16px;margin-top:8px;">Magic social login</p>
+          <!-- Mock search bar -->
+          <div id="s2-search" class="clip" data-start="9.5" data-duration="8" data-track-index="3"
+               style="width:700px;padding:18px 30px;border:2px solid var(--hairline);border-radius:100px;background:white;display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+            <span class="geist" style="color:var(--muted);font-size:22px;">Where do you want to go?</span>
+            <span style="margin-left:auto;color:var(--pink);font-size:22px;">🔍</span>
           </div>
-          <div style="background:var(--pink);border-radius:8px;padding:20px 30px;width:280px;">
-            <p class="mono" style="color:#3A1A0D;font-size:14px;margin-bottom:8px;">02</p>
-            <p class="serif" style="color:#2A0F05;font-size:28px;">Confirm amount</p>
-            <p class="geist" style="color:#3A1A0D;font-size:16px;margin-top:8px;">Deposit + bounds</p>
-          </div>
-          <div style="border:2.5px solid var(--pink-deep);border-radius:8px;padding:20px 30px;width:280px;">
-            <p class="mono" style="color:#D8A892;font-size:14px;margin-bottom:8px;">03</p>
-            <p class="serif" style="color:#F5F3F2;font-size:28px;">Done</p>
-            <p class="geist" style="color:#D5C9B9;font-size:16px;margin-top:8px;">Mira executes</p>
+          <!-- Mini pills below search -->
+          <div id="s2-pills" class="clip" data-start="11" data-duration="7" data-track-index="4"
+               style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:800px;">
+            <span class="mini-pill"><span class="dot"></span>Dates</span>
+            <span class="mini-pill"><span class="dot"></span>Budget</span>
+            <span class="mini-pill"><span class="dot"></span>Filters</span>
+            <span class="mini-pill"><span class="dot"></span>Stars</span>
+            <span class="mini-pill"><span class="dot"></span>Reviews</span>
+            <span class="mini-pill"><span class="dot"></span>Map view</span>
+            <span class="mini-pill"><span class="dot"></span>Guests</span>
+            <span class="mini-pill"><span class="dot"></span>Amenities</span>
           </div>
         </div>
       </div>
 
       <!-- ═══════════════════════════════════════════════════════════════
-           SCENE 4: Agent-Driven Booking (45-62s)
-           Dark ground, terminal output showing agent-book.ts
+           SCENE 3 (18-21s): "You don't know where. You know what you need."
+           Dark, centered punch, orb glow
       ═══════════════════════════════════════════════════════════════ -->
-
-      <div id="scene4" class="clip frame" data-start="45" data-duration="17" data-track-index="0"
-           style="background: var(--ink);">
-        <!-- Topbar -->
+      <div id="scene3" class="clip frame" data-start="18" data-duration="3" data-track-index="0" style="background: var(--ink);">
+        <div class="orb orb-pulse" style="width:400px;height:400px;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.1;"></div>
         <div class="topbar" style="color: var(--cream);">
           <span class="topbar-label">Ardum</span>
-          <span class="topbar-mark">04 / 06</span>
+          <span class="topbar-mark">03 / 10</span>
         </div>
+        <div id="s3-text" class="clip center" data-start="18.3" data-duration="2.7" data-track-index="2">
+          <h1 class="serif" style="color:var(--cream);font-size:68px;line-height:1.1;letter-spacing:-0.02em;text-align:center;">
+            You don't know <em style="color:var(--pink-deep);">where.</em><br/>
+            You know <em style="color:var(--pink);">what you need.</em>
+          </h1>
+        </div>
+      </div>
 
-        <!-- Left: headline -->
-        <div id="s4-text" class="clip" data-start="46" data-duration="16" data-track-index="2"
-             data-layout-allow-occlusion
-             style="position:absolute;left:120px;top:140px;max-width:650px;">
-          <p class="mono" style="color:#D8A892;font-size:18px;margin-bottom:24px;">agent-driven</p>
-          <h2 class="serif" style="color:var(--cream);font-size:60px;line-height:1.05;letter-spacing:-0.02em;margin-bottom:24px;">
-            Any AI agent can book retreats autonomously.
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCENE 4 (21-38s): "Tell Mira... She listens. She asks. She recommends one."
+           Green, chat conversation + recommendation card + app screenshot
+      ═══════════════════════════════════════════════════════════════ -->
+      <div id="scene4" class="clip frame" data-start="21" data-duration="17" data-track-index="0" style="background: var(--green);">
+        <div class="topbar" style="color: var(--cream);">
+          <span class="topbar-label">Ardum</span>
+          <span class="topbar-mark">04 / 10</span>
+        </div>
+        <div id="s4-text" class="clip center" data-start="21.5" data-duration="16.5" data-track-index="2" style="gap:20px;">
+          <p class="mono" style="color:var(--pink-deep);font-size:18px;margin-bottom:12px;">that's where ardum starts</p>
+          <h2 class="serif" style="color:var(--cream);font-size:48px;line-height:1.05;letter-spacing:-0.02em;text-align:center;margin-bottom:30px;">
+            Tell Mira what you're trying<br/>to make space for.
           </h2>
-          <p class="geist" style="color:var(--pink-deep);font-size:22px;line-height:1.5;">
-            Capture. Clarify. Recommend. Hold. Deposit. Attest. Booked.
+          <!-- Chat bubbles -->
+          <div id="s4-chat" class="clip" data-start="25" data-duration="6" data-track-index="3"
+               style="display:flex;flex-direction:column;gap:14px;align-items:center;width:100%;max-width:780px;">
+            <div class="chat-bubble chat-user" style="align-self:flex-end;">I'm exhausted. I need something restorative.</div>
+            <div class="chat-bubble chat-mira" style="align-self:flex-start;">What are you trying to make space for?</div>
+            <div class="chat-bubble chat-user" style="align-self:flex-end;">Clarity. Maybe some solitude.</div>
+            <div class="chat-bubble chat-mira" style="align-self:flex-start;">Energy, solitude, budget — got it.</div>
+          </div>
+          <!-- Recommendation card + app screenshot side by side -->
+          <div id="s4-result" class="clip" data-start="32" data-duration="6" data-track-index="3"
+               style="display:flex;gap:32px;align-items:center;margin-top:10px;">
+            <div style="background:var(--ink);border-radius:20px;padding:36px 44px;width:560px;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+              <p class="mono" style="color:var(--pink-deep);font-size:14px;margin-bottom:14px;">MIRA RECOMMENDS</p>
+              <h3 class="serif" style="color:var(--cream);font-size:40px;line-height:1.05;margin-bottom:14px;">Sidemen Restoration Retreat</h3>
+              <p class="geist" style="color:var(--pink-deep);font-size:20px;margin-bottom:18px;">7 days · Bali · $1,200</p>
+              <div style="height:2px;background:var(--pink);width:100%;margin-bottom:18px;"></div>
+              <p class="geist" style="color:var(--cream);opacity:0.7;font-size:18px;line-height:1.5;">Seven days of restorative yoga, breathwork, and silence in the Sidemen Valley.</p>
+            </div>
+            <!-- App screenshot — the actual home page -->
+            <div class="screenshot" style="width:420px;height:300px;">
+              <img src="assets/app-home.png" alt="Ardum home page" />
+            </div>
+          </div>
+          <p id="s4-punch" class="clip" data-start="34.5" data-duration="3.5" data-track-index="4"
+             class="serif" style="color:var(--cream);opacity:0.6;font-size:32px;font-style:italic;">
+            Not a list of fifty. <span style="color:var(--pink-deep);font-weight:500;font-style:normal;">One.</span>
           </p>
         </div>
+      </div>
 
-        <!-- Right: terminal output -->
-        <div id="s4-terminal" class="clip terminal" data-start="47" data-duration="15" data-track-index="3"
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCENE 5 (38-46s): "She can actually book them for you."
+           Dark + jungle, big statement, orb + app screenshot
+      ═══════════════════════════════════════════════════════════════ -->
+      <div id="scene5" class="clip frame" data-start="38" data-duration="8" data-track-index="0" style="background: var(--ink);">
+        <div id="s5-bg" class="clip" data-start="38" data-duration="8" data-track-index="1" style="position:absolute;inset:0;overflow:hidden;">
+          <img src="assets/jungle.jpg" class="ken-burns" style="width:100%;height:100%;object-fit:cover;opacity:0.12;" />
+        </div>
+        <div class="orb orb-pulse" style="width:350px;height:350px;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.12;"></div>
+        <div class="topbar" style="color: var(--cream);">
+          <span class="topbar-label">Ardum</span>
+          <span class="topbar-mark">05 / 10</span>
+        </div>
+        <div id="s5-text" class="clip center" data-start="38.5" data-duration="7.5" data-track-index="2" style="gap:24px;">
+          <p class="mono" style="color:var(--pink-deep);font-size:18px;">here's where it gets interesting</p>
+          <h2 class="serif" style="color:var(--cream);font-size:60px;line-height:1.05;letter-spacing:-0.02em;text-align:center;">
+            Mira doesn't just find retreats.
+          </h2>
+          <h2 class="serif" style="color:var(--pink);font-size:60px;line-height:1.05;letter-spacing:-0.02em;text-align:center;">
+            She can actually <em>book them</em> for you.
+          </h2>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCENE 6 (46-54s): "Sign in with Google. Confirm deposit. Done."
+           Green, step pills + attest screenshot
+      ═══════════════════════════════════════════════════════════════ -->
+      <div id="scene6" class="clip frame" data-start="46" data-duration="8" data-track-index="0" style="background: var(--green);">
+        <div class="topbar" style="color: var(--cream);">
+          <span class="topbar-label">Ardum</span>
+          <span class="topbar-mark">06 / 10</span>
+        </div>
+        <div id="s6-text" class="clip center" data-start="46.5" data-duration="7.5" data-track-index="2" style="gap:30px;">
+          <div id="s6-steps" class="clip" data-start="47" data-duration="7" data-track-index="3"
+               style="display:flex;gap:24px;align-items:center;">
+            <div id="s6-s1" class="step-pill" style="border:2px solid var(--pink);background:rgba(246,241,231,0.05);">
+              <p class="mono" style="color:var(--pink-deep);font-size:14px;margin-bottom:10px;">STEP 01</p>
+              <p class="serif" style="color:var(--cream);font-size:28px;margin-bottom:6px;">Sign in with Google</p>
+              <p class="geist" style="color:#D5C9B9;font-size:16px;">No wallet. No crypto.</p>
+            </div>
+            <span class="serif" style="color:var(--pink);font-size:32px;">→</span>
+            <div id="s6-s2" class="step-pill" style="background:var(--pink);">
+              <p class="mono" style="color:#3A1A0D;font-size:14px;margin-bottom:10px;">STEP 02</p>
+              <p class="serif" style="color:#2A0F05;font-size:28px;margin-bottom:6px;">Confirm deposit</p>
+              <p class="geist" style="color:#3A1A0D;font-size:16px;">One click. That's it.</p>
+            </div>
+            <span class="serif" style="color:var(--pink);font-size:32px;">→</span>
+            <div id="s6-s3" class="step-pill" style="border:2px solid var(--pink-deep);background:rgba(246,241,231,0.05);">
+              <p class="mono" style="color:var(--pink-deep);font-size:14px;margin-bottom:10px;">STEP 03</p>
+              <p class="serif" style="color:var(--cream);font-size:28px;margin-bottom:6px;">Done.</p>
+              <p class="geist" style="color:#D5C9B9;font-size:16px;">Mira handles the rest.</p>
+            </div>
+          </div>
+          <!-- App screenshot — attest page -->
+          <div id="s6-screenshot" class="clip" data-start="50" data-duration="4" data-track-index="4"
+               style="display:flex;gap:32px;align-items:center;">
+            <div class="screenshot" style="width:480px;height:300px;">
+              <img src="assets/app-attest.png" alt="Ardum attest page" />
+            </div>
+            <p id="s6-note" class="geist" style="color:var(--cream);opacity:0.6;font-size:22px;text-align:left;max-width:300px;">
+              No wallet setup · no gas fees · no crypto knowledge required
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCENE 7 (54-62s): "Any AI agent can use Ardum's API"
+           Dark, code snippet
+      ═══════════════════════════════════════════════════════════════ -->
+      <div id="scene7" class="clip frame" data-start="54" data-duration="8" data-track-index="0" style="background: var(--ink);">
+        <div class="topbar" style="color: var(--cream);">
+          <span class="topbar-label">Ardum</span>
+          <span class="topbar-mark">07 / 10</span>
+        </div>
+        <div id="s7-text" class="clip center" data-start="54.5" data-duration="7.5" data-track-index="2" style="gap:28px;">
+          <p class="mono" style="color:var(--pink-deep);font-size:18px;">it's not just for humans</p>
+          <h2 class="serif" style="color:var(--cream);font-size:48px;line-height:1.05;letter-spacing:-0.02em;text-align:center;">
+            Any AI agent can use Ardum's API<br/>to book retreats <em style="color:var(--pink);">autonomously.</em>
+          </h2>
+          <div id="s7-code" class="clip" data-start="57" data-duration="5" data-track-index="3"
+               style="background:var(--green-deep);border-radius:12px;padding:28px 40px;font-family:'JetBrains Mono',monospace;font-size:20px;line-height:1.6;color:var(--cream);width:750px;">
+            <p><span style="color:var(--pink-deep);">POST</span> /api/agent/match</p>
+            <p style="color:#B5A595;">  { "intention": "restorative retreat" }</p>
+            <p style="margin-top:12px;"><span style="color:var(--pink-deep);">POST</span> /api/agent/book</p>
+            <p style="color:#B5A595;">  { "agentSig": "0x...", "deposit": "1 USDC" }</p>
+            <p style="margin-top:12px;color:var(--pink);">→ Episode status: booked ✓</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCENE 8 (62-72s): Terminal flow + "We proved it"
+           Green-deep, terminal + proof screenshot
+      ═══════════════════════════════════════════════════════════════ -->
+      <div id="scene8" class="clip frame" data-start="62" data-duration="10" data-track-index="0" style="background: var(--green-deep);">
+        <div class="topbar" style="color: var(--cream);">
+          <span class="topbar-label">Ardum</span>
+          <span class="topbar-mark">08 / 10</span>
+        </div>
+        <div id="s8-terminal" class="clip terminal" data-start="62.5" data-duration="5" data-track-index="2"
              data-layout-allow-occlusion
-             style="right:80px;top:120px;width:1000px;height:840px;background:var(--green-deep);color:var(--cream);">
+             style="position:absolute;left:50%;top:60px;transform:translateX(-50%);width:900px;background:var(--ink);color:var(--cream);border:1px solid rgba(216,168,146,0.2);">
           <p class="dim">── Agent booking flow ──────────────────</p>
           <p><span class="accent">1.</span> Capture intention <span class="ok">✓</span></p>
-          <p><span class="accent">2.</span> Clarify constraints <span class="ok">✓</span></p>
-          <p><span class="accent">3.</span> Recommend retreat <span class="ok">✓</span></p>
+          <p><span class="accent">2.</span> Find a match <span class="ok">✓</span></p>
           <p>&nbsp;&nbsp; <span class="dim">→ Sidemen Restoration Retreat</span></p>
-          <p><span class="accent">4.</span> Place hold <span class="ok">✓</span></p>
-          <p><span class="accent">5.</span> Execute on-chain deposit <span class="ok">✓</span></p>
+          <p><span class="accent">3.</span> Place deposit on-chain <span class="ok">✓</span></p>
           <p>&nbsp;&nbsp; <span class="dim">→ 1 USDC → escrow contract</span></p>
-          <p><span class="accent">6.</span> Sign attestation <span class="ok">✓</span></p>
-          <p>&nbsp;&nbsp; <span class="dim">→ EIP-191 personal_sign</span></p>
-          <p><span class="accent">7.</span> Submit booking <span class="ok">✓</span></p>
-          <p>&nbsp;&nbsp; <span class="dim">→ Episode status: booked</span></p>
-          <p style="margin-top:20px;color:var(--pink-deep);">── Complete in 4123ms ──────────────</p>
+          <p><span class="accent">4.</span> Sign attestation <span class="ok">✓</span></p>
+          <p style="margin-top:12px;color:var(--pink-deep);">── Complete in 4.1s ──────────────────</p>
+        </div>
+        <!-- Proof card + app screenshot appears at ~67s -->
+        <div id="s8-proof" class="clip" data-start="67" data-duration="5" data-track-index="3"
+             style="position:absolute;left:50%;bottom:80px;transform:translateX(-50%);display:flex;gap:32px;align-items:center;">
+          <div style="text-align:left;">
+            <p class="mono" style="color:var(--pink-deep);font-size:14px;margin-bottom:6px;">DEPOSITED</p>
+            <p class="serif" style="color:var(--pink-deep);font-size:44px;margin-bottom:12px;">1.0 USDC</p>
+            <p class="geist" style="color:var(--cream);opacity:0.7;font-size:18px;">to escrow on Arbitrum Sepolia</p>
+            <p class="mono" style="color:var(--pink-deep);font-size:14px;margin-top:12px;margin-bottom:6px;">BLOCK</p>
+            <p class="serif" style="color:var(--cream);font-size:32px;">288,972,600</p>
+          </div>
+          <!-- App screenshot — proof page -->
+          <div class="screenshot" style="width:420px;height:300px;">
+            <img src="assets/app-proof.png" alt="Ardum proof page" />
+          </div>
         </div>
       </div>
 
       <!-- ═══════════════════════════════════════════════════════════════
-           SCENE 5: On-Chain Proof (62-70s)
-           Green ground, Arbiscan proof
+           SCENE 9 (72-82s): "Booking infrastructure for the agent economy"
+           Dark + jungle, orb, vision
       ═══════════════════════════════════════════════════════════════ -->
-
-      <div id="scene5" class="clip frame" data-start="62" data-duration="8" data-track-index="0"
-           style="background: var(--green);">
-        <!-- Topbar -->
+      <div id="scene9" class="clip frame" data-start="72" data-duration="10" data-track-index="0" style="background: var(--ink);">
+        <div id="s9-bg" class="clip" data-start="72" data-duration="10" data-track-index="1" style="position:absolute;inset:0;overflow:hidden;">
+          <img src="assets/jungle.jpg" class="ken-burns" style="width:100%;height:100%;object-fit:cover;opacity:0.12;" />
+        </div>
+        <div class="orb orb-pulse" style="width:500px;height:500px;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.1;"></div>
         <div class="topbar" style="color: var(--cream);">
           <span class="topbar-label">Ardum</span>
-          <span class="topbar-mark">05 / 06</span>
+          <span class="topbar-mark">09 / 10</span>
         </div>
-
-        <!-- Left: proof text -->
-        <div id="s5-text" class="clip" data-start="63" data-duration="7" data-track-index="2"
-             style="position:absolute;left:120px;top:160px;max-width:800px;">
-          <p class="mono" style="color:var(--pink-deep);font-size:18px;margin-bottom:24px;">on-chain proof</p>
-          <h2 class="serif" style="color:var(--cream);font-size:68px;line-height:1.05;letter-spacing:-0.02em;margin-bottom:30px;">
-            This is real.
-          </h2>
-          <div style="border-top:2px solid var(--pink);padding-top:20px;margin-top:20px;">
-            <p class="mono" style="color:var(--pink-deep);font-size:16px;margin-bottom:8px;">TRANSACTION</p>
-            <p class="mono" style="color:var(--cream);font-size:18px;word-break:break-all;">0x7a69ebc21d80ed8b0f6071a0bbd923f99bfa5edc977ab958692eeb27e2734151</p>
-          </div>
-          <div style="margin-top:20px;">
-            <p class="mono" style="color:var(--pink-deep);font-size:16px;margin-bottom:8px;">BLOCK</p>
-            <p class="serif" style="color:var(--cream);font-size:48px;">288972600</p>
-          </div>
-          <div style="margin-top:20px;">
-            <p class="mono" style="color:var(--pink-deep);font-size:16px;margin-bottom:8px;">ESCROW BALANCE</p>
-            <p class="serif" style="color:var(--pink-deep);font-size:48px;">1.0 USDC</p>
-          </div>
-        </div>
-
-        <!-- Right: proof page screenshot -->
-        <div id="s5-screenshot" class="clip screenshot" data-start="64" data-duration="6" data-track-index="3"
-             style="right:80px;top:120px;width:880px;height:840px;">
-          <img src="assets/proof-top.png" alt="Proof page" />
-        </div>
-      </div>
-
-      <!-- ═══════════════════════════════════════════════════════════════
-           SCENE 6: The TAM (70-75s)
-           Dark ground, logo + tagline
-      ═══════════════════════════════════════════════════════════════ -->
-
-      <div id="scene6" class="clip frame" data-start="70" data-duration="5" data-track-index="0"
-           style="background: var(--ink);">
-        <!-- Subtle jungle -->
-        <div class="clip" data-start="70" data-duration="5" data-track-index="1"
-             style="position:absolute;inset:0;opacity:0.1;background:url(assets/jungle.jpg) center/cover;"></div>
-
-        <!-- Topbar -->
-        <div class="topbar" style="color: var(--cream);">
-          <span class="topbar-label">Ardum</span>
-          <span class="topbar-mark">06 / 06</span>
-        </div>
-
-        <!-- Center: logo + tagline -->
-        <div id="s6-text" class="clip" data-start="71" data-duration="4" data-track-index="2"
-             style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-          <div class="monogram" style="margin-bottom:30px;">A</div>
-          <h2 class="serif" style="color:var(--cream);font-size:80px;line-height:1.0;letter-spacing:-0.02em;text-align:center;">
+        <div id="s9-text" class="clip center" data-start="72.5" data-duration="9.5" data-track-index="2" style="gap:24px;">
+          <h2 class="serif" style="color:var(--cream);font-size:64px;line-height:1.02;letter-spacing:-0.02em;text-align:center;">
             Booking infrastructure<br/>for the <span style="color:var(--pink);">agent economy.</span>
           </h2>
-          <p class="mono" style="color:var(--pink-deep);font-size:18px;margin-top:30px;">
-            any agent · any user · zero crypto friction
+          <p class="geist" style="color:var(--pink-deep);font-size:26px;text-align:center;margin-top:12px;">
+            Any agent. Any user. Zero crypto friction.
           </p>
-          <p class="geist" style="color:var(--cream);opacity:0.5;font-size:20px;margin-top:20px;">
-            ardum.vercel.app
-          </p>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCENE 10 (82-90s): "The shape of your practice."
+           Dark, orb, logo + tagline + new URL
+      ═══════════════════════════════════════════════════════════════ -->
+      <div id="scene10" class="clip frame" data-start="82" data-duration="8" data-track-index="0" style="background: var(--ink);">
+        <div id="s10-bg" class="clip" data-start="82" data-duration="8" data-track-index="1" style="position:absolute;inset:0;overflow:hidden;">
+          <img src="assets/jungle.jpg" style="width:100%;height:100%;object-fit:cover;opacity:0.06;" />
+        </div>
+        <div class="orb orb-pulse" style="width:400px;height:400px;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.15;"></div>
+        <div class="topbar" style="color: var(--cream);">
+          <span class="topbar-label">Ardum</span>
+          <span class="topbar-mark">10 / 10</span>
+        </div>
+        <div id="s10-text" class="clip center" data-start="82.5" data-duration="7.5" data-track-index="2" style="gap:18px;">
+          <div class="monogram">A</div>
+          <h2 class="serif" style="color:var(--cream);font-size:56px;line-height:1.0;letter-spacing:-0.02em;text-align:center;">Ardum</h2>
+          <p class="serif" style="color:var(--pink-deep);font-size:32px;font-style:italic;text-align:center;">the shape of your practice</p>
+          <p class="geist" style="color:var(--cream);opacity:0.4;font-size:18px;margin-top:14px;">ardum.famile.xyz</p>
         </div>
       </div>
 
@@ -339,28 +370,64 @@
       window.__timelines = window.__timelines || {};
       const tl = gsap.timeline({ paused: true });
 
-      // Scene 1: Thesis — fade in text
-      tl.from("#s1-text", { opacity: 0, y: 30, duration: 1.5 }, 1);
+      // ════════════════════════════════════════════════════
+      // TRANSITIONS: blur-in entrances for each scene
+      // ════════════════════════════════════════════════════
+
+      // S1: Problem — fade in from blur
+      tl.fromTo("#scene1", { filter: "blur(20px)", opacity: 0 }, { filter: "blur(0px)", opacity: 1, duration: 0.8, ease: "power2.out" }, 0);
       tl.from("#s1-bg", { opacity: 0, duration: 2 }, 0);
+      tl.from("#s1-text", { opacity: 0, y: 30, duration: 1.2 }, 0.5);
 
-      // Scene 2: Journey — slide in text + screenshot
-      tl.from("#s2-text", { opacity: 0, x: -40, duration: 1 }, 13);
-      tl.from("#s2-screenshot", { opacity: 0, x: 60, duration: 1.2 }, 14);
+      // S2: Travel site + mini pills — fade in from blur
+      tl.fromTo("#scene2", { filter: "blur(20px)", opacity: 0 }, { filter: "blur(0px)", opacity: 1, duration: 0.6, ease: "power2.out" }, 8);
+      tl.from("#s2-text", { opacity: 0, y: 20, duration: 0.8 }, 8.5);
+      tl.from("#s2-search", { opacity: 0, scale: 0.95, y: 20, duration: 0.6 }, 9.5);
+      tl.from("#s2-pills", { opacity: 0, y: 20, duration: 0.5 }, 11);
+      tl.from("#s2-pills .mini-pill", { opacity: 0, y: 15, duration: 0.3, stagger: 0.08 }, 11.2);
 
-      // Scene 3: Grant — fade text, stagger steps
-      tl.from("#s3-text", { opacity: 0, y: 30, duration: 1 }, 31);
-      tl.from("#s3-steps > div", { opacity: 0, y: 40, duration: 0.6, stagger: 0.2 }, 33);
+      // S3: Punchline — scale in from blur
+      tl.fromTo("#scene3", { filter: "blur(20px)", scale: 0.95, opacity: 0 }, { filter: "blur(0px)", scale: 1, opacity: 1, duration: 0.6, ease: "power2.out" }, 18);
+      tl.from("#s3-text", { opacity: 0, scale: 0.9, duration: 0.8 }, 18.3);
 
-      // Scene 4: Agent — fade text + terminal
-      tl.from("#s4-text", { opacity: 0, x: -40, duration: 1 }, 46);
-      tl.from("#s4-terminal", { opacity: 0, x: 60, duration: 1 }, 47);
+      // S4: Mira chat + recommendation + app screenshot — fade in from blur
+      tl.fromTo("#scene4", { filter: "blur(20px)", opacity: 0 }, { filter: "blur(0px)", opacity: 1, duration: 0.6, ease: "power2.out" }, 21);
+      tl.from("#s4-text", { opacity: 0, y: 20, duration: 0.8 }, 21.5);
+      tl.from("#s4-chat .chat-bubble", { opacity: 0, x: (i) => i % 2 === 0 ? 40 : -40, duration: 0.5, stagger: 0.6 }, 25);
+      tl.from("#s4-result", { opacity: 0, y: 30, duration: 0.8 }, 32);
+      tl.from("#s4-punch", { opacity: 0, y: 15, duration: 0.6 }, 34.5);
 
-      // Scene 5: Proof — fade text + screenshot
-      tl.from("#s5-text", { opacity: 0, y: 30, duration: 0.8 }, 63);
-      tl.from("#s5-screenshot", { opacity: 0, x: 60, duration: 1 }, 64);
+      // S5: Magic — fade in from blur
+      tl.fromTo("#scene5", { filter: "blur(20px)", opacity: 0 }, { filter: "blur(0px)", opacity: 1, duration: 0.6, ease: "power2.out" }, 38);
+      tl.from("#s5-bg", { opacity: 0, duration: 1.5 }, 38);
+      tl.from("#s5-text", { opacity: 0, y: 30, duration: 1 }, 38.5);
 
-      // Scene 6: TAM — fade in center
-      tl.from("#s6-text", { opacity: 0, scale: 0.95, duration: 1 }, 71);
+      // S6: Steps + attest screenshot — fade in from blur
+      tl.fromTo("#scene6", { filter: "blur(20px)", opacity: 0 }, { filter: "blur(0px)", opacity: 1, duration: 0.6, ease: "power2.out" }, 46);
+      tl.from("#s6-text", { opacity: 0, duration: 0.5 }, 46.5);
+      tl.from("#s6-s1", { opacity: 0, y: 40, duration: 0.5 }, 47);
+      tl.from("#s6-s2", { opacity: 0, y: 40, duration: 0.5 }, 47.3);
+      tl.from("#s6-s3", { opacity: 0, y: 40, duration: 0.5 }, 47.6);
+      tl.from("#s6-screenshot", { opacity: 0, y: 30, duration: 0.8 }, 50);
+
+      // S7: API — fade in from blur
+      tl.fromTo("#scene7", { filter: "blur(20px)", opacity: 0 }, { filter: "blur(0px)", opacity: 1, duration: 0.6, ease: "power2.out" }, 54);
+      tl.from("#s7-text", { opacity: 0, y: 20, duration: 0.8 }, 54.5);
+      tl.from("#s7-code", { opacity: 0, scale: 0.95, y: 20, duration: 0.8 }, 57);
+
+      // S8: Terminal + proof screenshot — fade in from blur
+      tl.fromTo("#scene8", { filter: "blur(20px)", opacity: 0 }, { filter: "blur(0px)", opacity: 1, duration: 0.6, ease: "power2.out" }, 62);
+      tl.from("#s8-terminal", { opacity: 0, scale: 0.95, duration: 0.8 }, 62.5);
+      tl.from("#s8-proof", { opacity: 0, y: 30, duration: 0.8 }, 67);
+
+      // S9: Vision — fade in from blur
+      tl.fromTo("#scene9", { filter: "blur(20px)", opacity: 0 }, { filter: "blur(0px)", opacity: 1, duration: 0.6, ease: "power2.out" }, 72);
+      tl.from("#s9-bg", { opacity: 0, duration: 1.5 }, 72);
+      tl.from("#s9-text", { opacity: 0, scale: 0.95, duration: 1.2 }, 72.5);
+
+      // S10: Close — fade in from blur
+      tl.fromTo("#scene10", { filter: "blur(20px)", opacity: 0 }, { filter: "blur(0px)", opacity: 1, duration: 0.8, ease: "power2.out" }, 82);
+      tl.from("#s10-text", { opacity: 0, scale: 0.9, duration: 1.5 }, 82.5);
 
       window.__timelines["main"] = tl;
     </script>

@@ -52,3 +52,8 @@ videos/ardum-demo/renders/
 videos/ardum-demo/audio/
 videos/ardum-demo/snapshots/
 videos/ardum-demo/capture-proof/
+# Generated browser captures (extracted HTML/fonts/screenshots) and
+# alternate app-*.png screenshots — not source. The canonical
+# home-*.png / proof-*.png / jungle.jpg / og-image.jpg stay tracked.
+videos/ardum-demo/capture/
+videos/ardum-demo/assets/app-*.png
