@@ -1,15 +1,18 @@
 "use client";
 
-import { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { useRef, useEffect } from "react";
+import { motion, useScroll, useTransform, useMotionValue, useSpring } from "framer-motion";
 import type { Retreat } from "@/inventory/retreat";
+import { generateCurvePoints } from "@/hooks/useMotionPath";
+import { useMiraOrbPosition } from "./MiraOrbContext";
 
 interface RetreatImageProps {
   retreat: Retreat;
   index: number;
-  total: number;
   isActive: boolean;
   onSelect: () => void;
+  transitioning?: boolean;
+  orbPosition?: { x: number; y: number } | null;
 }
 
 export default function RetreatImage({
@@ -17,8 +20,23 @@ export default function RetreatImage({
   index,
   isActive,
   onSelect,
+  transitioning = false,
+  orbPosition: orbPositionProp = null,
 }: RetreatImageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { orbPosition: contextOrbPosition } = useMiraOrbPosition();
+  const orbPosition = orbPositionProp || contextOrbPosition;
+  
+  // Motion path state for enter/exit animations
+  const pathX = useMotionValue(0);
+  const pathY = useMotionValue(0);
+  const pathScale = useMotionValue(1);
+  const pathOpacity = useMotionValue(1);
+  
+  const springX = useSpring(pathX, { stiffness: 100, damping: 20 });
+  const springY = useSpring(pathY, { stiffness: 100, damping: 20 });
+  const springScale = useSpring(pathScale, { stiffness: 100, damping: 20 });
+  const springOpacity = useSpring(pathOpacity, { stiffness: 100, damping: 25 });
   
   // Scroll progress for this specific retreat
   const { scrollYProgress } = useScroll({
@@ -40,11 +58,65 @@ export default function RetreatImage({
   const locationOpacity = useTransform(scrollYProgress, [0.5, 0.7], [0, 1]);
   const locationY = useTransform(scrollYProgress, [0.5, 0.7], [20, 0]);
 
+  // Motion path enter/exit animations
+  useEffect(() => {
+    if (!transitioning) {
+      // Normal state - no offset
+      pathX.set(0);
+      pathY.set(0);
+      pathScale.set(1);
+      pathOpacity.set(1);
+      return;
+    }
+
+    // Calculate start position (from orb or off-screen)
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    if (!containerRect) return;
+
+    const centerX = containerRect.left + containerRect.width / 2;
+    const centerY = containerRect.top + containerRect.height / 2;
+
+    // Generate curved path from orb to final position
+    const orbPos = orbPosition || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    const curvePoints = generateCurvePoints(
+      orbPos,
+      { x: centerX, y: centerY },
+      { curviness: 0.4, curveDirection: index % 2 === 0 ? 'left' : 'right' }
+    );
+
+    // Calculate initial offset from orb
+    const startOffsetX = curvePoints[0].x - centerX;
+    const startOffsetY = curvePoints[0].y - centerY;
+
+    // Stagger by index (max 600ms stagger)
+    const staggerDelay = Math.min(index * 150, 600);
+
+    // Set initial state (at orb position, small and transparent)
+    pathX.set(startOffsetX);
+    pathY.set(startOffsetY);
+    pathScale.set(0.3);
+    pathOpacity.set(0);
+
+    // Animate to final position after delay
+    setTimeout(() => {
+      pathX.set(0);
+      pathY.set(0);
+      pathScale.set(1);
+      pathOpacity.set(1);
+    }, staggerDelay);
+  }, [transitioning, orbPosition, index]);
+
   return (
-    <div
+    <motion.div
       ref={containerRef}
       className="relative h-screen w-full overflow-hidden cursor-pointer"
       onClick={onSelect}
+      style={{
+        x: springX,
+        y: springY,
+        scale: springScale,
+        opacity: springOpacity,
+      }}
     >
       {/* Full-bleed image with parallax */}
       <motion.div
@@ -110,6 +182,6 @@ export default function RetreatImage({
           Scroll to explore →
         </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }

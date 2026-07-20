@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { AnimatePresence, motion, useScroll, useMotionValueEvent } from "framer-motion";
+import { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "framer-motion";
 import { useRetreatExploration } from "@/inventory/use-retreat-exploration";
 import { useMiraField } from "./MiraField";
 import { MiraOrbProvider } from "./MiraOrbContext";
@@ -52,6 +52,31 @@ export default function RetreatExplorationView({
   const [activeTarget, setActiveTarget] = useState<{ x: number; y: number } | null>(null);
   const [hasConversed, setHasConversed] = useState(false);
   const [input, setInput] = useState("");
+  
+  // Track retreat array identity for motion path transitions
+  const [transitioning, setTransitioning] = useState(false);
+  const prevRetreatIdsRef = useRef<string[]>([]);
+  
+  const arraysEqual = (a: string[], b: string[]) => {
+    if (a.length !== b.length) return false;
+    return a.every((val, idx) => val === b[idx]);
+  };
+  
+  useEffect(() => {
+    const currentIds = retreats.map(r => r.id);
+    const prevIds = prevRetreatIdsRef.current;
+    
+    // Check if retreats changed (new query or re-rank)
+    if (prevIds.length > 0 && !arraysEqual(prevIds, currentIds)) {
+      setTransitioning(true);
+      // Reset active index to show first new retreat
+      setActiveIndex(0);
+      // Clear transition flag after animations complete
+      setTimeout(() => setTransitioning(false), 1200);
+    }
+    
+    prevRetreatIdsRef.current = currentIds;
+  }, [retreats]);
 
   // Scroll container ref for tracking orb movement
   const containerRef = useRef<HTMLDivElement>(null);
@@ -227,9 +252,10 @@ export default function RetreatExplorationView({
               key={retreat.id}
               retreat={retreat}
               index={index}
-              total={retreats.length}
               isActive={index === safeIndex}
               onSelect={() => handleSelect(retreat.id, index)}
+              transitioning={transitioning}
+              orbPosition={activeTarget}
             />
           ))
         ) : (
