@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { AnimatePresence, motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { useRetreatExploration } from "@/inventory/use-retreat-exploration";
 import { useMiraField } from "./MiraField";
@@ -44,8 +44,15 @@ export default function RetreatExplorationView({
   });
   
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [scrollVelocity, setScrollVelocity] = useState(0);
+  
   useMotionValueEvent(scrollYProgress, "change", (value) => {
+    const prevValue = scrollProgress;
     setScrollProgress(value);
+    
+    // Calculate scroll velocity (change in progress per frame)
+    const velocity = Math.abs(value - prevValue) * 1000; // Scale up for sensitivity
+    setScrollVelocity(velocity);
   });
   
   // Track active retreat position for orb attraction
@@ -136,6 +143,7 @@ export default function RetreatExplorationView({
         presence={null}
         activity={busy ? "processing" : "idle"}
         scrollProgress={scrollProgress}
+        scrollVelocity={scrollVelocity}
         activeTarget={activeTarget}
         busy={busy}
       />
