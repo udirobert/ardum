@@ -37,6 +37,7 @@ export default function RetreatCard({
   return (
     <motion.article
       layout
+      data-retreat-id={retreat.id}
       initial={{ opacity: 0, y: 40, scale: 0.95 }}
       animate={{ 
         opacity: 1, 
@@ -62,12 +63,12 @@ export default function RetreatCard({
       }}
       whileTap={{ scale: 0.98 }}
       onClick={onSelect}
-      className={`group relative overflow-hidden rounded-lg border transition-all duration-300 cursor-pointer ${
+      className={`group relative overflow-hidden rounded-lg backdrop-blur-md border transition-all duration-300 cursor-pointer ${
         isActive
-          ? "border-[#a85a3a] shadow-lg shadow-[#a85a3a]/20"
+          ? "border-[#a85a3a]/50 shadow-lg shadow-[#a85a3a]/20"
           : "border-[#f6efe3]/10 hover:border-[#f6efe3]/30"
       } ${className}`}
-      style={{ background: "rgba(16,10,8,0.8)" }}
+      style={{ background: "rgba(16,10,8,0.6)" }}
     >
       {/* Hero image */}
       <div className="relative h-64 overflow-hidden">

@@ -42,6 +42,11 @@ type FieldConfig = {
    * `hero` — crossfade to 3D scene (episode climax). Default: hero.
    */
   fieldTier?: "ambient" | "hero";
+  /**
+   * Free-roaming mode: orb moves independently across viewport instead of
+   * filling the screen. Content coexists via glass transparency.
+   */
+  freeRoam?: boolean;
 };
 
 // The dusk field the orb glows within — warm terracotta collapsing to near
@@ -75,6 +80,18 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [config, setConfig] = useState<FieldConfig | null>(null);
   const active = fieldActive(pathname);
+
+  // Free-roam mode: orb moves independently, no field background
+  if (config?.freeRoam && active) {
+    return (
+      <MiraImpulseProvider>
+        <MiraFieldContext.Provider value={setConfig}>
+          {/* Free-roam orb renders inline via MiraFreeRoamOrb in the page */}
+          {children}
+        </MiraFieldContext.Provider>
+      </MiraImpulseProvider>
+    );
+  }
 
   return (
     <MiraImpulseProvider>
@@ -123,12 +140,13 @@ export function useMiraField({
   aestheticVector,
   veil,
   fieldTier,
+  freeRoam,
 }: FieldConfig) {
   const setConfig = useContext(MiraFieldContext);
 
   useEffect(() => {
-    setConfig({ presence, activity, aestheticVector, veil, fieldTier });
-  }, [setConfig, presence, activity, aestheticVector, veil, fieldTier]);
+    setConfig({ presence, activity, aestheticVector, veil, fieldTier, freeRoam });
+  }, [setConfig, presence, activity, aestheticVector, veil, fieldTier, freeRoam]);
 
   useEffect(() => () => setConfig(null), [setConfig]);
 }

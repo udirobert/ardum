@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useState, useRef, useEffect } from "react";
+import { AnimatePresence, motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { useRetreatExploration } from "@/inventory/use-retreat-exploration";
 import { useMiraField } from "./MiraField";
+import MiraFreeRoamOrb from "./MiraFreeRoamOrb";
 import type { IntentionConstraints } from "@/agent/constraint-updater";
 import type { Retreat } from "@/inventory/retreat";
 import RetreatCard from "./RetreatCard";
@@ -33,6 +34,23 @@ export default function RetreatExplorationView({
   onSelect: propOnSelect,
   busy: propBusy,
 }: RetreatExplorationViewProps) {
+  // Scroll container ref for tracking orb movement
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Track scroll progress (0-1) through the retreat list
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start start", "end end"],
+  });
+  
+  const [scrollProgress, setScrollProgress] = useState(0);
+  useMotionValueEvent(scrollYProgress, "change", (value) => {
+    setScrollProgress(value);
+  });
+  
+  // Track active retreat position for orb attraction
+  const [activeTarget, setActiveTarget] = useState<{ x: number; y: number } | null>(null);
+  
   // Determine mode: if retreats prop is provided, use direct mode
   const isDirectMode = propRetreats !== undefined;
   
@@ -46,10 +64,10 @@ export default function RetreatExplorationView({
   const miraNote = isDirectMode ? propMiraNote : hookResult.miraNote;
   const busy = isDirectMode ? (propBusy ?? false) : (hookResult.state !== "idle");
   
-  // Integrate with Mira's field - tell the orb what's happening
+  // Integrate with Mira's field - enable free-roam mode for this experience
   useMiraField({
     activity: busy ? "processing" : "idle",
-    veil: 0.2, // Subtle veil for readability without covering the orb
+    freeRoam: true, // Orb moves independently across viewport
   });
   
   const handleUserMessage = (text: string) => {
@@ -79,6 +97,16 @@ export default function RetreatExplorationView({
     if (isDirectMode && propOnSelect) {
       propOnSelect(retreatId);
     }
+    
+    // Track the selected retreat's position for orb attraction
+    const card = document.querySelector(`[data-retreat-id="${retreatId}"]`);
+    if (card) {
+      const rect = card.getBoundingClientRect();
+      setActiveTarget({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      });
+    }
   };
   
   const [activeIndex, setActiveIndex] = useState(0);
@@ -102,7 +130,18 @@ export default function RetreatExplorationView({
   };
 
   return (
-    <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 py-8">
+    <>
+      {/* Free-roaming Mira orb - moves independently across viewport */}
+      <MiraFreeRoamOrb
+        presence={null}
+        activity={busy ? "processing" : "idle"}
+        scrollProgress={scrollProgress}
+        activeTarget={activeTarget}
+        busy={busy}
+      />
+
+      {/* Content with glass transparency - orb passes behind cards */}
+      <div ref={containerRef} className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 py-8 px-6 sm:px-10">
       {/* Left column: Mira + input, sticky on desktop */}
       <div className="lg:sticky lg:top-32 lg:self-start lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto space-y-8 order-2 lg:order-1">
         <MiraNote animate>
@@ -184,6 +223,7 @@ export default function RetreatExplorationView({
           </motion.div>
         </AnimatePresence>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
