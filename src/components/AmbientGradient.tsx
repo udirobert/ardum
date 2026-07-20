@@ -21,7 +21,7 @@ interface AmbientGradientProps {
 
 export default function AmbientGradient({ retreat, className = "" }: AmbientGradientProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
   const gradientRef = useRef<{
     colors: string[];
     targetColors: string[];

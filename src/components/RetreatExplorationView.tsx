@@ -2,20 +2,70 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { RetreatExplorationProps } from "@/inventory/retreat";
+import { useRetreatExploration } from "@/inventory/use-retreat-exploration";
+import type { IntentionConstraints } from "@/agent/constraint-updater";
+import type { Retreat } from "@/inventory/retreat";
 import AmbientGradient from "./AmbientGradient";
 import RetreatCard from "./RetreatCard";
 import MiraNote from "./MiraNote";
 
-type Props = RetreatExplorationProps;
+interface RetreatExplorationViewProps {
+  // Hook mode props (for EpisodeWorkbench)
+  initialConstraints?: IntentionConstraints;
+  onConstraintChange?: (constraints: IntentionConstraints) => void;
+  
+  // Direct mode props (for demo/testing)
+  retreats?: Retreat[];
+  miraNote?: string;
+  onUserMessage?: (text: string) => void | Promise<void>;
+  onCommit?: (retreatId: string) => void;
+  busy?: boolean;
+}
 
 export default function RetreatExplorationView({
-  retreats,
-  miraNote,
-  onUserMessage,
-  onCommit,
-  busy = false,
-}: Props) {
+  initialConstraints,
+  onConstraintChange,
+  retreats: propRetreats,
+  miraNote: propMiraNote,
+  onUserMessage: propOnUserMessage,
+  onCommit: propOnCommit,
+  busy: propBusy,
+}: RetreatExplorationViewProps) {
+  // Determine mode: if retreats prop is provided, use direct mode
+  const isDirectMode = propRetreats !== undefined;
+  
+  // Use hook only in hook mode
+  const hookResult = useRetreatExploration(
+    isDirectMode ? undefined : initialConstraints
+  );
+  
+  // Select data source based on mode
+  const retreats = isDirectMode ? propRetreats : hookResult.retreats;
+  const miraNote = isDirectMode ? propMiraNote : hookResult.miraNote;
+  const busy = isDirectMode ? (propBusy ?? false) : (hookResult.state !== "idle");
+  
+  const handleUserMessage = (text: string) => {
+    if (isDirectMode && propOnUserMessage) {
+      propOnUserMessage(text);
+    } else if (!isDirectMode) {
+      hookResult.onUserMessage(text);
+      // Trigger constraint change callback after a brief delay
+      setTimeout(() => {
+        if (onConstraintChange && hookResult.constraints) {
+          onConstraintChange(hookResult.constraints);
+        }
+      }, 100);
+    }
+  };
+  
+  const handleCommit = (retreatId: string) => {
+    if (isDirectMode && propOnCommit) {
+      propOnCommit(retreatId);
+    } else if (!isDirectMode) {
+      hookResult.onCommit(retreatId);
+    }
+  };
+  
   const [activeIndex, setActiveIndex] = useState(0);
   const [input, setInput] = useState("");
 
@@ -24,7 +74,7 @@ export default function RetreatExplorationView({
 
   const handleSend = () => {
     if (!input.trim() || busy) return;
-    onUserMessage(input.trim());
+    handleUserMessage(input.trim());
     setInput("");
     setActiveIndex(0); // Reset to first card when results change
   };
@@ -83,7 +133,7 @@ export default function RetreatExplorationView({
               >
                 <button
                   type="button"
-                  onClick={() => onCommit(activeRetreat.id)}
+                  onClick={() => handleCommit(activeRetreat.id)}
                   disabled={busy}
                   className="px-6 py-3 rounded-sm bg-[#f6efe3] text-[#0c0806] disabled:opacity-40 transition-opacity"
                 >
