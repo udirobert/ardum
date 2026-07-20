@@ -6,27 +6,30 @@
  * experience against this mock data while Track A builds the live extraction
  * and ranking engine.
  * 
- * For the demo, we use mock data. Phase A4 replaces this with real operator
+ * For the demo, we use Unsplash images. Phase A4 replaces this with real operator
  * data from attestations.
  */
 
 import type { Retreat } from "./retreat";
+
+function unsplash(id: string, w = 1200): string {
+  return `https://images.unsplash.com/${id}?w=${w}&q=80&auto=format&fit=crop`;
+}
 
 export const MOCK_CATALOG: Retreat[] = [
   {
     id: "retreat-001",
     title: "Silent Mountain Retreat",
     location: "Himalayan Foothills, India",
-    heroImage: "/retreats/retreat-001/hero.webp",
+    heroImage: unsplash("photo-1544787219-7f47ccb76574"),
     gallery: [
-      "/retreats/retreat-001/gallery-1.webp",
-      "/retreats/retreat-001/gallery-2.webp",
-      "/retreats/retreat-001/gallery-3.webp",
+      unsplash("photo-1545389336-cf090694435e"),
+      unsplash("photo-1507525428034-b723cf961d3e"),
     ],
     operator: {
       name: "Ananda Collective",
       bio: "Founded by practitioners who spent 12 years in Himalayan monasteries. Specializes in silent retreats with personalized breath work.",
-      avatar: "/retreats/retreat-001/operator.webp",
+      avatar: unsplash("photo-1544005313-94ddf0286df2", 200),
     },
     dates: {
       start: "2026-10-15",
@@ -64,21 +67,21 @@ export const MOCK_CATALOG: Retreat[] = [
       secondary: "#D4A574", // Soft golden sand
       accent: "#4A6741", // Mountain green
     },
+    fit: { energy: "low", social: "small-circle" },
   },
   {
     id: "retreat-002",
     title: "Ocean Breath Intensive",
     location: "Bali, Indonesia",
-    heroImage: "/retreats/retreat-002/hero.webp",
+    heroImage: unsplash("photo-1537996194471-e657df71f429"),
     gallery: [
-      "/retreats/retreat-002/gallery-1.webp",
-      "/retreats/retreat-002/gallery-2.webp",
-      "/retreats/retreat-002/gallery-3.webp",
+      unsplash("photo-1555400038-63f5ba517a47"),
+      unsplash("photo-1518611012118-696072aa579a"),
     ],
     operator: {
       name: "Maya Suryani",
       bio: "Balinese yoga teacher and breathwork facilitator with 15 years of experience. Combines traditional Balinese healing with contemporary somatic practices.",
-      avatar: "/retreats/retreat-002/operator.webp",
+      avatar: unsplash("photo-1507003211169-0a1ddc80a048", 200),
     },
     dates: {
       start: "2026-09-01",
@@ -115,21 +118,21 @@ export const MOCK_CATALOG: Retreat[] = [
       secondary: "#E8D5B7", // Sand beige
       accent: "#D4726A", // Coral pink
     },
+    fit: { energy: "in-movement", social: "open-circle" },
   },
   {
     id: "retreat-003",
     title: "Forest Silence Solo",
     location: "Pacific Northwest, USA",
-    heroImage: "/retreats/retreat-003/hero.webp",
+    heroImage: unsplash("photo-1509316785289-025f5b846b35"),
     gallery: [
-      "/retreats/retreat-003/gallery-1.webp",
-      "/retreats/retreat-003/gallery-2.webp",
-      "/retreats/retreat-003/gallery-3.webp",
+      unsplash("photo-1469851632435-2f32b4f4a2e2"),
+      unsplash("photo-1500530855697-c5861c7e7c5b"),
     ],
     operator: {
       name: "Cedar Grove Sanctuary",
       bio: "A small collective of forest-dwelling practitioners offering solo retreats in the old-growth forests of the Pacific Northwest. Minimal infrastructure, maximum solitude.",
-      avatar: "/retreats/retreat-003/operator.webp",
+      avatar: unsplash("photo-1472099645785-5658abbe450d", 200),
     },
     dates: {
       start: "2026-10-01",
@@ -167,21 +170,21 @@ export const MOCK_CATALOG: Retreat[] = [
       secondary: "#A8B5A0", // Moss grey-green
       accent: "#C9A961", // Warm wood brown
     },
+    fit: { energy: "settled", social: "solo" },
   },
   {
     id: "retreat-004",
     title: "Desert Moon Immersion",
     location: "Sedona, Arizona, USA",
-    heroImage: "/retreats/retreat-004/hero.webp",
+    heroImage: unsplash("photo-1509316785289-025f5b846b35"),
     gallery: [
-      "/retreats/retreat-004/gallery-1.webp",
-      "/retreats/retreat-004/gallery-2.webp",
-      "/retreats/retreat-004/gallery-3.webp",
+      unsplash("photo-1469851632435-2f32b4f4a2e2"),
+      unsplash("photo-1500530855697-c5861c7e7c5b"),
     ],
     operator: {
       name: "Red Rock Collective",
       bio: "A group of energy workers and yoga teachers based in Sedona's red rock country. Specializes in lunar cycle practices and earth-based healing modalities.",
-      avatar: "/retreats/retreat-004/operator.webp",
+      avatar: unsplash("photo-1438761681033-6461ffad8d80", 200),
     },
     dates: {
       start: "2026-10-10",
@@ -219,21 +222,21 @@ export const MOCK_CATALOG: Retreat[] = [
       secondary: "#E8C4A0", // Desert sand
       accent: "#6B4E71", // Twilight purple
     },
+    fit: { energy: "sharp", social: "small-circle" },
   },
   {
     id: "retreat-005",
     title: "Coastal Flow & Restore",
     location: "Algarve, Portugal",
-    heroImage: "/retreats/retreat-005/hero.webp",
+    heroImage: unsplash("photo-1533900298318-6b8da08a523e"),
     gallery: [
-      "/retreats/retreat-005/gallery-1.webp",
-      "/retreats/retreat-005/gallery-2.webp",
-      "/retreats/retreat-005/gallery-3.webp",
+      unsplash("photo-1523906838053-52d40098b1ef"),
+      unsplash("photo-1504813184451-ef688f9a0e8b"),
     ],
     operator: {
       name: "Ana Rodrigues",
       bio: "Portuguese yoga teacher and physical therapist. Combines Iyengar precision with restorative practices, creating a balanced approach for bodies in transition.",
-      avatar: "/retreats/retreat-005/operator.webp",
+      avatar: unsplash("photo-1494790108377-be9c29b29330", 200),
     },
     dates: {
       start: "2026-09-20",
@@ -270,6 +273,7 @@ export const MOCK_CATALOG: Retreat[] = [
       secondary: "#F0E5D8", // Creamy sand
       accent: "#E8A87C", // Warm terracotta
     },
+    fit: { energy: "settled", social: "small-circle" },
   },
 ];
 
