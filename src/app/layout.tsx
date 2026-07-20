@@ -28,7 +28,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://ardum.vercel.app"),
+  metadataBase: new URL("https://ardum.famile.xyz"),
   title: "Ardum — the shape of your practice",
   description:
     "A persistent guide that carries an intention from uncertainty to " +

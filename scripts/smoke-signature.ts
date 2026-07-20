@@ -1,7 +1,7 @@
 // End-to-end smoke test for the attestation signature verification.
 //
 //   npm run smoke                              # against localhost:3000
-//   npm run smoke -- https://ardum.vercel.app  # against a deployed URL
+//   npm run smoke -- https://ardum.famile.xyz  # against a deployed URL
 //
 // Spawns its own ephemeral attestation, signs it with a fresh keypair, and
 // exercises the full POST /api/attestations path:

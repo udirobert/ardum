@@ -2,7 +2,7 @@
 // /api/attestations/seed endpoint. Use after `npm run dev`.
 //
 //   npm run seed                 # seeds against http://localhost:3000
-//   npm run seed -- https://ardum.vercel.app
+//   npm run seed -- https://ardum.famile.xyz
 
 const baseUrl = process.argv[2] ?? "http://localhost:3000";
 

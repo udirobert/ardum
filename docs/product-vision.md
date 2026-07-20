@@ -207,7 +207,7 @@ interaction. See [0009-agent-api](decisions/0009-agent-api.md).
 This is distribution engineered into the product: the agent API is the channel,
 not SEO or paid acquisition. An agent discovers Ardum, integrates the API, and
 starts booking retreats for its users. The agent's users become Ardum users
-without ever visiting ardum.vercel.app. The product IS the channel.
+without ever visiting ardum.famile.xyz. The product IS the channel.
 
 The agent flow is:
 

@@ -30,7 +30,7 @@ export const dynamic = "force-dynamic";
 //   {
 //     "valid": true,
 //     "attestation": { ...structured attestation ready for signing... },
-//     "publishUrl": "https://ardum.vercel.app/attest",
+//     "publishUrl": "https://ardum.famile.xyz/attest",
 //     "instructions": "Direct the operator to this URL to sign and publish."
 //   }
 
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
   }
 
   // Build the structured attestation (without attestor — that's set at signing time)
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://ardum.vercel.app";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://ardum.famile.xyz";
 
   return NextResponse.json(
     {

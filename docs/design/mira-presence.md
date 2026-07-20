@@ -1,5 +1,10 @@
 # Mira presence
 
+> **Network contract:** `famile/web/docs/MIRA.md` is the canonical persona,
+> posture vocabulary, orb spec, and tier-transition semantics. This document
+> describes Ardum's implementation against that contract. Where the two
+> disagree, the network doc wins; update this file to match.
+
 Mira's visual presence is a **journey posture**, not a mood mirror. The orb
 morphs to reflect what Mira is doing for the episode and how much tension the
 journey currently carries — never to guess how the person feels.
