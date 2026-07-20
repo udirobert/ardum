@@ -4,7 +4,6 @@ import { useState, useRef } from "react";
 import { AnimatePresence, motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { useRetreatExploration } from "@/inventory/use-retreat-exploration";
 import { useMiraField } from "./MiraField";
-import MiraFreeRoamOrb from "./MiraFreeRoamOrb";
 import { MiraOrbProvider } from "./MiraOrbContext";
 import type { IntentionConstraints } from "@/agent/constraint-updater";
 import type { Retreat } from "@/inventory/retreat";
@@ -72,10 +71,13 @@ export default function RetreatExplorationView({
   const miraNote = isDirectMode ? propMiraNote : hookResult.miraNote;
   const busy = isDirectMode ? (propBusy ?? false) : (hookResult.state !== "idle");
   
-  // Integrate with Mira's field - enable free-roam mode for this experience
+  // Integrate with Mira's field - enable free-roam mode and feed motion state
   useMiraField({
     activity: busy ? "processing" : "idle",
-    freeRoam: true, // Orb moves independently across viewport
+    freeRoam: true,
+    scrollProgress,
+    scrollVelocity,
+    activeTarget,
   });
   
   const handleUserMessage = (text: string) => {
@@ -139,16 +141,6 @@ export default function RetreatExplorationView({
 
   return (
     <MiraOrbProvider>
-      {/* Free-roaming Mira orb - moves independently across viewport */}
-      <MiraFreeRoamOrb
-        presence={null}
-        activity={busy ? "processing" : "idle"}
-        scrollProgress={scrollProgress}
-        scrollVelocity={scrollVelocity}
-        activeTarget={activeTarget}
-        busy={busy}
-      />
-
       {/* Content with glass transparency - orb passes behind cards */}
       <div ref={containerRef} className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 py-8 px-6 sm:px-10">
       {/* Left column: Mira + input, sticky on desktop */}

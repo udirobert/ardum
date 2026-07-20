@@ -18,6 +18,7 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import MiraOrb from "./MiraOrb";
+import MiraFreeRoamOrb from "./MiraFreeRoamOrb";
 import { MiraImpulseProvider } from "./MiraImpulse";
 import {
   STEADY_PRESENCE,
@@ -47,6 +48,10 @@ type FieldConfig = {
    * filling the screen. Content coexists via glass transparency.
    */
   freeRoam?: boolean;
+  /** Free-roam motion state fed from the active page. */
+  scrollProgress?: number;
+  scrollVelocity?: number;
+  activeTarget?: { x: number; y: number } | null;
 };
 
 // The dusk field the orb glows within — warm terracotta collapsing to near
@@ -81,12 +86,20 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<FieldConfig | null>(null);
   const active = fieldActive(pathname);
 
-  // Free-roam mode: orb moves independently, no field background
+  // Free-roam mode: orb moves independently across viewport, rendered at shell level
+  // so it persists across route changes without remounting.
   if (config?.freeRoam && active) {
     return (
       <MiraImpulseProvider>
         <MiraFieldContext.Provider value={setConfig}>
-          {/* Free-roam orb renders inline via MiraFreeRoamOrb in the page */}
+          <MiraFreeRoamOrb
+            presence={config.presence ?? STEADY_PRESENCE}
+            activity={config.activity}
+            aestheticVector={config.aestheticVector}
+            scrollProgress={config.scrollProgress ?? 0}
+            scrollVelocity={config.scrollVelocity ?? 0}
+            activeTarget={config.activeTarget}
+          />
           {children}
         </MiraFieldContext.Provider>
       </MiraImpulseProvider>
@@ -141,12 +154,25 @@ export function useMiraField({
   veil,
   fieldTier,
   freeRoam,
+  scrollProgress,
+  scrollVelocity,
+  activeTarget,
 }: FieldConfig) {
   const setConfig = useContext(MiraFieldContext);
 
   useEffect(() => {
-    setConfig({ presence, activity, aestheticVector, veil, fieldTier, freeRoam });
-  }, [setConfig, presence, activity, aestheticVector, veil, fieldTier, freeRoam]);
+    setConfig({ 
+      presence, 
+      activity, 
+      aestheticVector, 
+      veil, 
+      fieldTier, 
+      freeRoam,
+      scrollProgress,
+      scrollVelocity,
+      activeTarget,
+    });
+  }, [setConfig, presence, activity, aestheticVector, veil, fieldTier, freeRoam, scrollProgress, scrollVelocity, activeTarget]);
 
   useEffect(() => () => setConfig(null), [setConfig]);
 }
