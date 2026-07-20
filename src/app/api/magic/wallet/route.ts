@@ -80,9 +80,10 @@ export async function POST(req: Request) {
     }
 
     const data = await res.json();
+    // Only expose the wallet address to the browser — the raw Magic
+    // response may contain fields we don't want to leak client-side.
     return NextResponse.json({
       public_address: data.public_address,
-      raw: data,
     });
   } catch (err) {
     return NextResponse.json(

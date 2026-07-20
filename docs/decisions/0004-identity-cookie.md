@@ -21,8 +21,12 @@ Set-Cookie: ardum-actor=<actorId>.<HMAC-SHA256(actorId, secret)>;
 ```
 
 The signing secret is `process.env.ARDUM_ACTOR_SECRET`, falling back to
-`process.env.SUPABASE_SERVICE_ROLE_KEY` (both server-only) and finally to a
-local-development fallback so the demo mode works without configuration.
+`process.env.SUPABASE_SERVICE_ROLE_KEY` (both server-only). In production
+(`NODE_ENV === "production"`) the secret is required — `resolveActor`
+throws if neither is set, since the local-development fallback is public
+in the repo and would let anyone forge actor cookies. In development the
+fallback `"ardum-local-development-secret"` is used so the demo mode works
+without configuration.
 
 Verification (`verifySignedActor` in `src/identity/signature.ts`) uses
 `crypto.timingSafeEqual` to compare the supplied signature against the

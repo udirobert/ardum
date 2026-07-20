@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
+import { verifyMessage } from "ethers";
 import { applyEpisodeCommand, createEpisode } from "@/episodes/service";
-import { resolveActor } from "@/identity/actor";
 import { listAttestations } from "@/lib/og-storage";
+import {
+  canonicalAgentMatchMessage,
+  type AgentMatchAuthorization,
+} from "@/booking/canonical";
+import { verifyTimestamp, consumeNonce } from "@/booking/agent-replay";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +16,19 @@ export const dynamic = "force-dynamic";
 // This is the discovery layer — agents call this to find retreats that fit
 // their user's needs, then call /api/agent/book to execute the booking.
 //
+// Authenticated: the agent signs a canonical message (intention + agentAddress
+// + nonce + timestamp). The recovered address becomes the episode's actorId,
+// which /api/agent/book later checks. This binds the episode to the agent's
+// EOA — no cookie, no orphaned episodes.
+//
 // Request:
 //   {
 //     "intention": "I need a quiet week before October. Solitude matters.",
 //     "desiredShift": "Come back to my edges with a little softness.",
+//     "agentAddress": "0x...",
+//     "nonce": "random-8+-char-string",
+//     "timestamp": 1700000000,
+//     "signature": "0x...",  // EIP-191 personal_sign of canonicalAgentMatchMessage
 //     "constraints": {
 //       "energy": "settled" | "in-movement" | "low" | "sharp",
 //       "budget": "under-500" | "500-1k" | "1k-2k" | "2k-plus",
@@ -24,23 +38,13 @@ export const dynamic = "force-dynamic";
 //
 // Response (HTTP 200):
 //   {
-//     "matches": [
-//       {
-//         "retreatTitle": "Sidemen Restoration Retreat",
-//         "retreatRootHash": "bali-sidemen-...",
-//         "operatorAddress": "0x...",
-//         "priceUsd": 1200,
-//         "description": "...",
-//         "location": "Bali, Indonesia",
-//         "duration": "7 days"
-//       }
-//     ],
-//     "episodeId": "uuid"  // created for this matching session
+//     "matches": [...],
+//     "episodeId": "uuid"  // actorId === agentAddress
 //   }
 
-type MatchRequest = {
-  intention: string;
+type MatchRequest = AgentMatchAuthorization & {
   desiredShift?: string;
+  signature: string;
   constraints?: {
     energy?: "settled" | "in-movement" | "low" | "sharp";
     budget?: "under-500" | "500-1k" | "1k-2k" | "2k-plus";
@@ -56,27 +60,65 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  if (!body.intention || body.intention.trim().length < 10) {
+  const { intention, desiredShift, agentAddress, nonce, timestamp, signature } = body;
+
+  if (!intention || intention.trim().length < 10) {
     return NextResponse.json(
       { error: "intention is required (min 10 characters)" },
       { status: 400 },
     );
   }
-
-  // Create an episode to run the matching through the real pipeline
-  const actorId = await resolveActor({ create: true });
-  if (!actorId) {
+  if (!agentAddress || !/^0x[a-fA-F0-9]{40}$/.test(agentAddress)) {
     return NextResponse.json(
-      { error: "Could not establish ownership." },
-      { status: 500 },
+      { error: "agentAddress is required (0x-prefixed 20-byte address)." },
+      { status: 400 },
     );
   }
+  if (!nonce || !signature || typeof timestamp !== "number") {
+    return NextResponse.json(
+      { error: "Missing agentAddress, nonce, timestamp, or signature." },
+      { status: 400 },
+    );
+  }
+
+  // Replay protection
+  const tsCheck = verifyTimestamp(timestamp);
+  if (!tsCheck.ok) {
+    return NextResponse.json({ error: tsCheck.reason }, { status: 400 });
+  }
+  const nonceCheck = consumeNonce(agentAddress, nonce);
+  if (!nonceCheck.ok) {
+    return NextResponse.json({ error: nonceCheck.reason }, { status: 400 });
+  }
+
+  // Verify the agent's signature over the canonical match message
+  const matchMessage = canonicalAgentMatchMessage({
+    intention,
+    agentAddress,
+    nonce,
+    timestamp,
+  });
+  let recovered: string;
+  try {
+    recovered = verifyMessage(matchMessage, signature);
+  } catch {
+    return NextResponse.json({ error: "Invalid signature." }, { status: 400 });
+  }
+  if (recovered.toLowerCase() !== agentAddress.toLowerCase()) {
+    return NextResponse.json(
+      { error: "Signature does not match agent address.", recovered, expected: agentAddress },
+      { status: 403 },
+    );
+  }
+
+  // The agent's EOA is the episode owner. /api/agent/book checks this.
+  const actorId = agentAddress;
 
   // Capture the intention — agent calls set persistenceConsent=true
   // because the agent is acting on behalf of a user who has consented
   const episode = await createEpisode(actorId, {
-    statement: body.intention,
-    desiredShift: body.desiredShift ?? "",
+    statement: intention,
+    desiredShift: desiredShift ?? "",
     persistenceConsent: true,
   });
 
@@ -185,6 +227,11 @@ export async function GET() {
     requestSchema: {
       intention: "string (required, min 10 chars) — what the user wants to make space for",
       desiredShift: "string (optional) — the desired outcome",
+      agentAddress: "string (required) — agent's EOA address (0x-prefixed)",
+      nonce: "string (required, min 8 chars) — single-use random string",
+      timestamp: "number (required) — unix seconds, within 5 min of server clock",
+      signature:
+        "string (required) — EIP-191 personal_sign of 'Ardum agent match authorization v1\\nintention: <intention>\\nagentAddress: <addr>\\nnonce: <nonce>\\ntimestamp: <unix-seconds>'",
       constraints: {
         energy: "settled | in-movement | low | sharp",
         budget: "under-500 | 500-1k | 1k-2k | 2k-plus",

@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { runDueAutomation } from "@/automation/runner";
 
 export const dynamic = "force-dynamic";
 
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
+
 export async function POST(request: Request) {
   const configured = process.env.AUTOMATION_SECRET;
   const supplied = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!configured || supplied !== configured) {
+  if (!configured || !supplied || !safeEqual(supplied, configured)) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
   // Structured response — see scripts/verify-automation.mjs. The

@@ -160,12 +160,15 @@ other agent marketplaces. See [ADR 0009](docs/decisions/0009-agent-api.md).
 
 | Endpoint | Purpose |
 |---|---|
-| `GET/POST /api/agent/match` | Intention + constraints → matched retreat(s) |
+| `GET/POST /api/agent/match` | Signed intention + constraints → matched retreat(s) + episode |
 | `GET/POST /api/agent/attest` | Retreat details → validated attestation + pre-fill URL |
-| `GET/POST /api/agent/book` | Signed booking intent → attestation on 0G + episode booked |
+| `GET/POST /api/agent/book` | Signed booking authorization → on-chain deposit verified + attestation on 0G |
 
-Each `GET` returns a service-discovery response. Agent calls use
-signature-based identity (EIP-191 `personal_sign`), not cookies.
+Each `GET` returns a service-discovery response. Both `/api/agent/match`
+and `/api/agent/book` use signature-based identity (EIP-191 `personal_sign`
+with nonce + timestamp replay protection), not cookies. The recovered
+address becomes the episode's `actorId`; `/api/agent/book` checks ownership
+and verifies the claimed deposit tx on-chain before recording the booking.
 
 The operator flow is de-jargoned: a non-crypto yoga teacher signs in with
 Google, fills out a form, and clicks "Publish retreat." The crypto

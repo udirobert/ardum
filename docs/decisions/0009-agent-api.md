@@ -47,23 +47,43 @@ schema, so agents (and marketplace reviewers) can introspect before calling.
 
 ### 2. Signature-based identity for agent calls
 
-Agent API calls don't use cookies. The booking endpoint verifies identity
-via EIP-191 `personal_sign`: the agent signs a canonical message containing
-`episodeId`, `retreatRootHash`, `depositTxHash`, `depositUsd`, and
-`agentAddress`. The server verifies the signature recovers to the claimed
-agent address.
+Agent API calls don't use cookies. Both `/api/agent/match` and
+`/api/agent/book` verify identity via EIP-191 `personal_sign` over a
+canonical message that includes `agentAddress`, a single-use `nonce`, and a
+`timestamp` (unix seconds). The server:
 
-### 3. Repository `get` without ownership filter
+- verifies the signature recovers to the claimed `agentAddress`;
+- rejects timestamps outside a ±5-minute skew window;
+- rejects nonces already used by that agent within the window
+  (in-memory cache; back with a shared store for multi-instance prod).
 
-The episode repository gained a `get(episodeId)` method that looks up an
-episode without filtering by actor. This is used only by the agent booking
-endpoint, where identity is proven by signature, not cookie. The existing
-`getOwned(actorId, episodeId)` remains the default for all cookie-based
-flows.
+The booking message also covers `episodeId`, `retreatRootHash`,
+`operatorAddress`, `depositTxHash`, and `depositUsd` — so the agent's
+choice of operator and amount is cryptographically bound, and the
+authorization cannot be replayed for a different episode or deposit.
 
-`applyEpisodeCommand` gained a `skipOwnershipCheck` flag for the same
-purpose. When true, it uses `get` instead of `getOwned` and passes the
-episode's actual `actorId` to `save`.
+### 3. Episode ownership via authenticated match
+
+`/api/agent/match` is authenticated: the recovered signature address
+becomes the new episode's `actorId`. `/api/agent/book` then checks
+`episode.actorId === agentAddress` before recording the commitment — no
+`skipOwnershipCheck`. The repository's `get(episodeId)` method (no actor
+filter) is still used on this path, but ownership is enforced by the
+actorId match, not skipped. The existing `getOwned(actorId, episodeId)`
+remains the default for all cookie-based flows.
+
+`applyEpisodeCommand` retains its `skipOwnershipCheck` flag for narrow
+internal use, but the agent booking endpoint no longer sets it.
+
+### 3a. On-chain deposit verification
+
+`/api/agent/book` does not trust the claimed `depositTxHash`. The server
+fetches the transaction + receipt from the settle RPC and verifies the
+sender equals `agentAddress`, the receipt status is 1, and — for direct
+USDC `transfer(address,uint256)` calls — the recipient and amount match
+the expected escrow/operator and `depositUsd`. Non-USDC-transfer txs
+(Particle UA Type-4 bundles, escrow `deposit()`) verify sender + success
+only; the response surfaces `depositVerification: "full" | "sender"`.
 
 ### 4. Operator flow: de-jargoned + agent-assisted
 
@@ -111,8 +131,15 @@ writes without re-signing each one.
 - The agent API is the distribution channel. Listing on OKX.AI (or any
   agent marketplace) makes Ardum discoverable by any AI agent that needs
   travel booking infrastructure.
-- The `get` method and `skipOwnershipCheck` flag are narrow additions
-  scoped to the agent API path. Cookie-based flows are unchanged.
+- Both agent endpoints require a signed message; unauthenticated episode
+  creation is no longer possible. The `get` method remains in the
+  repository, but ownership is enforced via the `actorId === agentAddress`
+  check rather than `skipOwnershipCheck`. Cookie-based flows are unchanged.
+- The on-chain deposit is verified server-side before any booking
+  attestation is written. A bare `depositTxHash` string can no longer mint
+  a "deposit-confirmed" attestation.
+- Replay protection (nonce + timestamp) means a captured agent signature
+  is only valid within a 5-minute window and only once per agent.
 - The operator flow is now usable by non-crypto users. The crypto
   infrastructure (Particle Auth, ZeroDev, 0G, Arbitrum) is real but
   invisible behind "Sign in with Google."

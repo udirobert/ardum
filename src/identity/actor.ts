@@ -7,11 +7,18 @@ const COOKIE_NAME = "ardum-actor";
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
 function secret(): string {
-  return (
-    process.env.ARDUM_ACTOR_SECRET ??
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    "ardum-local-development-secret"
-  );
+  const explicit = process.env.ARDUM_ACTOR_SECRET;
+  if (explicit) return explicit;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (supabaseKey) return supabaseKey;
+  // Production must set a real secret — the fallback is public in the repo
+  // and would let anyone forge actor cookies and impersonate users.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "ARDUM_ACTOR_SECRET (or SUPABASE_SERVICE_ROLE_KEY) must be set in production.",
+    );
+  }
+  return "ardum-local-development-secret";
 }
 
 function parse(value: string | undefined): string | null {

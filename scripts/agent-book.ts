@@ -8,13 +8,17 @@
 // authorization and the deposit rootHash with its own key — no Magic social
 // login required, no human in the loop after the grant.
 //
+// Uses the authenticated agent API: /api/agent/match (signed) → on-chain
+// deposit → /api/agent/book (signed). No cookies — the agent's EOA is the
+// episode owner, verified by signature.
+//
 // Usage:
 //   npx tsx scripts/agent-book.ts                          # localhost:3000
-//   npx tsx scripts/agent-book.ts https://ardum.vercel.app # deployed
+//   npx tsx scripts/agent-book.ts https://ardum.famile.xyz # deployed
 //
 // Requires:
 //   AGENT_BOOKER_PRIVATE_KEY in .env.local — funded with USDC on Arbitrum Sepolia
-//   NEXT_PUBLIC_PARTICLE_* — Particle project credentials
+//   NEXT_PUBLIC_PARTICLE_* — Particle project credentials (mainnet UA path)
 //   NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS — deployed escrow contract
 
 import {
@@ -32,6 +36,7 @@ import {
   verifyMessage,
 } from "ethers";
 import { readFileSync } from "fs";
+import { randomBytes as nodeRandomBytes } from "node:crypto";
 import { join } from "path";
 
 // ── Load .env.local ──────────────────────────────────────────────────────
@@ -74,60 +79,61 @@ function signEIP7702Auth(
   return Signature.from({ r: sig.r, s: sig.s, v: sig.v }).serialized;
 }
 
-// ── Canonical booking message (mirrors src/booking/canonical.ts) ─────────
-function canonicalBookingMessage(b: {
-  rootHash: string;
-  claims: {
-    retreatRootHash: string;
-    practitionerAddress: string;
-    operatorAddress: string;
-    depositUsd: number;
-    depositToken: string;
-    depositTxId?: string;
-    escrowAddress?: string;
-    status: string;
-    bookedAt: string;
-  };
+// ── Canonical agent messages (mirror src/booking/canonical.ts) ───────────
+function canonicalAgentMatchMessage(a: {
+  intention: string;
+  agentAddress: string;
+  nonce: string;
+  timestamp: number;
 }): string {
   return [
-    "Ardum booking attestation v1",
-    `rootHash: ${b.rootHash}`,
-    `retreatRootHash: ${b.claims.retreatRootHash}`,
-    `practitioner: ${b.claims.practitionerAddress}`,
-    `operator: ${b.claims.operatorAddress}`,
-    `depositUsd: ${b.claims.depositUsd}`,
-    `depositToken: ${b.claims.depositToken}`,
-    `depositTxId: ${b.claims.depositTxId ?? ""}`,
-    `escrowAddress: ${b.claims.escrowAddress ?? ""}`,
-    `status: ${b.claims.status}`,
-    `bookedAt: ${b.claims.bookedAt}`,
+    "Ardum agent match authorization v1",
+    `intention: ${a.intention}`,
+    `agentAddress: ${a.agentAddress}`,
+    `nonce: ${a.nonce}`,
+    `timestamp: ${a.timestamp}`,
   ].join("\n");
 }
 
-// ── API helpers ──────────────────────────────────────────────────────────
-const cookieJar = new Map<string, string>();
-
-function captureCookies(res: Response) {
-  const setCookies = (res.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ?? [];
-  for (const sc of setCookies) {
-    const eq = sc.indexOf("=");
-    if (eq < 0) continue;
-    const name = sc.slice(0, eq);
-    const value = sc.slice(eq + 1).split(";")[0];
-    if (name) cookieJar.set(name, value);
-  }
+function canonicalAgentBookingMessage(a: {
+  episodeId: string;
+  retreatRootHash: string;
+  operatorAddress: string;
+  depositTxHash: string;
+  depositUsd: number;
+  agentAddress: string;
+  nonce: string;
+  timestamp: number;
+}): string {
+  return [
+    "Ardum agent booking authorization v2",
+    `episodeId: ${a.episodeId}`,
+    `retreatRootHash: ${a.retreatRootHash}`,
+    `operatorAddress: ${a.operatorAddress}`,
+    `depositTxHash: ${a.depositTxHash}`,
+    `depositUsd: ${a.depositUsd}`,
+    `agentAddress: ${a.agentAddress}`,
+    `nonce: ${a.nonce}`,
+    `timestamp: ${a.timestamp}`,
+  ].join("\n");
 }
 
+function makeNonce(): string {
+  return nodeRandomBytes(16).toString("hex");
+}
+
+function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+// ── API helper (no cookies — agent API uses signatures) ──────────────────
 async function api(method: string, path: string, body?: unknown) {
   const init: RequestInit = { method, headers: {} as Record<string, string> };
-  const cookie = [...cookieJar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
-  if (cookie) (init.headers as Record<string, string>).Cookie = cookie;
   if (body !== undefined) {
     (init.headers as Record<string, string>)["Content-Type"] = "application/json";
     init.body = JSON.stringify(body);
   }
   const res = await fetch(`${baseUrl}${path}`, init);
-  captureCookies(res);
   const json = await res.json().catch(() => null);
   return { status: res.status, body: json };
 }
@@ -170,85 +176,53 @@ async function main() {
     process.exit(1);
   }
 
-  // ── 1. Create episode (agent captures the user's intention) ────────────
-  console.log("── 1. Agent captures intention ──────────────────────────────");
-  const epRes = await api("POST", "/api/episodes", {
-    statement: "I need a quiet week before October. Solitude matters more than timing.",
-    desiredShift: "Come back to my edges with a little softness.",
-    persistenceConsent: true,
+  // ── 1. Agent matches a retreat via the authenticated agent API ─────────
+  console.log("── 1. Agent calls /api/agent/match (signed) ──────────────────");
+  const intention = "I need a quiet week before October. Solitude matters more than timing.";
+  const matchNonce = makeNonce();
+  const matchTimestamp = nowSeconds();
+  const matchMessage = canonicalAgentMatchMessage({
+    intention,
+    agentAddress: wallet.address,
+    nonce: matchNonce,
+    timestamp: matchTimestamp,
   });
-  if (epRes.status !== 201) {
-    console.error(`  ✗ Failed to create episode: ${epRes.status} ${JSON.stringify(epRes.body)}`);
+  const matchSignature = await wallet.signMessage(matchMessage);
+  const matchRes = await api("POST", "/api/agent/match", {
+    intention,
+    desiredShift: "Come back to my edges with a little softness.",
+    agentAddress: wallet.address,
+    nonce: matchNonce,
+    timestamp: matchTimestamp,
+    signature: matchSignature,
+    constraints: {
+      energy: "settled",
+      budget: "1k-2k",
+      social: "solo",
+    },
+  });
+  if (matchRes.status !== 200) {
+    console.error(`  ✗ Match failed: ${matchRes.status} ${JSON.stringify(matchRes.body)}`);
     process.exit(1);
   }
-  const episodeId = epRes.body.episode.id;
-  let revision = epRes.body.episode.revision;
-  console.log(`  ✓ Episode: ${episodeId} (rev ${revision})`);
-
-  const send = async (command: unknown) => {
-    const res = await api("POST", `/api/episodes/${episodeId}/actions`, command);
-    return res;
-  };
-
-  // ── 2-4. Clarify energy, budget, social ────────────────────────────────
-  const clarifications = [
-    { energy: "settled" },
-    { budget: "1k-2k" },
-    { social: "solo" },
-  ];
-  for (const [i, constraints] of clarifications.entries()) {
-    const labels = ["energy", "budget", "social"];
-    console.log(`── ${i + 2}. Clarify ${labels[i]} ──────────────────────────────────────`);
-    const res = await send({
-      type: "revise-intention",
-      expectedRevision: revision,
-      constraints,
-      reason: `Agent clarifies ${labels[i]} on behalf of the user.`,
-    });
-    if (res.status !== 200) {
-      console.error(`  ✗ Failed: ${res.status} ${JSON.stringify(res.body)}`);
-      process.exit(1);
-    }
-    revision = res.body.episode.revision;
-    console.log(`  ✓ Status: ${res.body.episode.status}`);
-  }
-
-  // ── 5. Recommend ───────────────────────────────────────────────────────
-  console.log("── 5. Agent requests recommendation ─────────────────────────");
-  const recRes = await send({ type: "recommend", expectedRevision: revision });
-  if (recRes.status !== 200) {
-    console.error(`  ✗ Failed: ${recRes.status} ${JSON.stringify(recRes.body)}`);
-    process.exit(1);
-  }
-  revision = recRes.body.episode.revision;
-  const match = recRes.body.episode.recommendation?.result;
-  if (!match) {
+  const episodeId = matchRes.body.episodeId;
+  const topMatch = matchRes.body.topMatch;
+  if (!topMatch) {
     console.error("  ✗ No recommendation returned");
     process.exit(1);
   }
-  console.log(`  ✓ Match: ${match.retreatTitle}`);
-  console.log(`    Root hash: ${match.retreatRootHash?.slice(0, 22)}…`);
-  console.log(`    Operator:  ${match.attestor?.slice(0, 10)}…${match.attestor?.slice(-8)}`);
-  console.log(`    Price:     $${match.priceUsd ?? "N/A"}`);
+  console.log(`  ✓ Episode: ${episodeId} (owner: ${wallet.address.slice(0, 10)}…)`);
+  console.log(`  ✓ Match:   ${topMatch.retreatTitle}`);
+  console.log(`    Root hash: ${topMatch.retreatRootHash?.slice(0, 22)}…`);
+  console.log(`    Operator:  ${topMatch.operatorAddress?.slice(0, 10)}…${topMatch.operatorAddress?.slice(-8)}`);
+  console.log(`    Price:     $${topMatch.priceUsd ?? "N/A"}`);
 
-  const retreatRootHash = match.retreatRootHash;
-  const retreatTitle = match.retreatTitle;
-  const operatorAddress = match.attestor ?? "0x0000000000000000000000000000000000000000";
+  const retreatRootHash = topMatch.retreatRootHash;
+  const operatorAddress = topMatch.operatorAddress;
 
-  // ── 6. Create hold ─────────────────────────────────────────────────────
-  console.log("── 6. Agent places non-binding hold ──────────────────────────");
-  const holdRes = await send({ type: "create-hold", expectedRevision: revision });
-  if (holdRes.status !== 200) {
-    console.error(`  ✗ Failed: ${holdRes.status} ${JSON.stringify(holdRes.body)}`);
-    process.exit(1);
-  }
-  revision = holdRes.body.episode.revision;
-  console.log(`  ✓ Status: ${holdRes.body.episode.status}`);
-  console.log(`    Hold expires: ${holdRes.body.episode.hold?.expiresAt}`);
-
-  // ── 7. Execute the booking — on-chain deposit ─────────────────────────
+  // ── 2. Execute the booking — on-chain deposit ─────────────────────────
   console.log();
-  console.log("── 7. Agent executes booking (on-chain deposit) ─────────────");
+  console.log("── 2. Agent executes booking (on-chain deposit) ─────────────");
   console.log("    This is the autonomous commitment — the agent executes");
   console.log("    an on-chain USDC deposit to escrow without human signing.");
   console.log();
@@ -350,61 +324,53 @@ async function main() {
     depositTxHash = tx.hash;
   }
 
-  // ── 8. Build and sign the booking attestation ──────────────────────────
+  // ── 3. Agent signs the booking authorization and submits to /api/agent/book
   console.log();
-  console.log("── 8. Agent signs booking attestation ───────────────────────");
-  const bookingRootHash = `booking-${retreatRootHash?.slice(0, 16)}-${Date.now().toString(36)}`;
-  const booking = {
-    rootHash: bookingRootHash,
-    kind: "booking" as const,
-    title: `Booking: ${retreatTitle}`,
-    description: `Deposit of $${DEPOSIT_USD} for ${retreatTitle}`,
-    claims: {
-      retreatRootHash,
-      practitionerAddress: wallet.address,
-      operatorAddress,
-      depositUsd: DEPOSIT_USD,
-      depositToken: "USDC",
-      depositChainId: ARBITRUM_SEPOLIA_CHAIN_ID,
-      settleChainId: ARBITRUM_SEPOLIA_CHAIN_ID,
-      depositTxId: depositTxHash,
-      escrowAddress: ESCROW_ADDRESS || undefined,
-      status: "deposit-confirmed" as const,
-      bookedAt: new Date().toISOString(),
-      checkInWindowHours: 168,
-    },
-    attestor: wallet.address,
-    createdAt: new Date().toISOString(),
-  };
-
-  const message = canonicalBookingMessage(booking);
-  const bookingSignature = await wallet.signMessage(message);
-  console.log(`    Root hash:  ${bookingRootHash}`);
-  console.log(`    Signature:  ${bookingSignature.slice(0, 22)}…`);
+  console.log("── 3. Agent signs booking authorization ─────────────────────");
+  const bookNonce = makeNonce();
+  const bookTimestamp = nowSeconds();
+  const bookAuthMessage = canonicalAgentBookingMessage({
+    episodeId,
+    retreatRootHash,
+    operatorAddress,
+    depositTxHash,
+    depositUsd: DEPOSIT_USD,
+    agentAddress: wallet.address,
+    nonce: bookNonce,
+    timestamp: bookTimestamp,
+  });
+  const bookSignature = await wallet.signMessage(bookAuthMessage);
+  console.log(`    Nonce:     ${bookNonce}`);
+  console.log(`    Signature: ${bookSignature.slice(0, 22)}…`);
 
   // Verify locally
-  const recovered = verifyMessage(message, bookingSignature);
+  const recovered = verifyMessage(bookAuthMessage, bookSignature);
   if (recovered.toLowerCase() !== wallet.address.toLowerCase()) {
     console.error(`    ✗ Signature verification failed: expected ${wallet.address}, got ${recovered}`);
     process.exit(1);
   }
   console.log(`    ✓ Signature verified: ${recovered.slice(0, 10)}…${recovered.slice(-8)}`);
 
-  // ── 9. Submit to Ardum API ─────────────────────────────────────────────
   console.log();
-  console.log("── 9. Agent submits booking to Ardum ────────────────────────");
-  const bookRes = await api("POST", "/api/bookings", {
+  console.log("── 4. Agent submits booking to /api/agent/book ──────────────");
+  const bookRes = await api("POST", "/api/agent/book", {
     episodeId,
-    expectedRevision: revision,
-    booking,
-    signature: bookingSignature,
+    retreatRootHash,
+    operatorAddress,
+    depositTxHash,
+    depositUsd: DEPOSIT_USD,
+    agentAddress: wallet.address,
+    nonce: bookNonce,
+    timestamp: bookTimestamp,
+    signature: bookSignature,
   });
   if (bookRes.status !== 200) {
     console.error(`    ✗ Failed: ${bookRes.status} ${JSON.stringify(bookRes.body)}`);
     process.exit(1);
   }
-  console.log(`    ✓ Episode status: ${bookRes.body?.episodeStatus ?? "booked"}`);
-  console.log(`    ✓ Booking root hash: ${bookRes.body?.rootHash?.slice(0, 22)}…`);
+  console.log(`    ✓ Episode status:      ${bookRes.body?.episodeStatus ?? "booked"}`);
+  console.log(`    ✓ Booking root hash:   ${bookRes.body?.bookingRootHash?.slice(0, 22)}…`);
+  console.log(`    ✓ Deposit verification: ${bookRes.body?.depositVerification ?? "N/A"}`);
 
   // ── Summary ────────────────────────────────────────────────────────────
   console.log();
@@ -413,12 +379,10 @@ async function main() {
   console.log("╚══════════════════════════════════════════════════════════════╝");
   console.log();
   console.log("  What happened:");
-  console.log("    1. Agent captured a user's intention via the Ardum API");
-  console.log("    2. Agent clarified energy, budget, social constraints");
-  console.log("    3. Agent requested a recommendation — got a retreat match");
-  console.log("    4. Agent placed a non-binding hold");
-  console.log("    5. Agent executed an on-chain USDC deposit to escrow");
-  console.log("    6. Agent signed and submitted the booking attestation");
+  console.log("    1. Agent signed + called /api/agent/match → episode + retreat match");
+  console.log("    2. Agent executed an on-chain USDC deposit to escrow");
+  console.log("    3. Agent signed the booking authorization (nonce + timestamp)");
+  console.log("    4. Server verified the deposit on-chain + recorded the booking");
   console.log();
   console.log("  The user never touched a wallet, saw a chain name, or paid gas.");
   console.log("  The agent executed the full commitment autonomously.");
@@ -431,11 +395,6 @@ async function main() {
   }
   console.log(`    Agent wallet:    https://sepolia.arbiscan.io/address/${wallet.address}`);
   console.log();
-
-  // Clean up — delete the episode so the demo can be re-run
-  console.log("── Cleanup: deleting demo episode ────────────────────────────");
-  const delRes = await api("DELETE", `/api/episodes/${episodeId}`);
-  console.log(`  ${delRes.status === 200 ? "✓" : "⚠"} Episode deleted: ${episodeId}`);
 }
 
 main().catch((err) => {

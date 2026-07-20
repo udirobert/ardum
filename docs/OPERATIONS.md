@@ -149,17 +149,21 @@ What it does, in order:
 
 1. Loads the agent's EOA from `AGENT_BOOKER_PRIVATE_KEY` (funded with
    ETH + USDC on Arbitrum Sepolia).
-2. **Capture** — POSTs `/api/episodes` with a test intention.
-3. **Clarify** — POSTs energy, budget, and social constraints.
-4. **Recommend** — POSTs the recommend action, gets a retreat match.
-5. **Hold** — POSTs the create-hold action.
-6. **Deposit** — executes an on-chain USDC transfer to the escrow contract.
+2. **Match** — signs the canonical match authorization (intention +
+   `agentAddress` + nonce + timestamp) and POSTs it to
+   `/api/agent/match`. The recovered address becomes the episode's
+   `actorId`. Constraints (energy, budget, social) are included in the
+   same call.
+3. **Deposit** — executes an on-chain USDC transfer to the escrow contract.
    On mainnet chains (Arbitrum One), this routes through Particle UA with
    EIP-7702. On testnet (Sepolia), it's a direct ERC-20 transfer (UA
    supports mainnet only).
-7. **Attest** — signs a booking attestation with EIP-191 `personal_sign`
-   and POSTs it to `/api/bookings`.
-8. **Cleanup** — deletes the demo episode so the script can be re-run.
+4. **Book** — signs the canonical booking authorization (episodeId +
+   retreatRootHash + operatorAddress + depositTxHash + depositUsd +
+   agentAddress + nonce + timestamp) and POSTs it to `/api/agent/book`.
+   The server verifies the signature, checks `episode.actorId ===
+   agentAddress`, fetches the deposit tx from the settle RPC, and only
+   then writes the booking attestation to 0G and marks the episode booked.
 
 ### Prerequisites
 
@@ -197,12 +201,17 @@ Three A2MCP-compatible endpoints for external AI agents. See
 
 | Endpoint | Type | Purpose |
 |---|---|---|
-| `GET/POST /api/agent/match` | Free | Intention + constraints → matched retreat(s) |
+| `GET/POST /api/agent/match` | Free | Signed intention + constraints → matched retreat(s) + episode |
 | `GET/POST /api/agent/attest` | Free | Retreat details → validated attestation + pre-fill URL |
-| `GET/POST /api/agent/book` | Free | Signed booking intent → attestation on 0G + episode booked |
+| `GET/POST /api/agent/book` | Free | Signed booking authorization → on-chain deposit verified + attestation on 0G |
 
 Each `GET` returns a service-discovery response documenting the schema.
-Agents (and marketplace reviewers) can introspect before calling.
+Agents (and marketplace reviewers) can introspect before calling. Both
+`/api/agent/match` and `/api/agent/book` require an EIP-191 `personal_sign`
+over a canonical message including `agentAddress`, `nonce`, and `timestamp`
+(±5 min skew window, single-use nonce). `/api/agent/book` additionally
+verifies the claimed deposit tx on-chain (sender, status, and for direct
+USDC transfers the recipient + amount) before recording the booking.
 
 ### Listing on OKX.AI
 
@@ -212,7 +221,7 @@ To register Ardum as an ASP (Agent Service Provider) on OKX.AI:
 2. Log in to Agentic Wallet (follow the agent prompts)
 3. Register as A2MCP: `Help me register an A2MCP ASP on OKX.AI`
    - Service name: `ardum-retreat-matching`
-   - Endpoint: `https://ardum.vercel.app/api/agent/match`
+   - Endpoint: `https://ardum.famile.xyz/api/agent/match`
    - Type: free
 4. List the ASP: `Help me list my ASP on OKX.AI`
 5. Post on X with `#OKXAI` — 90-second demo

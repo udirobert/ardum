@@ -38,7 +38,7 @@ import {
 import { http, createPublicClient, zeroAddress } from "viem";
 import { arbitrumSepolia } from "viem/chains";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { SETTLE_CHAIN_ID, SETTLE_RPC } from "./constants";
+import { SETTLE_RPC } from "./constants";
 
 type OperatorAuthState = {
   /** Particle EOA address (the owner/signer of the Kernel account). */
@@ -53,7 +53,7 @@ type OperatorAuthState = {
   /** True when a session key has been created and enabled on-chain. */
   sessionKeyActive: boolean;
   createSessionKey: () => Promise<boolean>;
-  /** Send a gasless UserOp through the Kernel account (proves the smart account is live). */
+  /** Send a gasless UserOp through the session-key Kernel account (batch writes). */
   sendGaslessTx: () => Promise<string | null>;
 };
 
@@ -117,10 +117,16 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
   const [particleAuth, setParticleAuth] = useState<unknown>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [kernelClient, setKernelClient] = useState<any>(null);
+  // Session-key Kernel client — built by createSessionKey and used for
+  // gasless batch writes. Stored so the session key survives across calls
+  // (the private key is in localStorage; this client is reconstructed on
+  // connect if a stored key exists).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [sessionKeyClient, setSessionKeyClient] = useState<any>(null);
 
   // The chain — Arbitrum Sepolia for testnet, Arbitrum One for mainnet.
   // ZeroDev Kernel is ERC-4337, so it runs on any supported chain.
-  const chain = SETTLE_CHAIN_ID === 421614 ? arbitrumSepolia : arbitrumSepolia; // Sepolia for now; mainnet swap is a one-liner
+  const chain = arbitrumSepolia; // TODO: swap to arbitrumOne for mainnet (SETTLE_CHAIN_ID === 42161)
 
   // Initialise Particle Auth on mount
   useEffect(() => {
@@ -307,15 +313,21 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
       setSmartAccountAddress(null);
       setSessionKeyActive(false);
       setKernelClient(null);
+      setSessionKeyClient(null);
     } catch {
       // ignore
     }
   }, [particleAuth]);
 
   // Create a real session key: generate a private key, create a session key
-  // validator with sudo policy, and build a Kernel account that uses the
-  // session key as a regular validator. The first UserOp through this account
-  // enables the session key on-chain.
+  // validator with sudo policy, and build a Kernel account client that uses
+  // the session key as a regular validator. The first UserOp through this
+  // client enables the session key on-chain. The client is stored in state
+  // so subsequent gasless writes (sendGaslessTx) route through it.
+  //
+  // TODO: scope the session key policy to specific contract calls (currently
+  // sudo — unrestricted). A sudo session key in localStorage is a high-value
+  // XSS target; narrow its permissions before production.
   const createSessionKey = useCallback(async (): Promise<boolean> => {
     if (!kernelClient || !env?.zerodevApiKey) {
       setError("Need a connected Kernel account to create a session key.");
@@ -326,7 +338,11 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
       const { signerToSessionKeyValidator } = await import(
         "@zerodev/session-key"
       );
-      const { createKernelAccount } = await import("@zerodev/sdk");
+      const {
+        createKernelAccount,
+        createKernelAccountClient,
+        createZeroDevPaymasterClient,
+      } = await import("@zerodev/sdk");
       const { getEntryPoint, KERNEL_V3_1 } = await import(
         "@zerodev/sdk/constants"
       );
@@ -362,9 +378,8 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
         },
       );
 
-      // Build a Kernel account that uses the session key as the regular
-      // validator. The first UserOp through this account enables the session
-      // key on-chain via the sudo validator's signature.
+      // Extract the sudo (ECDSA) validator from the existing kernel client
+      // so the session-key account inherits the operator's ownership.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ecdsaValidator = (kernelClient.account as any).kernelPluginManager
         ?.sudo;
@@ -372,11 +387,9 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
         throw new Error("Could not extract sudo validator from kernel client.");
       }
 
-      // Build the session key account — the first UserOp through this account
-      // enables the session key on-chain. We don't need to store the account
-      // object; the session key private key in localStorage is enough to
-      // reconstruct it for future batch writes.
-      await createKernelAccount(publicClient, {
+      // Build the session-key Kernel account + client (with paymaster). The
+      // first UserOp through this client enables the session key on-chain.
+      const sessionAccount = await createKernelAccount(publicClient, {
         plugins: {
           sudo: ecdsaValidator,
           regular: sessionKeyValidator,
@@ -385,6 +398,25 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
         kernelVersion,
       });
 
+      const rpc = zerodevRpc(env.zerodevApiKey, chain.id);
+      const paymasterClient = createZeroDevPaymasterClient({
+        chain,
+        transport: http(rpc),
+      });
+
+      const sessionClient = createKernelAccountClient({
+        account: sessionAccount,
+        chain,
+        bundlerTransport: http(rpc),
+        client: publicClient,
+        paymaster: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          getPaymasterData: (userOperation: any) =>
+            paymasterClient.sponsorUserOperation({ userOperation }),
+        },
+      });
+
+      setSessionKeyClient(sessionClient);
       setSessionKeyActive(true);
       return true;
     } catch (err) {
@@ -395,19 +427,21 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
     }
   }, [kernelClient, env, chain]);
 
-  // Send a gasless UserOp through the Kernel account. This proves the smart
-  // account is live and the ZeroDev paymaster is sponsoring gas. The UserOp
-  // is a 0-value self-transfer — minimal but genuine on-chain execution.
+  // Send a gasless UserOp. Prefers the session-key client (batch writes
+  // without re-signing); falls back to the owner kernel client if no session
+  // key is active. The UserOp is a 0-value self-transfer — minimal but
+  // genuine on-chain execution that proves the smart account is live.
   const sendGaslessTx = useCallback(async (): Promise<string | null> => {
-    if (!kernelClient) {
+    const client = sessionKeyClient ?? kernelClient;
+    if (!client) {
       setError("Kernel client not initialised.");
       return null;
     }
     setError(null);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const account = kernelClient.account as any;
-      const userOpHash = await kernelClient.sendUserOperation({
+      const account = client.account as any;
+      const userOpHash = await client.sendUserOperation({
         callData: await account.encodeCalls([
           {
             to: zeroAddress,
@@ -417,7 +451,7 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
         ]),
       });
       // Wait for the UserOp to be included on-chain
-      const receipt = await kernelClient.waitForUserOperationReceipt({
+      const receipt = await client.waitForUserOperationReceipt({
         hash: userOpHash,
       });
       return (
@@ -430,7 +464,7 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
       );
       return null;
     }
-  }, [kernelClient]);
+  }, [kernelClient, sessionKeyClient]);
 
   const value: OperatorAuthState = {
     address,

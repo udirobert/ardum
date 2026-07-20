@@ -60,13 +60,36 @@ The invitation view exposes the minimum proposal fields approved by the owner.
 
 ### Agent API identity
 
-Agent API calls (`/api/agent/*`) don't use cookies. The booking endpoint
-verifies identity via EIP-191 `personal_sign`: the agent signs a canonical
-message and the server verifies the signature recovers to the claimed
-address. The repository's `get(episodeId)` method (no actor filter) is used
-only on this path; `applyEpisodeCommand` accepts a `skipOwnershipCheck` flag
-for the same purpose. Cookie-based flows are unchanged. See
-[0009-agent-api](decisions/0009-agent-api.md).
+Agent API calls (`/api/agent/*`) don't use cookies. Identity is proven by
+EIP-191 `personal_sign` over a canonical message that includes a nonce and
+timestamp; the server verifies the signature recovers to the claimed
+`agentAddress` and rejects replays outside a 5-minute skew window or with a
+reused nonce.
+
+`/api/agent/match` is now authenticated: the recovered address becomes the
+episode's `actorId`. `/api/agent/book` checks `episode.actorId ===
+agentAddress` — no `skipOwnershipCheck`. The repository's `get(episodeId)`
+method (no actor filter) is still used on this path, but ownership is
+enforced by the actorId match, not skipped. Cookie-based flows are
+unchanged. See [0009-agent-api](decisions/0009-agent-api.md).
+
+### Agent booking deposit verification
+
+`/api/agent/book` does not trust the claimed `depositTxHash`. The server
+fetches the transaction + receipt from the settle RPC and verifies:
+
+- the transaction exists and is confirmed (blockNumber present);
+- the receipt status is 1 (not reverted);
+- the transaction sender equals `agentAddress`;
+- for direct USDC `transfer(address,uint256)` calls, the recipient equals
+  the configured escrow (or operator) and the amount equals `depositUsd`
+  at 6 decimals.
+
+Non-USDC-transfer transactions (Particle UA Type-4 bundles, escrow
+`deposit()` calls) verify sender + success only; the internal value move
+is not directly inspectable via simple RPC. The response surfaces
+`depositVerification: "full" | "sender"` so consumers know which check
+passed.
 
 ## Persistence
 
