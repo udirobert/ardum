@@ -10,6 +10,7 @@ import type { Retreat } from "@/inventory/retreat";
 import RetreatImage from "./RetreatImage";
 import AmbientCanvas from "./AmbientCanvas";
 import MiraNote from "./MiraNote";
+import WebGPUCommitmentTransition from "./WebGPUCommitmentTransition";
 
 interface RetreatExplorationViewProps {
   // Hook mode props (for EpisodeWorkbench)
@@ -52,6 +53,7 @@ export default function RetreatExplorationView({
   const [activeTarget, setActiveTarget] = useState<{ x: number; y: number } | null>(null);
   const [hasConversed, setHasConversed] = useState(false);
   const [input, setInput] = useState("");
+  const [committingRetreat, setCommittingRetreat] = useState<Retreat | null>(null);
   
   // Track retreat array identity for motion path transitions
   const [transitioning, setTransitioning] = useState(false);
@@ -139,10 +141,14 @@ export default function RetreatExplorationView({
   };
   
   const handleCommit = (retreatId: string) => {
-    if (isDirectMode && propOnCommit) {
-      propOnCommit(retreatId);
-    } else if (!isDirectMode) {
-      hookResult.onCommit(retreatId);
+    const retreat = retreats.find(r => r.id === retreatId);
+    if (retreat) {
+      setCommittingRetreat(retreat);
+      if (isDirectMode && propOnCommit) {
+        propOnCommit(retreatId);
+      } else if (!isDirectMode) {
+        hookResult.onCommit(retreatId);
+      }
     }
   };
 
@@ -221,7 +227,7 @@ export default function RetreatExplorationView({
 
       {/* Commit CTA - floating above scroll when active */}
       <AnimatePresence>
-        {activeRetreat && hasConversed && (
+        {activeRetreat && hasConversed && !committingRetreat && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -244,6 +250,17 @@ export default function RetreatExplorationView({
         )}
       </AnimatePresence>
 
+      {/* WebGPU Commitment Transition */}
+      <AnimatePresence>
+        {committingRetreat && (
+          <WebGPUCommitmentTransition
+            retreat={committingRetreat}
+            isActive={true}
+            onComplete={() => setCommittingRetreat(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Scroll container - full-screen retreat images */}
       <div ref={containerRef} className="relative z-10">
         {retreats.length > 0 ? (
@@ -255,7 +272,6 @@ export default function RetreatExplorationView({
               isActive={index === safeIndex}
               onSelect={() => handleSelect(retreat.id, index)}
               transitioning={transitioning}
-              orbPosition={activeTarget}
             />
           ))
         ) : (

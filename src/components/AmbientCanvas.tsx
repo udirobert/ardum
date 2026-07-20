@@ -2,14 +2,21 @@
 
 import { useRef, useEffect } from "react";
 import type { Retreat } from "@/inventory/retreat";
+import { extractColorsFromImage, type ExtractedPalette } from "@/lib/color-extraction";
+import { useReducedMotion } from "framer-motion";
 
 interface AmbientCanvasProps {
   retreat: Retreat | null;
 }
 
+const paletteCache = new Map<string, ExtractedPalette>();
+
 export default function AmbientCanvas({ retreat }: AmbientCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | undefined>(undefined);
+  const prefersReducedMotion = useReducedMotion();
+  const heroImage = retreat?.heroImage ?? null;
+  const fallbackPalette = retreat?.palette ?? null;
   
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -18,7 +25,6 @@ export default function AmbientCanvas({ retreat }: AmbientCanvasProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Set canvas size
     const resize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
@@ -26,50 +32,61 @@ export default function AmbientCanvas({ retreat }: AmbientCanvasProps) {
     resize();
     window.addEventListener("resize", resize);
 
-    // Animation loop
+    let currentPalette: ExtractedPalette | null = fallbackPalette;
+
+    // Extract colors asynchronously; update palette when ready
+    if (heroImage) {
+      const cached = paletteCache.get(heroImage);
+      if (cached) {
+        currentPalette = cached;
+      } else {
+        extractColorsFromImage(heroImage).then((palette) => {
+          if (palette) {
+            paletteCache.set(heroImage, palette);
+            currentPalette = palette;
+          }
+        });
+      }
+    }
+
     let time = 0;
+    const speed = prefersReducedMotion ? 0 : 0.01;
+    
     const animate = () => {
-      time += 0.01;
+      time += speed;
       
-      // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Draw radial gradient based on retreat palette
-      if (retreat) {
-        const colors = retreat.palette;
-        
-        // Primary gradient (large, slow-moving)
+      if (currentPalette) {
         const primaryX = canvas.width * (0.5 + 0.3 * Math.sin(time * 0.5));
         const primaryY = canvas.height * (0.5 + 0.3 * Math.cos(time * 0.3));
         const primaryGradient = ctx.createRadialGradient(
           primaryX, primaryY, 0,
           primaryX, primaryY, canvas.width * 0.8
         );
-        primaryGradient.addColorStop(0, hexToRgba(colors.primary, 0.4));
+        primaryGradient.addColorStop(0, hexToRgba(currentPalette.primary, 0.4));
         primaryGradient.addColorStop(1, "transparent");
         ctx.fillStyle = primaryGradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Secondary gradient (medium, counter-rotating)
         const secondaryX = canvas.width * (0.5 + 0.4 * Math.cos(time * 0.7));
         const secondaryY = canvas.height * (0.5 + 0.4 * Math.sin(time * 0.5));
         const secondaryGradient = ctx.createRadialGradient(
           secondaryX, secondaryY, 0,
           secondaryX, secondaryY, canvas.width * 0.6
         );
-        secondaryGradient.addColorStop(0, hexToRgba(colors.secondary, 0.3));
+        secondaryGradient.addColorStop(0, hexToRgba(currentPalette.secondary, 0.3));
         secondaryGradient.addColorStop(1, "transparent");
         ctx.fillStyle = secondaryGradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Accent gradient (small, fast-moving)
         const accentX = canvas.width * (0.5 + 0.5 * Math.sin(time * 1.2));
         const accentY = canvas.height * (0.5 + 0.5 * Math.cos(time * 0.9));
         const accentGradient = ctx.createRadialGradient(
           accentX, accentY, 0,
           accentX, accentY, canvas.width * 0.4
         );
-        accentGradient.addColorStop(0, hexToRgba(colors.accent, 0.25));
+        accentGradient.addColorStop(0, hexToRgba(currentPalette.accent, 0.25));
         accentGradient.addColorStop(1, "transparent");
         ctx.fillStyle = accentGradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -86,7 +103,7 @@ export default function AmbientCanvas({ retreat }: AmbientCanvasProps) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [retreat]);
+  }, [heroImage, fallbackPalette, prefersReducedMotion]);
 
   return (
     <canvas
