@@ -19,6 +19,7 @@ interface RetreatExplorationViewProps {
   miraNote?: string;
   onUserMessage?: (text: string) => void | Promise<void>;
   onCommit?: (retreatId: string) => void;
+  onSelect?: (retreatId: string) => void;
   busy?: boolean;
 }
 
@@ -29,6 +30,7 @@ export default function RetreatExplorationView({
   miraNote: propMiraNote,
   onUserMessage: propOnUserMessage,
   onCommit: propOnCommit,
+  onSelect: propOnSelect,
   busy: propBusy,
 }: RetreatExplorationViewProps) {
   // Determine mode: if retreats prop is provided, use direct mode
@@ -42,7 +44,6 @@ export default function RetreatExplorationView({
   // Select data source based on mode
   const retreats = isDirectMode ? propRetreats : hookResult.retreats;
   const miraNote = isDirectMode ? propMiraNote : hookResult.miraNote;
-  const state = isDirectMode ? (propBusy ? "idle" : "idle") : hookResult.state;
   const busy = isDirectMode ? (propBusy ?? false) : (hookResult.state !== "idle");
   
   // Integrate with Mira's field - tell the orb what's happening
@@ -72,6 +73,13 @@ export default function RetreatExplorationView({
       hookResult.onCommit(retreatId);
     }
   };
+
+  const handleSelect = (retreatId: string, index: number) => {
+    setActiveIndex(index);
+    if (isDirectMode && propOnSelect) {
+      propOnSelect(retreatId);
+    }
+  };
   
   const [activeIndex, setActiveIndex] = useState(0);
   const [input, setInput] = useState("");
@@ -94,83 +102,87 @@ export default function RetreatExplorationView({
   };
 
   return (
-    <div className="relative z-10 space-y-8 py-8">
-      {/* Mira note */}
-      <MiraNote animate>
-        {miraNote ??
-          "Here are a few places that match the shape of what you described. Scroll through them, and tell me what feels closer."}
-      </MiraNote>
+    <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 py-8">
+      {/* Left column: Mira + input, sticky on desktop */}
+      <div className="lg:sticky lg:top-32 lg:self-start lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto space-y-8 order-2 lg:order-1">
+        <MiraNote animate>
+          {miraNote ??
+            "Here are a few places that match the shape of what you described. Scroll through them, and tell me what feels closer."}
+        </MiraNote>
 
-      {/* Retreat cards with animated transitions */}
-      <AnimatePresence mode="popLayout">
-        <motion.div 
-          layout
-          className="space-y-6"
-          transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-        >
-          {retreats.map((retreat, index) => (
-            <RetreatCard
-              key={retreat.id}
-              retreat={retreat}
-              isActive={index === safeIndex}
-              onSelect={() => setActiveIndex(index)}
-              className="cursor-pointer"
-            />
-          ))}
-        </motion.div>
-      </AnimatePresence>
+        {/* Commit CTA when a retreat is selected */}
+        <AnimatePresence>
+          {activeRetreat && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3 }}
+              className="flex flex-col gap-4"
+            >
+              <button
+                type="button"
+                onClick={() => handleCommit(activeRetreat.id)}
+                disabled={busy}
+                className="px-6 py-3 rounded-sm bg-[#f6efe3] text-[#0c0806] disabled:opacity-40 transition-opacity w-full sm:w-auto"
+              >
+                Hold {activeRetreat.title.split(" ").slice(0, 2).join(" ")} for 48 hours
+              </button>
+              <p className="text-sm text-[#f6efe3]/70">
+                Non-binding. No charge until you confirm.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Commit CTA when a retreat is selected */}
-      <AnimatePresence>
-        {activeRetreat && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.3 }}
-            className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-4"
+        {/* Conversation input - part of the sticky left column on desktop */}
+        <div className="pt-2">
+          <div
+            className="max-w-3xl mx-auto lg:mx-0 rounded-full border backdrop-blur-md px-4 sm:px-6 py-3 flex items-center gap-3"
+            style={{
+              background: "rgba(16,10,8,0.6)",
+              borderColor: "rgba(246,239,227,0.15)",
+            }}
           >
+            <input
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Tell Mira what feels closer…"
+              disabled={busy}
+              className="flex-1 bg-transparent border-none outline-none text-[#f6efe3] placeholder:text-[#f6efe3]/40 text-base py-2"
+            />
             <button
               type="button"
-              onClick={() => handleCommit(activeRetreat.id)}
-              disabled={busy}
-              className="px-6 py-3 rounded-sm bg-[#f6efe3] text-[#0c0806] disabled:opacity-40 transition-opacity"
+              onClick={handleSend}
+              disabled={busy || !input.trim()}
+              className="px-4 py-2 rounded-full bg-[#a85a3a] text-[#f6efe3] text-sm font-medium disabled:opacity-40 transition-opacity"
             >
-              Hold {activeRetreat.title.split(" ").slice(0, 2).join(" ")} for 48 hours
+              {busy ? "…" : "Send"}
             </button>
-            <p className="text-sm text-[#f6efe3]/70">
-              Non-binding. No charge until you confirm.
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Conversation input - not sticky, flows naturally */}
-      <div className="pt-6">
-        <div
-          className="max-w-3xl mx-auto rounded-full border backdrop-blur-md px-4 sm:px-6 py-3 flex items-center gap-3"
-          style={{
-            background: "rgba(16,10,8,0.6)",
-            borderColor: "rgba(246,239,227,0.15)",
-          }}
-        >
-          <input
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Tell Mira what feels closer…"
-            disabled={busy}
-            className="flex-1 bg-transparent border-none outline-none text-[#f6efe3] placeholder:text-[#f6efe3]/40 text-base py-2"
-          />
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={busy || !input.trim()}
-            className="px-4 py-2 rounded-full bg-[#a85a3a] text-[#f6efe3] text-sm font-medium disabled:opacity-40 transition-opacity"
-          >
-            {busy ? "…" : "Send"}
-          </button>
+          </div>
         </div>
+      </div>
+
+      {/* Right column: scrollable retreat cards */}
+      <div className="order-1 lg:order-2">
+        <AnimatePresence mode="popLayout">
+          <motion.div
+            layout
+            className="space-y-6"
+            transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+          >
+            {retreats.map((retreat, index) => (
+              <RetreatCard
+                key={retreat.id}
+                retreat={retreat}
+                isActive={index === safeIndex}
+                onSelect={() => handleSelect(retreat.id, index)}
+                className="cursor-pointer"
+              />
+            ))}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );

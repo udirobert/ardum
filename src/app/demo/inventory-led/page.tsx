@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import RetreatExplorationView from "@/components/RetreatExplorationView";
+import RetreatWaves from "@/components/RetreatWaves";
 import { MOCK_RETREATS, findRetreatById } from "@/inventory/mock-catalog";
 import type { Retreat } from "@/inventory/retreat";
 
@@ -12,6 +13,7 @@ export default function InventoryLedDemo() {
   );
   const [busy, setBusy] = useState(false);
   const [committed, setCommitted] = useState<string | null>(null);
+  const [activeRetreat, setActiveRetreat] = useState<Retreat | null>(null);
 
   const handleUserMessage = async (text: string) => {
     setBusy(true);
@@ -51,6 +53,7 @@ export default function InventoryLedDemo() {
     }
 
       setRetreats(next);
+      setActiveRetreat(next[0] ?? null);
       setMiraNote(note);
     } finally {
       setBusy(false);
@@ -61,7 +64,15 @@ export default function InventoryLedDemo() {
     const retreat = findRetreatById(retreatId);
     if (!retreat) return;
     setCommitted(retreat.title);
+    setActiveRetreat(retreat);
     setMiraNote(`I can place a non-binding hold on ${retreat.title} for 48 hours. This is just a demo — no real hold is made.`);
+  };
+
+  const handleSelect = (retreatId: string) => {
+    const retreat = findRetreatById(retreatId);
+    if (retreat) {
+      setActiveRetreat(retreat);
+    }
   };
 
   return (
@@ -76,11 +87,13 @@ export default function InventoryLedDemo() {
           </p>
         )}
       </div>
+      <RetreatWaves retreat={activeRetreat ?? retreats[0] ?? null} />
       <RetreatExplorationView
         retreats={retreats}
         miraNote={miraNote}
         onUserMessage={handleUserMessage}
         onCommit={handleCommit}
+        onSelect={handleSelect}
         busy={busy}
       />
     </main>
