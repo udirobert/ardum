@@ -5,13 +5,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import MiraOrb, { preloadMiraScene } from "@/components/MiraOrb";
 import { useMiraField } from "@/components/MiraField";
-import DecisionSlide from "@/components/DecisionSlide";
-import StaggerReveal from "@/components/StaggerReveal";
-import {
-  BudgetChoice,
-  EnergyChoice,
-  SocialChoice,
-} from "@/components/MiraChoices";
+import RetreatExplorationView from "@/components/RetreatExplorationView";
 import { readAestheticVector } from "@/aesthetics/aesthetic-store";
 import type { MatchResult } from "@/matching/types";
 import type { BudgetBand, EnergyState } from "@/calibration/schema";
@@ -338,69 +332,17 @@ useEffect(() => {
         className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 sm:p-8 surface-card"
         aria-live="polite"
       >
-        {/* Letter with one ask — no revision counters or operator tags in the
-            primary card (docs/design/experience-layer.md). Journey history and
-            provenance live in quiet disclosures below. */}
         {isClarifyStep ? (
-          <DecisionSlide
-            decisionKind={nextDecision.kind}
-            prompt={nextDecision.prompt}
-          >
-            {nextDecision.kind === "clarify-energy" && (
-              <StaggerReveal className="mira-choice-reveal is-shown">
-                <p className="why mb-5 t-stagger-line">
-                  How you arrive now shapes what fits. Mira will remember this
-                  only for this intention.
-                </p>
-                <EnergyChoice
-                  disabled={busy}
-                  onChoose={(energy) =>
-                    act({
-                      type: "revise-intention",
-                      constraints: { energy },
-                      reason: "Clarified current energy",
-                    })
-                  }
-                />
-              </StaggerReveal>
-            )}
-            {nextDecision.kind === "clarify-budget" && (
-              <StaggerReveal className="mira-choice-reveal is-shown">
-                <p className="why mb-5 t-stagger-line">
-                  A responsible limit keeps the choice honest. Mira will remember
-                  this only for this intention.
-                </p>
-                <BudgetChoice
-                  disabled={busy}
-                  onChoose={(budget) =>
-                    act({
-                      type: "revise-intention",
-                      constraints: { budget },
-                      reason: "Set a responsible limit",
-                    })
-                  }
-                />
-              </StaggerReveal>
-            )}
-            {nextDecision.kind === "clarify-social" && (
-              <StaggerReveal className="mira-choice-reveal is-shown">
-                <p className="why mb-5 t-stagger-line">
-                  The shape of company shapes the day. Mira will remember this
-                  only for this intention.
-                </p>
-                <SocialChoice
-                  disabled={busy}
-                  onChoose={(social) =>
-                    act({
-                      type: "revise-intention",
-                      constraints: { social },
-                      reason: "Clarified the shape of company",
-                    })
-                  }
-                />
-              </StaggerReveal>
-            )}
-          </DecisionSlide>
+          <RetreatExplorationView
+            initialConstraints={intention.constraints}
+            onConstraintChange={(newConstraints) => {
+              act({
+                type: "revise-intention",
+                constraints: newConstraints,
+                reason: "Refined through conversation",
+              });
+            }}
+          />
         ) : episode.status === "booked" && recommendation ? (
           <BookedLanding
             recommendation={recommendation}
