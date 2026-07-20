@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { AnimatePresence, motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { useRetreatExploration } from "@/inventory/use-retreat-exploration";
 import { useMiraField } from "./MiraField";
 import { MiraOrbProvider } from "./MiraOrbContext";
 import type { IntentionConstraints } from "@/agent/constraint-updater";
 import type { Retreat } from "@/inventory/retreat";
-import RetreatCard from "./RetreatCard";
+import RetreatImage from "./RetreatImage";
+import AmbientCanvas from "./AmbientCanvas";
 import MiraNote from "./MiraNote";
 
 interface RetreatExplorationViewProps {
@@ -34,6 +35,24 @@ export default function RetreatExplorationView({
   onSelect: propOnSelect,
   busy: propBusy,
 }: RetreatExplorationViewProps) {
+  // Determine mode: if retreats prop is provided, use direct mode
+  const isDirectMode = propRetreats !== undefined;
+  
+  // Use hook only in hook mode
+  const hookResult = useRetreatExploration(
+    isDirectMode ? undefined : initialConstraints
+  );
+  
+  // Select data source based on mode
+  const retreats = isDirectMode ? propRetreats : hookResult.retreats;
+  const miraNote = isDirectMode ? propMiraNote : hookResult.miraNote;
+  const busy = isDirectMode ? (propBusy ?? false) : (hookResult.state !== "idle");
+  
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeTarget, setActiveTarget] = useState<{ x: number; y: number } | null>(null);
+  const [hasConversed, setHasConversed] = useState(false);
+  const [input, setInput] = useState("");
+
   // Scroll container ref for tracking orb movement
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -51,26 +70,24 @@ export default function RetreatExplorationView({
     setScrollProgress(value);
     
     // Calculate scroll velocity (change in progress per frame)
-    const velocity = Math.abs(value - prevValue) * 1000; // Scale up for sensitivity
+    const velocity = Math.abs(value - prevValue) * 1000;
     setScrollVelocity(velocity);
+    
+    // Determine active retreat based on scroll position
+    if (retreats.length > 0) {
+      const retreatIndex = Math.min(
+        Math.floor(value * retreats.length),
+        retreats.length - 1
+      );
+      if (retreatIndex !== activeIndex) {
+        setActiveIndex(retreatIndex);
+        setActiveTarget({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2,
+        });
+      }
+    }
   });
-  
-  // Track active retreat position for orb attraction
-  const [activeTarget, setActiveTarget] = useState<{ x: number; y: number } | null>(null);
-  const [hasConversed, setHasConversed] = useState(false);
-  
-  // Determine mode: if retreats prop is provided, use direct mode
-  const isDirectMode = propRetreats !== undefined;
-  
-  // Use hook only in hook mode
-  const hookResult = useRetreatExploration(
-    isDirectMode ? undefined : initialConstraints
-  );
-  
-  // Select data source based on mode
-  const retreats = isDirectMode ? propRetreats : hookResult.retreats;
-  const miraNote = isDirectMode ? propMiraNote : hookResult.miraNote;
-  const busy = isDirectMode ? (propBusy ?? false) : (hookResult.state !== "idle");
   
   // Integrate with Mira's field - enable free-roam mode and feed motion state
   useMiraField({
@@ -109,20 +126,7 @@ export default function RetreatExplorationView({
     if (isDirectMode && propOnSelect) {
       propOnSelect(retreatId);
     }
-    
-    // Track the selected retreat's position for orb attraction
-    const card = document.querySelector(`[data-retreat-id="${retreatId}"]`);
-    if (card) {
-      const rect = card.getBoundingClientRect();
-      setActiveTarget({
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
-      });
-    }
   };
-  
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [input, setInput] = useState("");
 
   const safeIndex = Math.min(activeIndex, Math.max(0, retreats.length - 1));
   const activeRetreat = retreats[safeIndex] ?? null;
@@ -131,7 +135,7 @@ export default function RetreatExplorationView({
     if (!input.trim() || busy) return;
     handleUserMessage(input.trim());
     setInput("");
-    setActiveIndex(0); // Reset to first card when results change
+    setActiveIndex(0);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -143,11 +147,12 @@ export default function RetreatExplorationView({
 
   return (
     <MiraOrbProvider>
-      {/* Conversation-first layout: Mira leads, cards respond */}
-      <div ref={containerRef} className="relative z-10 max-w-4xl mx-auto py-12 px-6 sm:px-10">
-        
-        {/* Hero section: Mira's presence + conversation input */}
-        <div className="space-y-8 mb-16">
+      {/* Ambient canvas - reactive gradient background */}
+      <AmbientCanvas retreat={activeRetreat} />
+      
+      {/* Fixed conversation input - always accessible */}
+      <div className="fixed top-0 left-0 right-0 z-50 p-6 sm:p-10">
+        <div className="max-w-4xl mx-auto space-y-6">
           <MiraNote animate>
             {miraNote ??
               "I'm listening. Tell me what you're looking for, and I'll find something that fits."}
@@ -187,94 +192,62 @@ export default function RetreatExplorationView({
             </div>
           </motion.div>
         </div>
+      </div>
 
-        {/* Response section: Cards appear as Mira's curated response */}
-        {retreats.length > 0 && (
+      {/* Commit CTA - floating above scroll when active */}
+      <AnimatePresence>
+        {activeRetreat && hasConversed && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-            className="space-y-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.4, delay: 0.2 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50"
           >
-            {/* Response header - subtle, not commanding */}
-            <div className="flex items-baseline justify-between mb-6">
-              <p className="text-[#f6efe3]/60 text-sm">
-                {hasConversed ? "Here's what I found for you:" : "Some possibilities I've been considering:"}
-              </p>
-              {hasConversed && (
-                <button
-                  type="button"
-                  onClick={() => setHasConversed(false)}
-                  className="text-[#a85a3a] hover:text-[#c06a48] text-sm transition-colors"
-                >
-                  Refine search
-                </button>
-              )}
-            </div>
-
-            {/* Cards as response - list style, less pick-a-card emphasis */}
-            <AnimatePresence mode="popLayout">
-              <motion.div
-                layout
-                className="space-y-4"
-                transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-              >
-                {retreats.map((retreat, index) => (
-                  <RetreatCard
-                    key={retreat.id}
-                    retreat={retreat}
-                    isActive={index === safeIndex}
-                    onSelect={() => handleSelect(retreat.id, index)}
-                    className="cursor-pointer"
-                  />
-                ))}
-              </motion.div>
-            </AnimatePresence>
-
-            {/* Commit CTA - appears after engagement, not immediately */}
-            <AnimatePresence>
-              {activeRetreat && hasConversed && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 20 }}
-                  transition={{ duration: 0.4, delay: 0.2 }}
-                  className="mt-8 pt-8 border-t border-[#f6efe3]/10"
-                >
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                    <button
-                      type="button"
-                      onClick={() => handleCommit(activeRetreat.id)}
-                      disabled={busy}
-                      className="px-8 py-4 rounded-full bg-[#a85a3a] hover:bg-[#c06a48] text-[#f6efe3] text-base font-medium disabled:opacity-40 transition-all duration-200 shadow-lg hover:shadow-xl"
-                    >
-                      Hold {activeRetreat.title.split(" ").slice(0, 2).join(" ")} for 48 hours
-                    </button>
-                    <p className="text-sm text-[#f6efe3]/60">
-                      Non-binding. No charge until you confirm.
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <button
+              type="button"
+              onClick={() => handleCommit(activeRetreat.id)}
+              disabled={busy}
+              className="px-8 py-4 rounded-full bg-[#a85a3a] hover:bg-[#c06a48] text-[#f6efe3] text-base font-medium disabled:opacity-40 transition-all duration-200 shadow-lg hover:shadow-xl backdrop-blur-lg"
+              style={{
+                boxShadow: "0 0 40px rgba(168,90,58,0.4)",
+              }}
+            >
+              Hold {activeRetreat.title.split(" ").slice(0, 2).join(" ")} for 48 hours
+            </button>
           </motion.div>
         )}
+      </AnimatePresence>
 
-        {/* Empty state: encourage conversation when no retreats */}
-        {retreats.length === 0 && !busy && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-            className="text-center py-16"
-          >
-            <p className="text-[#f6efe3]/40 text-lg">
-              {hasConversed 
-                ? "I'm still thinking. Try refining what you're looking for."
-                : "Start a conversation with me. I'll find something that fits."
-              }
-            </p>
-          </motion.div>
+      {/* Scroll container - full-screen retreat images */}
+      <div ref={containerRef} className="relative z-10">
+        {retreats.length > 0 ? (
+          retreats.map((retreat, index) => (
+            <RetreatImage
+              key={retreat.id}
+              retreat={retreat}
+              index={index}
+              total={retreats.length}
+              isActive={index === safeIndex}
+              onSelect={() => handleSelect(retreat.id, index)}
+            />
+          ))
+        ) : (
+          !busy && (
+            <div className="h-screen flex items-center justify-center">
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4, duration: 0.6 }}
+                className="text-[#f6efe3]/40 text-lg"
+              >
+                {hasConversed 
+                  ? "I'm still thinking. Try refining what you're looking for."
+                  : "Start a conversation with me. I'll find something that fits."
+                }
+              </motion.p>
+            </div>
+          )
         )}
       </div>
     </MiraOrbProvider>
