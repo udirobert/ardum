@@ -52,8 +52,10 @@ videos/ardum-demo/renders/
 videos/ardum-demo/audio/
 videos/ardum-demo/snapshots/
 videos/ardum-demo/capture-proof/
-# Generated browser captures (extracted HTML/fonts/screenshots) and
-# alternate app-*.png screenshots — not source. The canonical
-# home-*.png / proof-*.png / jungle.jpg / og-image.jpg stay tracked.
+# Generated browser captures (extracted HTML/fonts/screenshots) — not source.
 videos/ardum-demo/capture/
-videos/ardum-demo/assets/app-*.png
+# Video demo image assets — not core to the app. The composition HTML
+# references them, but they're demo artifacts anyone rendering locally
+# captures or provides themselves. Only the composition source
+# (index.html, frame.md, compositions/, scripts/) stays tracked.
+videos/ardum-demo/assets/
