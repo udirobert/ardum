@@ -8,10 +8,13 @@
  * - Capacity and highlights
  * 
  * Enhanced with motion transitions for smooth enter/exit animations.
+ * Reacts to Mira orb proximity with lens distortion and border brightening.
  */
 
-import { motion } from "framer-motion";
+import { useRef, useEffect } from "react";
+import { motion, useMotionValue, useTransform, useSpring } from "framer-motion";
 import type { Retreat } from "@/inventory/retreat";
+import { useMiraOrbPosition } from "./MiraOrbContext";
 
 interface RetreatCardProps {
   retreat: Retreat;
@@ -26,6 +29,46 @@ export default function RetreatCard({
   onSelect,
   className = "",
 }: RetreatCardProps) {
+  const cardRef = useRef<HTMLElement>(null);
+  const { orbPosition } = useMiraOrbPosition();
+  
+  // Proximity-based motion values
+  const proximity = useMotionValue(0);
+  const smoothProximity = useSpring(proximity, { stiffness: 100, damping: 20 });
+  
+  // Transform proximity into visual effects
+  const scale = useTransform(smoothProximity, [0, 1], [1, 1.02]);
+  const blur = useTransform(smoothProximity, [0, 1], [0, 2]);
+  const borderColor = useTransform(
+    smoothProximity,
+    [0, 1],
+    ["rgba(255, 235, 200, 0.1)", "rgba(255, 235, 200, 0.4)"]
+  );
+
+  // Calculate proximity to orb and update motion value
+  useEffect(() => {
+    if (!orbPosition || !cardRef.current) {
+      proximity.set(0);
+      return;
+    }
+
+    const rect = cardRef.current.getBoundingClientRect();
+    const cardCenter = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+
+    const distance = Math.sqrt(
+      Math.pow(orbPosition.x - cardCenter.x, 2) +
+      Math.pow(orbPosition.y - cardCenter.y, 2)
+    );
+
+    // Normalize distance: 0 = orb at card center, 1 = orb far away
+    const maxDistance = 800; // pixels
+    const normalizedProximity = Math.max(0, 1 - distance / maxDistance);
+    proximity.set(normalizedProximity);
+  }, [orbPosition, proximity]);
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
@@ -36,13 +79,13 @@ export default function RetreatCard({
 
   return (
     <motion.article
+      ref={cardRef}
       layout
       data-retreat-id={retreat.id}
-      initial={{ opacity: 0, y: 40, scale: 0.95 }}
+      initial={{ opacity: 0, y: 40 }}
       animate={{ 
         opacity: 1, 
-        y: 0, 
-        scale: 1,
+        y: 0,
         transition: {
           duration: 0.6,
           ease: [0.23, 1, 0.32, 1]
@@ -50,8 +93,7 @@ export default function RetreatCard({
       }}
       exit={{ 
         opacity: 0, 
-        y: -40, 
-        scale: 0.95,
+        y: -40,
         transition: {
           duration: 0.4,
           ease: [0.23, 1, 0.32, 1]
@@ -68,7 +110,12 @@ export default function RetreatCard({
           ? "border-[#a85a3a]/50 shadow-lg shadow-[#a85a3a]/20"
           : "border-[#f6efe3]/10 hover:border-[#f6efe3]/30"
       } ${className}`}
-      style={{ background: "rgba(16,10,8,0.6)" }}
+      style={{ 
+        background: "rgba(16,10,8,0.6)",
+        borderColor,
+        scale,
+        filter: useTransform(blur, (b) => `blur(${b}px)`),
+      }}
     >
       {/* Hero image */}
       <div className="relative h-64 overflow-hidden">

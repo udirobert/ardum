@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useScroll, useMotionValueEvent } from "framer-
 import { useRetreatExploration } from "@/inventory/use-retreat-exploration";
 import { useMiraField } from "./MiraField";
 import MiraFreeRoamOrb from "./MiraFreeRoamOrb";
+import { MiraOrbProvider } from "./MiraOrbContext";
 import type { IntentionConstraints } from "@/agent/constraint-updater";
 import type { Retreat } from "@/inventory/retreat";
 import RetreatCard from "./RetreatCard";
@@ -137,7 +138,7 @@ export default function RetreatExplorationView({
   };
 
   return (
-    <>
+    <MiraOrbProvider>
       {/* Free-roaming Mira orb - moves independently across viewport */}
       <MiraFreeRoamOrb
         presence={null}
@@ -232,6 +233,6 @@ export default function RetreatExplorationView({
         </AnimatePresence>
       </div>
       </div>
-    </>
+    </MiraOrbProvider>
   );
 }
