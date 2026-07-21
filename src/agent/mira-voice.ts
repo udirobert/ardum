@@ -301,43 +301,111 @@ export function calibrationReactionLine(
 
 // ── Reasoning beat ──────────────────────────────────────────────────
 // The "thinking" beat between the recommend command and the card.
-// Surfaces Mira's reasoning step by step so the recommendation feels
-// earned, not instant. Each line has a delay (ms from the start of the
-// beat) controlling when it fades in.
+// Surfaces Mira's actual reasoning — the constraint-to-retreat mapping,
+// the specific attributes that drove each score, and what was considered
+// and rejected — so the recommendation feels earned, not instant. Each
+// line has a delay (ms from the start of the beat) controlling when it
+// fades in.
 
 export interface ReasoningStep {
   text: string;
   delayMs: number;
 }
 
+/**
+ * Build the reasoning beat from the actual recommendation data.
+ *
+ * The beat surfaces, in order:
+ * 1. An opening acknowledgment ("Let me sit with what you've told me.")
+ * 2. The constraint-to-retreat mapping — what the practitioner asked for.
+ * 3. The pool size being weighed.
+ * 4. (If topPick provided) The top pick's strongest axes, citing the
+ *    specific retreat attributes that drove each score.
+ * 5. (If alternative provided) What was considered and rejected — the
+ *    top alternative and why it scored lower.
+ * 6. The conclusion ("One sits closest.")
+ *
+ * When called without a topPick (the initial `recommend` command, where
+ * the new recommendation hasn't arrived yet), only steps 1-3 and 6 are
+ * emitted — the full reasoning arrives with the card.
+ */
 export function reasoningBeat(
-  energy?: string,
-  budget?: string,
-  social?: string,
+  topPick?: MatchResult,
+  alternative?: MatchResult,
+  constraints?: { energy?: string; budget?: string; social?: string },
   poolSize?: number,
 ): ReasoningStep[] {
   const steps: ReasoningStep[] = [
     { text: "Let me sit with what you've told me.", delayMs: 0 },
   ];
 
+  // ── Constraint-to-retreat mapping ──
   const constraintParts: string[] = [];
-  if (energy) constraintParts.push(`You want ${energy} energy`);
-  if (budget) constraintParts.push(`${budget} budget`);
-  if (social) constraintParts.push(`${social}`);
+  if (constraints?.energy) constraintParts.push(`${constraints.energy} energy`);
+  if (constraints?.budget) constraintParts.push(`${constraints.budget} budget`);
+  if (constraints?.social) constraintParts.push(`${constraints.social} comfort`);
   if (constraintParts.length > 0) {
     steps.push({
-      text: `${constraintParts.join(". ")}.`,
-      delayMs: 1000,
+      text: `You asked for ${constraintParts.join(", ")}.`,
+      delayMs: 800,
     });
   }
 
   if (poolSize && poolSize > 0) {
     steps.push({
       text: `I'm weighing ${poolSize} ${poolSize === 1 ? "retreat" : "retreats"} against that.`,
-      delayMs: 2000,
+      delayMs: 1600,
     });
   }
 
-  steps.push({ text: "One sits closest.", delayMs: 3000 });
+  // Without a top pick, we stop here — the full reasoning arrives with
+  // the card. Emit the conclusion and return.
+  if (!topPick) {
+    steps.push({ text: "One sits closest.", delayMs: 2400 });
+    return steps;
+  }
+
+  // ── Top pick's strongest axes ──
+  // Surface the top 2 reasoning steps from the top pick. These cite
+  // specific retreat attributes ("Practitioner energy: low. Retreat
+  // fits: low, settled." → "Strong energy fit; pulls toward this match.")
+  const topReasoning = topPick.reasoning
+    .filter((r) => r.weight > 0) // skip display-only axes
+    .slice(0, 2);
+
+  for (let i = 0; i < topReasoning.length; i++) {
+    const step = topReasoning[i];
+    steps.push({
+      text: `${step.then}`,
+      delayMs: 2400 + i * 700,
+    });
+  }
+
+  // ── Considered and rejected ──
+  // Surface the top alternative and why it scored lower. We don't have
+  // per-axis scores in the reasoning data (only weights), so we proxy
+  // "where it lost ground" by surfacing the highest-weight axis — the
+  // most important one, where a mismatch is most costly. For a
+  // mismatched alternative, this is likely where it lost the most
+  // ground (high weight × low per-axis score).
+  if (alternative) {
+    const altWeakest = alternative.reasoning
+      .filter((r) => r.weight > 0)
+      .sort((a, b) => b.weight - a.weight)[0];
+    const scoreGap = Math.round((topPick.score - alternative.score) * 100);
+    if (altWeakest && scoreGap > 0) {
+      steps.push({
+        text: `I also weighed ${alternative.retreatTitle} — ${altWeakest.then} It scored ${scoreGap} points lower.`,
+        delayMs: 2400 + topReasoning.length * 700 + 800,
+      });
+    } else {
+      steps.push({
+        text: `I also weighed ${alternative.retreatTitle} — it was close, but ${topPick.retreatTitle} fit better overall.`,
+        delayMs: 2400 + topReasoning.length * 700 + 800,
+      });
+    }
+  }
+
+  steps.push({ text: "One sits closest.", delayMs: 2400 + topReasoning.length * 700 + (alternative ? 1600 : 800) });
   return steps;
 }

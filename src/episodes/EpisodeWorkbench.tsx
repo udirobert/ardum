@@ -66,8 +66,14 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
   // Thinking beat: when the user clicks "recommend", we show Mira's
   // reasoning step by step before the card appears. The beat starts
   // when `thinking` is set and clears when the recommendation arrives
-  // or the act() promise resolves.
+  // or the act() promise resolves. `thinkingCommand` tracks which
+  // command triggered the beat so we can surface the right data:
+  //   - "recommend": constraints + pool size (no recommendation yet)
+  //   - "reject-recommendation": the next alternative (about to become top)
   const [thinking, setThinking] = useState(false);
+  const [thinkingCommand, setThinkingCommand] = useState<
+    "recommend" | "reject-recommendation" | null
+  >(null);
   const [activeLens, setActiveLens] = useState<PerspectiveName>("balanced");
   const [lensData, setLensData] = useState<PerspectivesPayload | null>(null);
   const [lensLoading, setLensLoading] = useState(false);
@@ -251,6 +257,7 @@ useEffect(() => {
     // Mira's reasoning before the card appears.
     if (command.type === "recommend" || command.type === "reject-recommendation") {
       setThinking(true);
+      setThinkingCommand(command.type);
     }
     try {
       const response = await fetch(`/api/episodes/${episodeId}/actions`, {
@@ -284,6 +291,7 @@ useEffect(() => {
     } finally {
       setBusy(false);
       setThinking(false);
+      setThinkingCommand(null);
     }
   }
 
@@ -370,6 +378,20 @@ useEffect(() => {
             ? episode.recommendation.alternatives.length + 1
             : undefined}
           presence={miraPresence}
+          // For reject-recommendation, the first alternative is about to
+          // become the top pick. Surface its reasoning so the user sees
+          // why it's being promoted. For recommend, we don't have the
+          // new top pick yet — the beat shows constraints + pool only.
+          upcomingPick={
+            thinkingCommand === "reject-recommendation"
+              ? episode.recommendation?.alternatives[0]
+              : undefined
+          }
+          rejectedTitle={
+            thinkingCommand === "reject-recommendation"
+              ? recommendation?.retreatTitle
+              : undefined
+          }
         />
       )}
       <div className="mb-10">
@@ -747,11 +769,45 @@ useEffect(() => {
               <summary className="tag cursor-pointer">how Mira chose this</summary>
               <div className="mt-4 space-y-4">
                 {recommendation.reasoning.map((step) => (
-                  <div key={step.axis} className="text-sm">
-                    <p className="font-medium">{step.axis}</p>
-                    <p className="text-[color:var(--muted)]">{step.then}</p>
+                  <div key={step.axis} className="text-sm border-l-2 border-[color:var(--hairline)] pl-3">
+                    <p className="font-medium mb-1">
+                      {step.axis}
+                      {step.weight > 0 && (
+                        <span className="text-[color:var(--muted)] ml-2 text-xs">
+                          weight {step.weight.toFixed(2)}
+                        </span>
+                      )}
+                    </p>
+                    {/* Given: what Mira observed (practitioner + retreat
+                        attributes). This is the citation — the specific
+                        data that drove the score. */}
+                    <p className="text-[color:var(--muted)] text-xs mb-1">
+                      {step.given}
+                    </p>
+                    {/* Then: the conclusion. */}
+                    <p className="text-[color:var(--foreground)]">{step.then}</p>
                   </div>
                 ))}
+                {/* Considered and rejected — the top alternative and
+                    why it scored lower. This makes the decision
+                    inspectable: not just "why this one" but "why not
+                    that one." */}
+                {episode.recommendation?.alternatives[0] && (
+                  <div className="text-sm border-l-2 border-[color:var(--accent-soft)] pl-3 pt-2">
+                    <p className="font-medium mb-1">Considered and set aside</p>
+                    <p className="text-[color:var(--muted)] text-xs mb-1">
+                      {episode.recommendation.alternatives[0].retreatTitle} —
+                      scored {Math.round(episode.recommendation.alternatives[0].score * 100)}
+                      vs {Math.round(recommendation.score * 100)} for {recommendation.retreatTitle}.
+                    </p>
+                    <p className="text-[color:var(--foreground)]">
+                      {episode.recommendation.alternatives[0].reasoning
+                        .filter((r) => r.weight > 0)
+                        .sort((a, b) => b.weight - a.weight)[0]?.then ??
+                        "A close fit, but not as close."}
+                    </p>
+                  </div>
+                )}
               </div>
             </details>
           </div>
@@ -948,25 +1004,62 @@ function BookedLanding({
 // posture) and the reasoning lines fade in on a timed schedule from
 // reasoningBeat(). This makes the recommendation feel earned, not
 // instant. See docs/plans/arrival-redesign.md §2.
+//
+// For `reject-recommendation`, we have the upcoming top pick (the first
+// alternative) and can surface its actual reasoning. For `recommend`,
+// we don't have the new top pick yet — the beat shows constraints +
+// pool size only, and the full reasoning appears in the card's "how
+// Mira chose this" disclosure.
 function ThinkingBeat({
   constraints,
   poolSize,
   presence,
+  upcomingPick,
+  rejectedTitle,
 }: {
   constraints: IntentionConstraints;
   poolSize?: number;
   presence: MiraPresence | null;
+  upcomingPick?: MatchResult;
+  rejectedTitle?: string;
 }) {
-  const steps = useMemo(
-    () =>
-      reasoningBeat(
-        constraints.energy,
-        constraints.budget,
-        constraints.social,
+  const steps = useMemo(() => {
+    // For reject-recommendation: surface the upcoming pick's reasoning
+    // + what was rejected. This is the rich path — we have real data.
+    if (upcomingPick) {
+      const beat = reasoningBeat(
+        upcomingPick,
+        undefined, // no alternative data for the upcoming pick
+        {
+          energy: constraints.energy,
+          budget: constraints.budget,
+          social: constraints.social,
+        },
         poolSize,
-      ),
-    [constraints.energy, constraints.budget, constraints.social, poolSize],
-  );
+      );
+      // Prepend a line about what was rejected.
+      if (rejectedTitle) {
+        return [
+          { text: `Not ${rejectedTitle}. Let me look again.`, delayMs: 0 },
+          ...beat.slice(1), // skip the default opening line
+        ];
+      }
+      return beat;
+    }
+    // For recommend: constraints + pool only. The full reasoning
+    // arrives with the card.
+    return reasoningBeat(
+      undefined,
+      undefined,
+      {
+        energy: constraints.energy,
+        budget: constraints.budget,
+        social: constraints.social,
+      },
+      poolSize,
+    );
+  }, [constraints.energy, constraints.budget, constraints.social, poolSize, upcomingPick, rejectedTitle]);
+
   const [visibleCount, setVisibleCount] = useState(0);
 
   useEffect(() => {
