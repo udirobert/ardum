@@ -85,10 +85,18 @@ re-signed against it. No two distinct actor rows are ever merged.
 `energyHistory` already exists in the projector. Add an explicit preferences
 surface on the `actors` row (`profile` JSONB: accommodation, time-of-day,
 dietary, accessibility, etc.). Surfaced on `/memory` as "what Mira has
-learned about you," editable, deletable. The ranking policy may consume
-explicit preferences as input alongside the existing intention constraints;
-derived preferences (from episode history) remain supplementary and never
-override an explicit statement.
+learned about you," editable, deletable. The ranking policy consumes
+explicit preferences as a soft tie-breaker (weight 0.10) alongside the
+existing intention constraints; derived preferences (from episode history)
+remain supplementary and never override an explicit statement.
+
+Implementation: the `Preference fit` axis in `score.ts` compares the
+practitioner's `accommodation` and `dietary` preferences against the
+retreat's declared offerings (`claims.accommodation`, `claims.dietary`).
+Retreats with undeclared offerings score neutral (0.5) so a preference
+doesn't penalize retreats with unknown accommodation. The axis is skipped
+entirely when the practitioner has no preferences set, preserving
+backward compatibility with existing ranking behavior.
 
 This is the customization rung. It turns recognition from "I remember what
 you did" into "I know how you like to be met."
@@ -143,8 +151,13 @@ not a header chrome element. It appears:
 - `/memory` gains an editable name field and a preferences section.
 - The home greeting and the returning voice lane use `preferred_name` when
   present, falling back to the existing copy.
-- Cross-device restore is a follow-on to step 2; this ADR records the
-  intent and the join key, not the full re-attachment flow.
+- Cross-device restore re-signs the cookie against an existing actor row
+  found by `external_subject`, after verifying wallet ownership via
+  EIP-191 `personal_sign`.
+- The ranking policy gains a `Preference fit` axis (weight 0.10) that
+  nudges rankings when the practitioner has set accommodation or dietary
+  preferences. Retreat attestations gain optional `accommodation` and
+  `dietary` claim fields.
 
 ## Alternatives considered
 

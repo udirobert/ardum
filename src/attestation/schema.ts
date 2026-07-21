@@ -53,6 +53,13 @@ export type Attestation = {
     // Optional structured breath cycle, Nafas-shaped. Strongest signal for
     // pranayama / breathwork retreats.
     breathCycle?: BreathCycle;
+    // Optional accommodation offerings (ADR 0011 §4 — preference fit).
+    // Values: "private", "shared", "dormitory", "camping". Absent means
+    // the attestor hasn't declared accommodation types.
+    accommodation?: string[];
+    // Optional dietary offerings. Values: "vegetarian", "vegan",
+    // "gluten-free", "omnivore". Absent means undeclared.
+    dietary?: string[];
     notes?: string;
   };
   // Wallet that wrote the attestation (verification key).

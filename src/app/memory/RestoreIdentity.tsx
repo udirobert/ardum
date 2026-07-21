@@ -14,9 +14,8 @@
 // need to mount it at the page level. Magic loads lazily only when the
 // practitioner clicks "Continue on another device."
 
-import { useState, useTransition, lazy, Suspense } from "react";
-import { useRouter } from "next/navigation";
-import { MagicAuthProvider, useMagicAuth } from "@/booking/MagicAuth";
+import { useState, lazy, Suspense } from "react";
+import { MagicAuthProvider } from "@/booking/MagicAuth";
 
 const RestoreForm = lazy(() => import("./RestoreForm"));
 

@@ -36,6 +36,8 @@ export const SEED_ATTESTATIONS: Attestation[] = [
       energyFit: ["settled", "low"],
       socialFit: ["solo", "small-circle"],
       breathPhase: ["extended", "even"],
+      accommodation: ["private", "shared"],
+      dietary: ["vegetarian", "vegan"],
       breathCycle: {
         unit: "seconds",
         pre: [{ inhale: 6, exhale: 6 }],
@@ -67,6 +69,8 @@ export const SEED_ATTESTATIONS: Attestation[] = [
       energyFit: ["in-movement", "sharp"],
       socialFit: ["open-circle", "communal"],
       breathPhase: ["dynamic", "even"],
+      accommodation: ["shared", "dormitory"],
+      dietary: ["vegetarian", "gluten-free"],
       notes:
         "Beginner-friendly in framing but the volume is real — five full " +
         "practice days plus two surf days.",
@@ -92,6 +96,8 @@ export const SEED_ATTESTATIONS: Attestation[] = [
       energyFit: ["low", "settled"],
       socialFit: ["solo", "small-circle"],
       breathPhase: ["extended"],
+      accommodation: ["private"],
+      dietary: ["vegetarian"],
       breathCycle: {
         unit: "seconds",
         pre: [{ inhale: 8, exhale: 8 }],
@@ -181,6 +187,8 @@ export const SEED_ATTESTATIONS: Attestation[] = [
       energyFit: ["sharp", "in-movement"],
       socialFit: ["open-circle"],
       breathPhase: ["dynamic", "even"],
+      accommodation: ["private"],
+      dietary: ["vegetarian", "vegan", "gluten-free"],
       notes:
         "Premium pricing covers cenote access, all meals, and a private " +
         "closing ceremony. Not for anyone wanting silence — the cohort " +
@@ -242,6 +250,8 @@ export const SEED_ATTESTATIONS: Attestation[] = [
       energyFit: ["settled", "in-movement"],
       socialFit: ["solo", "communal"],
       breathPhase: ["extended"],
+      accommodation: ["dormitory"],
+      dietary: ["vegetarian", "vegan"],
       breathCycle: {
         unit: "seconds",
         pre: [{ inhale: 8, retain: 4, exhale: 8, sustain: 4 }],
@@ -307,6 +317,8 @@ export const SEED_ATTESTATIONS: Attestation[] = [
       energyFit: ["low", "settled"],
       socialFit: ["solo"],
       breathPhase: ["extended"],
+      accommodation: ["private", "camping"],
+      dietary: ["vegetarian", "vegan", "gluten-free"],
       breathCycle: {
         unit: "seconds",
         pre: [{ inhale: 8, exhale: 8 }],

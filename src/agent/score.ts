@@ -281,6 +281,72 @@ const mobilityAxis: Axis = {
   },
 };
 
+// ADR 0011 §4: preference fit. A soft tie-breaker that nudges rankings
+// when the practitioner has set cross-episode preferences (accommodation,
+// dietary). Retreats that haven't declared offerings score neutral (0.5)
+// so a preference doesn't penalize retreats with unknown accommodation.
+// Only retreats that explicitly declare and match/mismatch move the score.
+const preferenceAxis: Axis = {
+  name: "Preference fit",
+  weight: 0.10,
+  describe() {
+    return "Preference fit (weight 0.10): soft tie-breaker for cross-episode preferences. If the practitioner prefers a specific accommodation or dietary type and the retreat explicitly declares its offerings, score 1.0 on match, 0 on mismatch. Retreats with undeclared offerings score 0.5 (neutral). Skip when the practitioner has no preferences set. Output axis name 'Preference fit'.";
+  },
+  apply(p, a) {
+    const prefs = p.preferences;
+    if (!prefs) return null;
+    const hasAccommodationPref = Boolean(prefs.accommodation);
+    const hasDietaryPref = Boolean(prefs.dietary);
+    if (!hasAccommodationPref && !hasDietaryPref) return null;
+
+    const parts: string[] = [];
+    let total = 0;
+    let count = 0;
+
+    if (hasAccommodationPref && prefs.accommodation) {
+      const offered = a.claims.accommodation;
+      if (!offered || offered.length === 0) {
+        parts.push(`Accommodation preference '${prefs.accommodation}' — retreat hasn't declared offerings (neutral).`);
+        total += 0.5;
+      } else if (offered.includes(prefs.accommodation)) {
+        parts.push(`Accommodation preference '${prefs.accommodation}' — retreat offers it.`);
+        total += 1;
+      } else {
+        parts.push(`Accommodation preference '${prefs.accommodation}' — retreat offers ${offered.join(", ")} (mismatch).`);
+        total += 0;
+      }
+      count++;
+    }
+
+    if (hasDietaryPref && prefs.dietary) {
+      const offered = a.claims.dietary;
+      if (!offered || offered.length === 0) {
+        parts.push(`Dietary preference '${prefs.dietary}' — retreat hasn't declared offerings (neutral).`);
+        total += 0.5;
+      } else if (offered.includes(prefs.dietary)) {
+        parts.push(`Dietary preference '${prefs.dietary}' — retreat offers it.`);
+        total += 1;
+      } else {
+        parts.push(`Dietary preference '${prefs.dietary}' — retreat offers ${offered.join(", ")} (mismatch).`);
+        total += 0;
+      }
+      count++;
+    }
+
+    const score = count > 0 ? total / count : 0.5;
+    return {
+      score,
+      given: parts.join(" "),
+      when: "Cross-episode preferences are soft signals — they nudge, never override energy or social fit.",
+      then: score >= 0.75
+        ? "Preferences align — small pull toward this match."
+        : score <= 0.25
+          ? "Preferences don't align — small push away."
+          : "Preferences are neutral or undeclared — no effect.",
+    };
+  },
+};
+
 // Composite weights: fixed subset that contributes to the numeric score.
 // Display-only axes (weight 0) appear in reasoning but don't move the
 // score — they're context, not rank signal.
@@ -288,13 +354,14 @@ const mobilityAxis: Axis = {
 // Keys are typed as a union so callers can override weights with full
 // type safety. Adding a new scoreable axis requires extending both this
 // union and the type in `CompositeOverrides`.
-type CompositeAxis = "Energy alignment" | "Social comfort" | "Budget" | "Breath & practice";
+type CompositeAxis = "Energy alignment" | "Social comfort" | "Budget" | "Breath & practice" | "Preference fit";
 
 const COMPOSITE_WEIGHTS: Record<CompositeAxis, number> = {
   "Energy alignment": 0.35,
   "Social comfort": 0.25,
   Budget: 0.15,
   "Breath & practice": 0.15,
+  "Preference fit": 0.10,
 };
 
 // Single source of truth for the matching logic. Order is the order the
@@ -306,6 +373,7 @@ export const AXES: readonly Axis[] = [
   breathAxis,
   breathCycleAxis,
   mobilityAxis,
+  preferenceAxis,
 ];
 
 // ─── Headline + scoring ──────────────────────────────────────────────────

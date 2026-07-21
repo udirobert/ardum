@@ -23,6 +23,8 @@ import {
 import { fireSemanticRemember } from "@/memory/observe";
 import { recommendForEpisode } from "./recommendation";
 import { episodeRepository } from "./repository";
+import { actorProfileRepository } from "@/identity/actor-profile";
+import type { PractitionerProfile } from "@/calibration/schema";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -176,10 +178,25 @@ export async function applyEpisodeCommand(
       break;
     }
     case "recommend": {
+      // ADR 0011 §4: load cross-episode preferences so the ranking
+      // policy can apply the preference-fit tie-breaker. Fire-and-forget
+      // on failure — preferences are soft signals, never hard constraints.
+      let preferences: PractitionerProfile["preferences"];
+      try {
+        const profile = await actorProfileRepository.get(actorId);
+        const p = profile.profile as Record<string, unknown>;
+        preferences = {
+          accommodation: typeof p.accommodation === "string" ? p.accommodation : undefined,
+          dietary: typeof p.dietary === "string" ? p.dietary : undefined,
+          practiceStyle: typeof p.practiceStyle === "string" ? p.practiceStyle : undefined,
+        };
+      } catch {
+        preferences = undefined;
+      }
       episode = {
         ...episode,
         status: "recommendation-ready",
-        recommendation: recommendForEpisode(episode, now),
+        recommendation: recommendForEpisode(episode, now, preferences),
         events: [
           ...episode.events,
           event(ids, now, "recommendation-created", "Mira chose one next step."),

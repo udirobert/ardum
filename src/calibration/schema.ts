@@ -27,6 +27,14 @@ export type PractitionerProfile = {
   pose?: PoseBaseline;
   notes?: string;
   createdAt: string;
+  // Cross-episode preferences from the actor profile (ADR 0011 §4).
+  // Optional — absent when the practitioner hasn't set any. The ranking
+  // policy treats these as soft tie-breakers, not hard constraints.
+  preferences?: {
+    accommodation?: string;
+    dietary?: string;
+    practiceStyle?: string;
+  };
 };
 
 export const ENERGY_STATES: { value: EnergyState; label: string; why: string }[] = [

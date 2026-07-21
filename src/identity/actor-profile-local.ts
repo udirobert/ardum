@@ -60,7 +60,8 @@ export async function attachExternalSubject(
 // a Supabase-only feature. Returns null so the restore route responds
 // with "no existing identity found" in demo mode.
 export async function findByExternalSubject(
-  _subject: string,
+  subject: string,
 ): Promise<string | null> {
+  void subject;
   return null;
 }

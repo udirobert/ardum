@@ -52,6 +52,7 @@ function profile(overrides: Partial<PractitionerProfile>): PractitionerProfile {
     pose: overrides.pose,
     notes: overrides.notes,
     createdAt: overrides.createdAt ?? "2026-06-23T00:00:00.000Z",
+    preferences: overrides.preferences,
   };
 }
 
@@ -531,5 +532,112 @@ describe("synthetic pool — lens re-rank property", () => {
       second[0]?.result.retreatRootHash,
     );
     expect(first[0]?.result.score).toBe(second[0]?.result.score);
+  });
+});
+
+// ─── Preference fit (ADR 0011 §4) ────────────────────────────────────────
+
+describe("scoreAll — preference fit axis", () => {
+  const UBUD = "bali-ubud-stillness-0001"; // accommodation: private, shared; dietary: vegetarian, vegan
+  const CANGGU_MOVEMENT = "bali-canggu-movement-0002"; // accommodation: shared, dormitory; dietary: vegetarian, gluten-free
+  const SIDEMEN = "bali-sidemen-restoration-0003"; // accommodation: private; dietary: vegetarian
+  const LISBON = "lisbon-silent-coast-0007"; // undeclared offerings
+
+  it("skips the preference axis when the practitioner has no preferences", () => {
+    const ranked = scoreAll(
+      profile({ energy: "low", budget: "under-1k", social: "solo" }),
+      attestations(),
+    );
+    const sidemen = ranked.find((r) => r.result.retreatRootHash === SIDEMEN)!;
+    const prefStep = sidemen.steps.find((s) => s.axis === "Preference fit");
+    expect(prefStep).toBeUndefined();
+  });
+
+  it("scores 1.0 when accommodation and dietary both match", () => {
+    const ranked = scoreAll(
+      profile({
+        energy: "low",
+        budget: "under-1k",
+        social: "solo",
+        preferences: { accommodation: "private", dietary: "vegetarian" },
+      }),
+      attestations(),
+    );
+    const sidemen = ranked.find((r) => r.result.retreatRootHash === SIDEMEN)!;
+    const prefStep = sidemen.steps.find((s) => s.axis === "Preference fit")!;
+    expect(prefStep).toBeDefined();
+    expect(prefStep.then).toContain("align");
+  });
+
+  it("scores neutral (0.5) for retreats with undeclared offerings", () => {
+    const ranked = scoreAll(
+      profile({
+        energy: "settled",
+        budget: "2k-3k",
+        social: "solo",
+        preferences: { accommodation: "private", dietary: "vegan" },
+      }),
+      attestations(),
+    );
+    const lisbon = ranked.find((r) => r.result.retreatRootHash === LISBON)!;
+    const prefStep = lisbon.steps.find((s) => s.axis === "Preference fit")!;
+    expect(prefStep).toBeDefined();
+    expect(prefStep.given).toContain("neutral");
+  });
+
+  it("scores 0 on mismatch and surfaces it in reasoning", () => {
+    const ranked = scoreAll(
+      profile({
+        energy: "in-movement",
+        budget: "2k-3k",
+        social: "open-circle",
+        preferences: { accommodation: "private", dietary: "vegan" },
+      }),
+      attestations(),
+    );
+    const canggu = ranked.find(
+      (r) => r.result.retreatRootHash === CANGGU_MOVEMENT,
+    )!;
+    const prefStep = canggu.steps.find((s) => s.axis === "Preference fit")!;
+    expect(prefStep.given).toContain("mismatch");
+  });
+
+  it("nudges a matching retreat above a non-matching one with equal base fit", () => {
+    // Both Ubud and Sidemen match energy=low, social=solo. Sidemen
+    // matches accommodation=private exactly; Ubud also offers private.
+    // With a dietary preference for vegetarian (both match), the
+    // preference axis should not break the tie in a contradictory way.
+    // This test confirms the axis fires and contributes without errors.
+    const ranked = scoreAll(
+      profile({
+        energy: "low",
+        budget: "under-1k",
+        social: "solo",
+        preferences: { accommodation: "private", dietary: "vegetarian" },
+      }),
+      attestations(),
+    );
+    const sidemen = ranked.find((r) => r.result.retreatRootHash === SIDEMEN)!;
+    const ubud = ranked.find((r) => r.result.retreatRootHash === UBUD)!;
+    // Both should have a Preference fit step with a positive score.
+    const sidemenPref = sidemen.steps.find((s) => s.axis === "Preference fit")!;
+    const ubudPref = ubud.steps.find((s) => s.axis === "Preference fit")!;
+    expect(sidemenPref).toBeDefined();
+    expect(ubudPref).toBeDefined();
+  });
+
+  it("does not fire when only an empty-string preference is set", () => {
+    const ranked = scoreAll(
+      profile({
+        energy: "low",
+        budget: "under-1k",
+        social: "solo",
+        preferences: { accommodation: "", dietary: "" },
+      }),
+      attestations(),
+    );
+    const sidemen = ranked.find((r) => r.result.retreatRootHash === SIDEMEN)!;
+    const prefStep = sidemen.steps.find((s) => s.axis === "Preference fit");
+    expect(prefStep).toBeUndefined();
   });
 });

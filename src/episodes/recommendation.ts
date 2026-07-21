@@ -8,9 +8,15 @@ import {
   type RecommendationSnapshot,
 } from "./model";
 
+// ADR 0011 §4: cross-episode preferences from the actor profile. Optional —
+// absent when the practitioner hasn't set any. The ranking policy treats
+// these as soft tie-breakers (weight 0.10), never hard constraints.
+type Preferences = PractitionerProfile["preferences"];
+
 export function recommendForEpisode(
   episode: Episode,
   now: Date,
+  preferences?: Preferences,
 ): RecommendationSnapshot {
   const intention = currentIntention(episode);
   const { energy, budget, social } = intention.constraints;
@@ -26,6 +32,9 @@ export function recommendForEpisode(
       .filter(Boolean)
       .join(" — "),
     createdAt: intention.createdAt,
+    preferences: preferences && (preferences.accommodation || preferences.dietary || preferences.practiceStyle)
+      ? preferences
+      : undefined,
   };
 
   const ranked = scoreAll(
