@@ -300,14 +300,13 @@ useEffect(() => {
     nextDecision.kind === "clarify-budget" ||
     nextDecision.kind === "clarify-social";
 
-  // Secondary tools (lenses, counterfactuals, alternatives): expand when
-  // uncertainty is high or the person is questioning the fit; collapse under
-  // an active hold when the journey is calm (ADR 0008 / experience-layer).
+  // Secondary tools (lenses, counterfactuals, alternatives): only expand when
+  // uncertainty is genuinely high or the person is actively questioning the fit.
+  // A fresh recommendation should feel calm and focused, not overwhelming.
   const highUncertainty =
-    (episode.recommendation?.uncertainties.length ?? 0) > 0;
+    (episode.recommendation?.uncertainties.length ?? 0) >= 2;
   const holdActive = episode.hold?.status === "active";
-  const expandSecondaryTools =
-    feedbackOpen || highUncertainty || !holdActive;
+  const expandSecondaryTools = feedbackOpen || highUncertainty;
 
   return (
     <section className="dusk mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24 min-h-[calc(100svh-56px)]">
@@ -418,14 +417,18 @@ useEffect(() => {
             </div>
 
             {episode.recommendation!.uncertainties.length > 0 && (
-              <div className="border-l-2 border-[color:var(--accent-soft)] pl-4">
-                <p className="tag mb-2">what remains uncertain</p>
-                {episode.recommendation!.uncertainties.map((uncertainty) => (
-                  <p key={uncertainty} className="text-sm text-[color:var(--muted)]">
-                    {uncertainty}
-                  </p>
-                ))}
-              </div>
+              <details className="border-l-2 border-[color:var(--accent-soft)] pl-4">
+                <summary className="tag mb-2 cursor-pointer">
+                  what remains uncertain
+                </summary>
+                <div className="space-y-1">
+                  {episode.recommendation!.uncertainties.map((uncertainty) => (
+                    <p key={uncertainty} className="text-sm text-[color:var(--muted)]">
+                      {uncertainty}
+                    </p>
+                  ))}
+                </div>
+              </details>
             )}
 
             {episode.hold?.status === "active" ? (
