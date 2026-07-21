@@ -60,6 +60,12 @@ the contract ADR 0004 already specifies; it is unimplemented, not new design.
 - Authentication expands continuity; it does not change the episode contract
   (ADR 0004 verbatim).
 
+Implementation: `attachExternalSubject` on the actor profile repository
+(`src/identity/actor-profile.ts`) writes the subject. The Magic auth flow
+(`src/booking/MagicAuth.tsx`) calls `POST /api/actor/attach` after successful
+login and on session restore. Fire-and-forget on failure — the login itself
+is not blocked.
+
 ### 3. Cross-device restore via the authenticated actor
 
 After step 2, the signed cookie is no longer the only ownership anchor. A
@@ -75,6 +81,11 @@ verifies the signature (EIP-191 `personal_sign` via `ethers.verifyMessage`),
 looks up the `actors` row by `external_subject`, and re-signs the cookie
 against the existing actor id (`setActorCookie`). A 5-minute skew window
 prevents replay, matching the agent API (ADR 0009).
+
+Route: `POST /api/actor/restore` (`src/app/api/actor/restore/route.ts`).
+UI: `RestoreIdentity.tsx` (lazy-loaded wrapper with `MagicAuthProvider`)
+and `RestoreForm.tsx` (sign + submit) on `/memory`, shown only when the
+practitioner has no episodes on the current device.
 
 The re-attachment is idempotent: the provider subject is the join key; if
 it already maps to an actor, that actor wins and the new cookie is

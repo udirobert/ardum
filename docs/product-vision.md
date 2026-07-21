@@ -186,16 +186,19 @@ Mira meets every practitioner anonymously first. Recognition is earned in
 rungs, never gated on arrival:
 
 1. **Voluntary naming** — the practitioner may tell Mira their name at any
-   moment; it joins the home greeting and the voice lane. No auth, no
-   friction, no requirement.
+   moment; it joins the home greeting, the intention heading, and the voice
+   lane. No auth, no friction, no requirement.
 2. **Authenticated actor** — when a provider (Magic, future) completes login,
    the provider subject writes back to the actor row, enabling cross-device
    continuity. The cookie remains the ownership primitive; the subject is
-   the join key across devices.
-3. **Preference profile** — explicit preferences (accommodation, time-of-day,
-   dietary, accessibility) live on the actor row, surfaced on `/memory` as
-   "what Mira has learned about you," editable and deletable.
-4. **Quiet continuity CTA** — after the first booking, Mira may offer to
+   the join key across devices. Cross-device restore verifies wallet
+   ownership via EIP-191 `personal_sign` before re-signing the cookie.
+3. **Preference profile** — explicit preferences (accommodation, dietary,
+   practice style, notes) live on the actor row, surfaced on `/memory` as
+   "what Mira has learned about you," editable and deletable. The ranking
+   policy consumes them as a soft tie-breaker (weight 0.10) — they nudge
+   recommendations but never override stated needs.
+4. **Quiet continuity CTA** — after the first booking, Mira offers to
    remember identity across devices. Never on arrival.
 
 Names and preferences are private to the actor. There is no directory, no

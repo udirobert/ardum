@@ -36,7 +36,14 @@ is first-class; coordination is an optional branch of a hold.
 # Source-of-truth rules
 
 - The episode repository owns operational state.
-- The deterministic ranking policy owns recommendation ordering.
+- The actor profile repository (`src/identity/actor-profile.ts`) owns
+  actor-level state: `preferred_name`, `profile` (preferences),
+  `external_subject`. These fields are private to the actor and deletable
+  on `/memory`.
+- The deterministic ranking policy owns recommendation ordering. The
+  policy includes a "Preference fit" axis (weight 0.10) that consumes
+  explicit preferences from the actor profile as a soft tie-breaker;
+  it never overrides energy, social, or budget fit.
 - Derived ranking views (lens re-rankings and similar) never mutate episode state.
 - Semantic memory is supplementary and lossy. The projector/observe/enrich split and the per-route projector-vs-cognee contract are documented in [0007-memory-architecture](docs/decisions/0007-memory-architecture.md).
 - 0G contains evidence, not journey state.

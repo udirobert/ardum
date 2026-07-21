@@ -68,6 +68,12 @@ Phases:
    (`public/aesthetics/visions/`). Deterministic matching from the aesthetic
    vector + calibration reactions. Cached in `localStorage` by fingerprint.
 4. **Intention / returning** — voice lane + input lane (see above).
+   When the practitioner has set a preferred name (`actors.preferred_name`),
+   the intention heading personalizes: "What are you trying to make space
+   for, {name}?" The returning phase uses the name in Mira's line: "I kept
+   this alive for you, {name}." The name is part of Mira's *letter*, not
+   header chrome — it never appears in operator-facing surfaces or
+   attestation records.
    Committing an intention plays a kinetic word-gather beat, then the route
    changes beneath Mira's persistent field; the episode page upgrades to
    `fieldTier: hero`.
@@ -181,6 +187,14 @@ Success lands on the **preparation plan** by default (practice begins), then
 **what Mira will watch next** (place, deposit hold, check-in window) so worry
 can drop after commitment. Quiet provenance and optional share stay secondary
 — not a receipt hero.
+
+**Cross-device continuity CTA** (ADR 0011 §5): after the booking succeeds,
+`BookedLanding` shows a quiet "keep this across devices — optional" section
+with a link to `/memory` — but only when the actor is not yet authenticated.
+This is the moment the practitioner has a reason to want continuity; the CTA
+never appears on arrival or for authenticated practitioners. The
+`isAuthenticated` flag is threaded from the actor profile repository through
+the episode detail payload.
 
 Failure stays in Mira’s register: nothing charged, partial progress without
 teaching stack vocabulary, retry or cancel without discarding the episode.

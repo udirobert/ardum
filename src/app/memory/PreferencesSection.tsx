@@ -96,8 +96,9 @@ export default function PreferencesSection({ initial }: Props) {
     <div className="mb-10">
       <p className="tag mb-2">what Mira has learned about you</p>
       <p className="text-sm text-[color:var(--muted)] mb-5 leading-relaxed">
-        These are your defaults across intentions. Mira will keep them in mind
-        when she considers what fits. Change them anytime.
+        These are your defaults across intentions. Mira uses them to nudge
+        which retreats she recommends — they never override your stated needs.
+        Change them anytime.
       </p>
 
       <div className="space-y-5">

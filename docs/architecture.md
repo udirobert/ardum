@@ -95,15 +95,37 @@ Recognition is earned in rungs, never gated on arrival. Decision record:
 
 | Rung | Stored on | Surfaces | Authority |
 |---|---|---|---|
-| Voluntary name | `actors.preferred_name` | home greeting, voice lane, `/memory` | The person's explicit statement |
+| Voluntary name | `actors.preferred_name` | home greeting, voice lane, intention heading, `/memory` | The person's explicit statement |
 | Authenticated subject | `actors.external_subject` + `kind: 'authenticated'` | cross-device restore | Provider login (Magic, future) |
 | Preference profile | `actors.profile` (JSONB) | `/memory`, ranking policy input | The person's explicit statement |
-| Continuity CTA | n/a (offers rung 2) | post-booking, never on arrival | Practitioner opt-in |
+| Continuity CTA | n/a (offers rung 2) | post-booking (`BookedLanding`), never on arrival | Practitioner opt-in |
 
 The cookie remains the ownership primitive the adapter layer enforces. The
 provider subject is the cross-device join key; it is never displayed to the
 practitioner and never shared with retreats or invitees. Names and preferences
 are private to the actor and deletable on `/memory` alongside episode history.
+
+**Actor profile repository** (`src/identity/actor-profile.ts`): owns
+`preferred_name`, `profile`, and `external_subject` read/write. Interface:
+`get`, `update`, `attachExternalSubject`, `findByExternalSubject`,
+`isAuthenticated`. Local and Supabase adapters; the Supabase adapter is
+selected when `SUPABASE_URL` is set.
+
+**API routes** (`src/app/api/actor/`):
+- `GET/PATCH /api/actor/profile` — read and update `preferred_name` / `profile`
+- `POST /api/actor/attach` — write `external_subject` after Magic login
+- `POST /api/actor/restore` — cross-device restore via EIP-191
+  `personal_sign` verification; looks up the actor by `external_subject`
+  and re-signs the cookie against the existing actor id
+
+**Preference fit axis** (`src/agent/score.ts`): a composite scoring axis
+(weight 0.10) that compares the practitioner's `accommodation` and `dietary`
+preferences against the retreat's declared offerings (`claims.accommodation`,
+`claims.dietary`). Match scores 1.0, mismatch 0, undeclared offerings 0.5
+(neutral). The axis is skipped entirely when the practitioner has no
+preferences set, preserving backward compatibility. The service layer
+(`src/episodes/service.ts`) loads preferences from the actor profile in the
+`recommend` command and threads them through `recommendForEpisode`.
 
 ### Agent API identity
 
