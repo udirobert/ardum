@@ -47,4 +47,13 @@ describe("episode recommendation", () => {
       "You have not set a firm travel window yet.",
     );
   });
+
+  it("excludes rejected retreats and promotes the next-best", () => {
+    const now = new Date("2026-07-11T12:00:00.000Z");
+    const first = recommendForEpisode(base, now);
+    const rejected = first.result.retreatRootHash;
+    const second = recommendForEpisode(base, now, undefined, [rejected]);
+    expect(second.result.retreatRootHash).not.toBe(rejected);
+    expect(second.alternatives.every((a) => a.retreatRootHash !== rejected)).toBe(true);
+  });
 });

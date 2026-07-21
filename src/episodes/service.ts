@@ -230,6 +230,74 @@ export async function applyEpisodeCommand(
       };
       break;
     }
+    case "reject-recommendation": {
+      // "Not this one" — the practitioner rejects a specific retreat,
+      // not a constraint dimension. We add it to rejectedRetreats and
+      // re-recommend with it excluded, so the user gets a different top
+      // pick without being sent back to clarification.
+      if (!episode.recommendation) {
+        throw new Error("Nothing to reject yet.");
+      }
+      const rejected = [
+        ...(episode.rejectedRetreats ?? []),
+        command.retreatRootHash,
+      ];
+      // ADR 0011 §4: load preferences for the preference-fit tie-breaker.
+      let preferences: PractitionerProfile["preferences"];
+      try {
+        const profile = await actorProfileRepository.get(actorId);
+        const p = profile.profile as Record<string, unknown>;
+        preferences = {
+          accommodation: typeof p.accommodation === "string" ? p.accommodation : undefined,
+          dietary: typeof p.dietary === "string" ? p.dietary : undefined,
+          practiceStyle: typeof p.practiceStyle === "string" ? p.practiceStyle : undefined,
+        };
+      } catch {
+        preferences = undefined;
+      }
+      try {
+        const next = recommendForEpisode(episode, now, preferences, rejected);
+        episode = {
+          ...episode,
+          status: "recommendation-ready",
+          recommendation: next,
+          rejectedRetreats: rejected,
+          hold: undefined,
+          coordination: undefined,
+          events: [
+            ...episode.events,
+            event(
+              ids,
+              now,
+              "recommendation-rejected",
+              `Mira set aside ${command.retreatRootHash.slice(0, 8)} and chose another.`,
+            ),
+            event(ids, now, "recommendation-created", "Mira chose one next step."),
+          ],
+        };
+      } catch {
+        // All retreats exhausted — go back to clarification so the
+        // practitioner can widen their constraints.
+        episode = {
+          ...episode,
+          status: "clarifying",
+          recommendation: undefined,
+          rejectedRetreats: rejected,
+          hold: undefined,
+          coordination: undefined,
+          events: [
+            ...episode.events,
+            event(
+              ids,
+              now,
+              "recommendation-rejected",
+              `Mira set aside ${command.retreatRootHash.slice(0, 8)}. Nothing else fits yet — let's revisit what matters.`,
+            ),
+          ],
+        };
+      }
+      break;
+    }
     case "start-monitoring": {
       if (!episode.recommendation) throw new Error("Nothing to monitor yet.");
       episode = {

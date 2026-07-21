@@ -17,6 +17,7 @@ export function recommendForEpisode(
   episode: Episode,
   now: Date,
   preferences?: Preferences,
+  excludedRootHashes?: string[],
 ): RecommendationSnapshot {
   const intention = currentIntention(episode);
   const { energy, budget, social } = intention.constraints;
@@ -37,16 +38,19 @@ export function recommendForEpisode(
       : undefined,
   };
 
+  const excluded = new Set(excludedRootHashes ?? []);
   const ranked = scoreAll(
     profile,
     localEvidence("retreat"),
-  ).sort(
-    (left, right) =>
-      right.result.score - left.result.score ||
-      left.result.retreatRootHash.localeCompare(right.result.retreatRootHash),
-  );
+  )
+    .filter((entry) => !excluded.has(entry.result.retreatRootHash))
+    .sort(
+      (left, right) =>
+        right.result.score - left.result.score ||
+        left.result.retreatRootHash.localeCompare(right.result.retreatRootHash),
+    );
   const top = ranked[0]?.result;
-  if (!top) throw new Error("No retreat evidence is available.");
+  if (!top) throw new Error("No retreat evidence is available after exclusions.");
 
   const uncertainties: string[] = [];
   if (!intention.constraints.horizon) {

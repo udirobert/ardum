@@ -65,12 +65,13 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
   );
 
   // The shell field carries the episode's journey posture; the veil dims the
-  // moving orb enough for the workbench's dense content to stay legible.
+  // moving orb enough for the workbench's content to stay legible. Kept
+  // light (0.28) so Mira's presence is felt, not just background.
   useMiraField({
     presence: payload?.miraPresence ?? null,
     activity: busy || !payload ? "processing" : "idle",
     aestheticVector,
-    veil: 0.4,
+    veil: 0.28,
   });
 
   // One coordinator per derived-view fetcher. Both layers of
@@ -283,19 +284,25 @@ useEffect(() => {
 
   // Derived once per render so the recommendation block has stable
   // inputs. matchLetter() is pure; memoizing around it would only
-  // add complexity for no win. Recognition lines are read directly
-  // off `letter.lines.slice(0, letter.recognitionLineCount)` — the
-  // letter pushes recognition lines at the front and the narrative
-  // body after, exactly once.
+  // add complexity for no win. The letter has two parts:
+  //   - recognition lines (indices 0..recognitionLineCount-1): shown
+  //     only for returning users ("Welcome back. Last time I recommended
+  //     X in Y…")
+  //   - main letter lines (indices recognitionLineCount..end): Mira's
+  //     explanation of why this retreat fits ("I found a retreat that
+  //     fits where you are right now. I'm recommending this because…")
+  //
+  // Both parts are rendered — recognition as the "note from Mira" aside,
+  // main lines as the primary voice above the retreat card. New users
+  // (recognitionLineCount === 0) see the main letter for the first time.
   const practitionerSignals = {
     energy: intention.constraints.energy,
     budget: intention.constraints.budget,
     social: intention.constraints.social,
   };
-  const letter =
-    recommendation && memory && memory.isReturning
-      ? matchLetter(recommendation, practitionerSignals, memory)
-      : null;
+  const letter = recommendation
+    ? matchLetter(recommendation, practitionerSignals, memory)
+    : null;
   const isClarifyStep =
     nextDecision.kind === "clarify-energy" ||
     nextDecision.kind === "clarify-budget" ||
@@ -413,6 +420,26 @@ useEffect(() => {
                 </div>
               </aside>
             )}
+            {/* Mira's main letter — the why, not the what. Shown for all
+                users, not just returning. This is Mira's voice explaining
+                why this retreat fits the intention. */}
+            {letter && letter.lines.length > letter.recognitionLineCount && (
+              <div className="flex items-start gap-3">
+                <MiraOrb size={32} presence={miraPresence} className="flex-shrink-0 mt-1" />
+                <div className="space-y-2 leading-relaxed flex-1">
+                  {letter.lines
+                    .slice(letter.recognitionLineCount)
+                    .map((line, index) => (
+                      <p
+                        key={`letter-${index}`}
+                        className="text-lg leading-relaxed text-[color:var(--foreground)]"
+                      >
+                        {line}
+                      </p>
+                    ))}
+                </div>
+              </div>
+            )}
             <div>
               <p className="tag mb-2">one current recommendation</p>
               <h3 className="font-serif text-3xl tracking-tight">
@@ -444,7 +471,16 @@ useEffect(() => {
             )}
 
             {episode.hold?.status === "active" ? (
-              <HoldPanel
+              <>
+                {/* Mira's voice during hold — she's watching, not silent. */}
+                <div className="flex items-start gap-3">
+                  <MiraOrb size={32} presence={miraPresence} className="flex-shrink-0 mt-1" />
+                  <p className="text-sm leading-relaxed italic text-[color:var(--accent-ink)]">
+                    I&apos;m watching this for you. I&apos;ll let you know if
+                    anything changes.
+                  </p>
+                </div>
+                <HoldPanel
                 episode={episode}
                 participant={participant}
                 setParticipant={setParticipant}
@@ -474,6 +510,7 @@ useEffect(() => {
                 onPickEnergy={runCounterfactualEnergy}
                 expandSecondaryTools={expandSecondaryTools}
               />
+              </>
             ) : (
               <>
                 <div className="flex flex-wrap gap-3">
@@ -496,6 +533,37 @@ useEffect(() => {
                     {episode.monitor ? "Check for changes" : "Watch this for me"}
                   </button>
                 </div>
+
+                {/* "Not this one" — reject the current top pick and
+                    re-recommend with it excluded. Distinct from "this
+                    doesn't feel right" (categorical feedback that resets
+                    to clarification). This is a specific retreat
+                    rejection that produces a different top pick. */}
+                {episode.recommendation!.alternatives.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      act({
+                        type: "reject-recommendation",
+                        retreatRootHash: recommendation!.retreatRootHash,
+                      })
+                    }
+                    className="text-sm text-[color:var(--muted)] hover:text-foreground underline"
+                  >
+                    Not this one — show me another
+                  </button>
+                )}
+
+                {/* "See other possibilities I'm weighing" — a visible
+                    secondary action that expands the alternatives so the
+                    user knows what else is available before rejecting. */}
+                {episode.recommendation!.alternatives.length > 0 && (
+                  <AlternativesSection
+                    alternatives={episode.recommendation!.alternatives}
+                  />
+                )}
+
                 <ExploreOtherFits
                   alternatives={episode.recommendation!.alternatives}
                   recommendation={recommendation}
@@ -519,11 +587,14 @@ useEffect(() => {
             )}
 
             {latestObservation && (
-              <p className="text-sm text-[color:var(--muted)]">
-                Last checked {new Date(latestObservation.observedAt).toLocaleString()}:
-                {" "}
-                {latestObservation.summary}
-              </p>
+              <div className="flex items-start gap-3">
+                <MiraOrb size={28} presence={miraPresence} className="flex-shrink-0 mt-0.5" />
+                <p className="text-sm leading-relaxed text-[color:var(--muted)]">
+                  Last checked {new Date(latestObservation.observedAt).toLocaleString()}:
+                  {" "}
+                  {latestObservation.summary}
+                </p>
+              </div>
             )}
 
             {nextDecision.kind === "ready-to-book" && (
@@ -924,6 +995,65 @@ function EnergyCounterfactualOutcome({
         {topRanked.retreatLocation} · {topRanked.durationDays} days · $
         {topRanked.priceUsd.toLocaleString()}
       </p>
+    </div>
+  );
+}
+
+// "See other possibilities I'm weighing" — a collapsible section that
+// shows the alternatives with their details, so the user knows what else
+// is available before they reject the top pick. Each alternative shows
+// title, location, duration, price, and the differentiating reason from
+// the ranking policy. The action is "Not this one" on the main
+// recommendation, which walks through the ranked list.
+function AlternativesSection({
+  alternatives,
+}: {
+  alternatives: MatchResult[];
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-t border-[color:var(--hairline)] pt-4">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="text-sm text-[color:var(--muted)] hover:text-foreground"
+        aria-expanded={open}
+      >
+        <span className="inline-block mr-2" aria-hidden>
+          {open ? "−" : "+"}
+        </span>
+        See other possibilities I&apos;m weighing ({alternatives.length})
+      </button>
+      {open && (
+        <ul className="space-y-4 mt-4 pl-2">
+          {alternatives.map((alt, index) => (
+            <li
+              key={alt.retreatRootHash}
+              className="border-l-2 border-[color:var(--hairline)] pl-4"
+            >
+              <p className="text-xs text-[color:var(--muted)] mb-1">
+                {index === 0 ? "next in line" : `option ${index + 1}`}
+              </p>
+              <p className="font-serif text-lg tracking-tight">
+                {alt.retreatTitle}
+              </p>
+              <p className="text-sm text-[color:var(--muted)] mt-0.5">
+                {alt.retreatLocation} · {alt.durationDays} days · $
+                {alt.priceUsd.toLocaleString()}
+              </p>
+              {alt.reasoning.length > 0 && (
+                <p className="text-sm mt-2 italic text-[color:var(--accent-ink)]">
+                  {alt.reasoning[0].then}
+                </p>
+              )}
+            </li>
+          ))}
+          <li className="text-sm text-[color:var(--muted)] pt-2">
+            Use &ldquo;Not this one&rdquo; to move to the next in line.
+          </li>
+        </ul>
+      )}
     </div>
   );
 }

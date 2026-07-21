@@ -93,6 +93,7 @@ export type EpisodeEvent = {
     | "episode-created"
     | "intention-revised"
     | "recommendation-created"
+    | "recommendation-rejected"
     | "monitor-started"
     | "monitor-observed"
     | "hold-created"
@@ -117,6 +118,10 @@ export type Episode = {
   status: EpisodeStatus;
   intentions: IntentionRevision[];
   recommendation?: RecommendationSnapshot;
+  /** Retreat root hashes the practitioner has rejected this episode.
+   *  Re-recommendation skips them so "not this one" produces a different
+   *  top pick without resetting to clarification. */
+  rejectedRetreats?: string[];
   monitor?: MonitorState;
   hold?: SoftHold;
   coordination?: CoordinationState;
@@ -168,6 +173,11 @@ type EpisodeCommandPayload =
       type: "feedback";
       expectedRevision: number;
       reason: "timing" | "budget" | "group" | "place" | "intention";
+    }
+  | {
+      type: "reject-recommendation";
+      expectedRevision: number;
+      retreatRootHash: string;
     }
   | { type: "start-monitoring"; expectedRevision: number }
   | { type: "check-monitor"; expectedRevision: number }

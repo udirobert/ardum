@@ -327,12 +327,33 @@ async function runInviteJourney() {
   });
 
   // 7. Re-recommend and continue.
+  let currentRecommendationHash = "";
   await step("recommend again → status:recommendation-ready", async () => {
     const res = await send({ type: "recommend", expectedRevision: revision });
     assert(res.status === 200, `got ${res.status}: ${JSON.stringify(res.body)}`);
     assert(res.body?.episode?.status === "recommendation-ready",
       `expected status=recommendation-ready, got ${res.body.episode.status}`);
+    currentRecommendationHash = res.body?.episode?.recommendation?.result?.retreatRootHash ?? "";
     revision = res.body.episode.revision;
+  });
+
+  // 7b. "Not this one" — reject the top pick, get a different one.
+  await step("reject-recommendation → new top pick, rejected tracked", async () => {
+    const res = await send({
+      type: "reject-recommendation",
+      expectedRevision: revision,
+      retreatRootHash: currentRecommendationHash,
+    });
+    // If no alternatives were available, the server may 400 — that's fine.
+    if (res.status === 200) {
+      assert(res.body?.episode?.status === "recommendation-ready" || res.body?.episode?.status === "clarifying",
+        `expected status=recommendation-ready or clarifying, got ${res.body.episode.status}`);
+      assert(Array.isArray(res.body?.episode?.rejectedRetreats),
+        `rejectedRetreats should be an array, got: ${JSON.stringify(res.body?.episode?.rejectedRetreats)}`);
+      revision = res.body.episode.revision;
+    } else {
+      assert(res.status === 400, `expected 200 or 400, got ${res.status}`);
+    }
   });
 
   await step("start-monitoring → status:monitoring", async () => {

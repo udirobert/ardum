@@ -117,6 +117,14 @@ export function parseEpisodeCommand(value: unknown): EpisodeCommand {
         reason: reason as Extract<EpisodeCommand, { type: "feedback" }>["reason"],
       };
     }
+    case "reject-recommendation": {
+      const retreatRootHash = text(
+        input.retreatRootHash,
+        "Retreat root hash",
+        200,
+      );
+      return { type, expectedRevision, retreatRootHash };
+    }
     case "create-invite":
       if (input.sharingConsent !== true) {
         throw new Error("Sharing consent is required.");
