@@ -19,12 +19,16 @@ import {
 import { useMiraImpulse } from "@/components/MiraImpulse";
 import StaggerReveal from "@/components/StaggerReveal";
 import { CREAM, DUSK_HEADING, DUSK_MUTED } from "./dusk-theme";
+import {
+  calibrationIntro,
+  calibrationReactionLine,
+} from "@/agent/mira-voice";
 
 const RetreatVision = dynamic(() => import("./RetreatVision"), { ssr: false });
 
 const TARGET_REACTIONS = 4;
 
-type Phase = "calibrate" | "vision";
+type Phase = "intro" | "calibrate" | "vision";
 
 type Props = {
   onComplete: (pref: UserPreference) => void;
@@ -40,7 +44,9 @@ export default function AestheticCalibration({ onComplete, onVector }: Props) {
   const [phase, setPhase] = useState<Phase>(() => {
     const initial =
       typeof window !== "undefined" ? readAestheticPreference() : emptyPreference();
-    return initial.interactions.length >= TARGET_REACTIONS ? "vision" : "calibrate";
+    if (initial.interactions.length >= TARGET_REACTIONS) return "vision";
+    // Skip the intro if the user has already started calibrating.
+    return initial.interactions.length > 0 ? "calibrate" : "intro";
   });
   const [shown, setShown] = useState<Set<string>>(() => {
     const initial =
@@ -55,6 +61,7 @@ export default function AestheticCalibration({ onComplete, onVector }: Props) {
     return pickNextImage(IMAGE_POOL, initial, initialShown);
   });
   const [exiting, setExiting] = useState<"resonate" | "skip" | null>(null);
+  const [voiceLine, setVoiceLine] = useState<string | null>(null);
   const shownAt = useRef(0);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
@@ -98,6 +105,13 @@ export default function AestheticCalibration({ onComplete, onVector }: Props) {
     const nextShown = new Set(shown).add(current.id);
     onVector?.(nextPref.vector);
 
+    // Mira's voice after each swipe — surfaces a reaction line that
+    // makes the calibration feel like a conversation.
+    const nextQualities = describePreferences(nextPref);
+    setVoiceLine(
+      calibrationReactionLine(nextPref.interactions.length - 1, nextQualities),
+    );
+
     window.setTimeout(() => {
       setPref(nextPref);
       setShown(nextShown);
@@ -116,6 +130,29 @@ export default function AestheticCalibration({ onComplete, onVector }: Props) {
         preference={pref}
         onContinue={() => onComplete(pref)}
       />
+    );
+  }
+
+  if (phase === "intro") {
+    return (
+      <div className="w-full max-w-2xl mx-auto text-center aesthetic-intro">
+        <StaggerReveal>
+          <p className="font-serif text-2xl sm:text-3xl tracking-tight mb-6 t-stagger-line t-stagger-line--2 leading-relaxed" style={DUSK_HEADING}>
+            {calibrationIntro()}
+          </p>
+        </StaggerReveal>
+        <button
+          type="button"
+          onClick={() => {
+            setPhase("calibrate");
+            shownAt.current = performance.now();
+          }}
+          className="px-8 py-3 rounded-sm transition-opacity hover:opacity-90"
+          style={{ background: CREAM, color: "#1a120d" }}
+        >
+          Begin
+        </button>
+      </div>
     );
   }
 
@@ -147,7 +184,14 @@ export default function AestheticCalibration({ onComplete, onVector }: Props) {
         />
       </div>
 
-      {qualities.length > 0 && (
+      {/* Mira's voice after each swipe — fades in, replaces the
+          quality tag line with a first-person reaction. */}
+      {voiceLine && (
+        <p className="tag mb-6 italic transition-opacity duration-300" style={{ color: "#e5b394" }}>
+          {voiceLine}
+        </p>
+      )}
+      {!voiceLine && qualities.length > 0 && (
         <p className="tag mb-6 italic" style={{ color: "#e5b394" }}>
           leaning toward {qualities.join(", ")}
         </p>

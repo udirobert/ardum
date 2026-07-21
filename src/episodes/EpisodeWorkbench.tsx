@@ -18,11 +18,15 @@ import type {
 import type {
   Episode,
   EpisodeCommand,
+  IntentionConstraints,
 } from "./model";
 import type { EpisodeDetailPayload } from "./detail-payload";
 import { createAbortableRunner } from "@/lib/abortableFetch";
-import { matchLetter, bookingDialogue, preparationPlan } from "@/agent/mira-voice";
+import { matchLetter, bookingDialogue, preparationPlan, reasoningBeat } from "@/agent/mira-voice";
+import { extractConstraints, hasConstraints } from "@/agent/conversation-extractor";
 import type { MemoryContext } from "@/memory/semantic-memory";
+import type { MiraPresence } from "@/agent/mira-presence";
+import { DUSK_HEADING } from "@/aesthetics/dusk-theme";
 
 type Props = { episodeId: string };
 
@@ -56,7 +60,14 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
   const [participant, setParticipant] = useState("");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [voiceInput, setVoiceInput] = useState("");
+  const [voiceResponse, setVoiceResponse] = useState<string | null>(null);
   const [commitmentOpen, setCommitmentOpen] = useState(false);
+  // Thinking beat: when the user clicks "recommend", we show Mira's
+  // reasoning step by step before the card appears. The beat starts
+  // when `thinking` is set and clears when the recommendation arrives
+  // or the act() promise resolves.
+  const [thinking, setThinking] = useState(false);
   const [activeLens, setActiveLens] = useState<PerspectiveName>("balanced");
   const [lensData, setLensData] = useState<PerspectivesPayload | null>(null);
   const [lensLoading, setLensLoading] = useState(false);
@@ -67,11 +78,13 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
   // The shell field carries the episode's journey posture; the veil dims the
   // moving orb enough for the workbench's content to stay legible. Kept
   // light (0.28) so Mira's presence is felt, not just background.
+  // During the thinking beat, reduce further to 0.15 so Mira is
+  // clearly visible when she's "doing something."
   useMiraField({
     presence: payload?.miraPresence ?? null,
     activity: busy || !payload ? "processing" : "idle",
     aestheticVector,
-    veil: 0.28,
+    veil: thinking ? 0.15 : 0.28,
   });
 
   // One coordinator per derived-view fetcher. Both layers of
@@ -233,6 +246,12 @@ useEffect(() => {
     if (!payload) return;
     setBusy(true);
     setError(null);
+    // Start the thinking beat for recommend and reject-recommendation
+    // commands — these produce a new recommendation, so we surface
+    // Mira's reasoning before the card appears.
+    if (command.type === "recommend" || command.type === "reject-recommendation") {
+      setThinking(true);
+    }
     try {
       const response = await fetch(`/api/episodes/${episodeId}/actions`, {
         method: "POST",
@@ -264,6 +283,33 @@ useEffect(() => {
       await load().catch(() => {});
     } finally {
       setBusy(false);
+      setThinking(false);
+    }
+  }
+
+  // Conversational feedback — the user types what feels off in their own
+  // words. We extract constraints from the text and apply them via
+  // revise-intention, which re-recommends with the new constraints. If
+  // no constraints are extracted, Mira responds with a nudge instead of
+  // silently resetting. See docs/plans/arrival-redesign.md §4.
+  async function submitVoiceFeedback(): Promise<void> {
+    const message = voiceInput.trim();
+    if (!message) return;
+    const extracted = extractConstraints(message);
+    if (hasConstraints(extracted)) {
+      setVoiceResponse(null);
+      await act({
+        type: "revise-intention",
+        constraints: extracted,
+        reason: message.slice(0, 160),
+      });
+      setVoiceInput("");
+    } else {
+      // No constraints extracted — Mira responds with a nudge rather
+      // than silently resetting to clarification.
+      setVoiceResponse(
+        "Tell me more about what feels off — the place, the timing, the cost? That helps me adjust.",
+      );
     }
   }
 
@@ -271,7 +317,7 @@ useEffect(() => {
     return (
       <section className="dusk mx-auto max-w-2xl px-6 sm:px-10 min-h-[calc(100svh-56px)] flex items-center justify-center text-center">
         <p aria-live="polite" className="font-serif text-2xl tracking-tight">
-          {error ?? "Returning to your intention…"}
+          {error ?? "I'm returning to your intention…"}
         </p>
       </section>
     );
@@ -317,6 +363,15 @@ useEffect(() => {
 
   return (
     <section className="dusk mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24 min-h-[calc(100svh-56px)]">
+      {thinking && (
+        <ThinkingBeat
+          constraints={intention.constraints}
+          poolSize={episode.recommendation?.alternatives.length
+            ? episode.recommendation.alternatives.length + 1
+            : undefined}
+          presence={miraPresence}
+        />
+      )}
       <div className="mb-10">
         <button
           type="button"
@@ -389,7 +444,7 @@ useEffect(() => {
               disabled={busy}
               onClick={() => act({ type: "recommend" })}
             >
-              {busy ? "Considering what matters…" : nextDecision.primaryLabel}
+              {busy ? "Sitting with what you've told me…" : nextDecision.primaryLabel}
             </PrimaryButton>
           </>
         )}
@@ -495,10 +550,6 @@ useEffect(() => {
                 onRelease={() => act({ type: "release-hold" })}
                 onRefresh={load}
                 recommendation={recommendation}
-                activeLens={activeLens}
-                lensData={lensData}
-                lensLoading={lensLoading}
-                onPickLens={recomputeWithPerspective}
                 activeBand={activeBand}
                 bandData={bandData}
                 bandLoading={bandLoading}
@@ -533,6 +584,18 @@ useEffect(() => {
                   </button>
                 </div>
 
+                {/* Forward-looking voice — the recommendation is the
+                    beginning of an ongoing relationship, not a terminal
+                    decision. Mira is still working. See docs/plans/
+                    arrival-redesign.md §5. */}
+                <div className="flex items-start gap-3 mt-2">
+                  <MiraOrb size={28} presence={miraPresence} className="flex-shrink-0 mt-0.5" />
+                  <p className="text-sm leading-relaxed italic text-[color:var(--accent-ink)]">
+                    This is my strongest current fit. I&apos;ll keep watching —
+                    if something fits better, I&apos;ll let you know.
+                  </p>
+                </div>
+
                 {/* "Not this one" — reject the current top pick and
                     re-recommend with it excluded. Distinct from "this
                     doesn't feel right" (categorical feedback that resets
@@ -554,14 +617,19 @@ useEffect(() => {
                   </button>
                 )}
 
-                <ExploreOtherFits
-                  alternatives={episode.recommendation!.alternatives}
-                  recommendation={recommendation}
+                <LensFactors
                   activeLens={activeLens}
                   lensData={lensData}
                   lensLoading={lensLoading}
                   busy={busy}
                   onPickLens={recomputeWithPerspective}
+                  recommendation={recommendation}
+                />
+
+                <ExploreOtherFits
+                  alternatives={episode.recommendation!.alternatives}
+                  recommendation={recommendation}
+                  busy={busy}
                   activeBand={activeBand}
                   bandData={bandData}
                   bandLoading={bandLoading}
@@ -622,21 +690,55 @@ useEffect(() => {
             </button>
             {feedbackOpen && (
               <fieldset className="border-t border-[color:var(--hairline)] pt-5">
-                <legend className="tag mb-3">what is off?</legend>
-                <div className="flex flex-wrap gap-2">
-                  {(["timing", "budget", "group", "place", "intention"] as const).map(
-                    (reason) => (
-                      <button
-                        key={reason}
-                        type="button"
-                        disabled={busy}
-                        onClick={() => act({ type: "feedback", reason })}
-                        className="px-3 py-2 rounded-sm border border-[color:var(--hairline)] text-sm capitalize"
-                      >
-                        {reason}
-                      </button>
-                    ),
+                <legend className="tag mb-3">tell Mira what feels off</legend>
+                {/* Voice lane — the primary feedback path. The user
+                    types in their own words; we extract constraints and
+                    re-recommend. Categorical buttons are a fallback
+                    below. */}
+                <div className="space-y-3">
+                  <textarea
+                    value={voiceInput}
+                    onChange={(e) => setVoiceInput(e.target.value)}
+                    placeholder="I don't want somewhere remote…"
+                    rows={2}
+                    className="w-full px-4 py-3 rounded-sm border border-[color:var(--hairline)] bg-transparent text-sm resize-none focus:outline-none focus:border-[color:var(--accent)]"
+                    disabled={busy}
+                  />
+                  {voiceResponse && (
+                    <p className="text-sm italic text-[color:var(--accent-ink)]">
+                      {voiceResponse}
+                    </p>
                   )}
+                  <button
+                    type="button"
+                    disabled={busy || !voiceInput.trim()}
+                    onClick={submitVoiceFeedback}
+                    className="text-sm text-[color:var(--muted)] hover:text-foreground disabled:opacity-40"
+                  >
+                    {busy ? "Sitting with that…" : "Tell Mira →"}
+                  </button>
+                </div>
+                {/* Categorical fallback — for users who prefer buttons
+                    over free text. Resets to clarification. */}
+                <div className="mt-5 pt-4 border-t border-[color:var(--hairline)]">
+                  <p className="text-xs text-[color:var(--muted)] mb-2">
+                    or pick a category
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(["timing", "budget", "group", "place", "intention"] as const).map(
+                      (reason) => (
+                        <button
+                          key={reason}
+                          type="button"
+                          disabled={busy}
+                          onClick={() => act({ type: "feedback", reason })}
+                          className="px-3 py-2 rounded-sm border border-[color:var(--hairline)] text-sm capitalize"
+                        >
+                          {reason}
+                        </button>
+                      ),
+                    )}
+                  </div>
                 </div>
               </fieldset>
             )}
@@ -841,6 +943,144 @@ function BookedLanding({
   );
 }
 
+// The thinking beat — Mira's reasoning surfaces step by step before
+// the recommendation card appears. The orb is prominent (inquiry
+// posture) and the reasoning lines fade in on a timed schedule from
+// reasoningBeat(). This makes the recommendation feel earned, not
+// instant. See docs/plans/arrival-redesign.md §2.
+function ThinkingBeat({
+  constraints,
+  poolSize,
+  presence,
+}: {
+  constraints: IntentionConstraints;
+  poolSize?: number;
+  presence: MiraPresence | null;
+}) {
+  const steps = useMemo(
+    () =>
+      reasoningBeat(
+        constraints.energy,
+        constraints.budget,
+        constraints.social,
+        poolSize,
+      ),
+    [constraints.energy, constraints.budget, constraints.social, poolSize],
+  );
+  const [visibleCount, setVisibleCount] = useState(0);
+
+  useEffect(() => {
+    // Reveal each step on its scheduled delay. The timers are cleaned
+    // up on unmount so a fast response doesn't leave dangling timers.
+    const timers: number[] = [];
+    for (let i = 0; i < steps.length; i++) {
+      timers.push(
+        window.setTimeout(() => setVisibleCount(i + 1), steps[i].delayMs),
+      );
+    }
+    return () => {
+      for (const t of timers) window.clearTimeout(t);
+    };
+  }, [steps]);
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-[#0c0806]/95 backdrop-blur-sm"
+      aria-live="polite"
+      aria-label="Mira is thinking"
+    >
+      <div className="flex flex-col items-center gap-6 max-w-md px-6 text-center">
+        <MiraOrb
+          size={120}
+          presence={presence ?? undefined}
+          activity="processing"
+          className="flex-shrink-0"
+        />
+        <div className="space-y-3 min-h-[6rem]">
+          {steps.slice(0, visibleCount).map((step, index) => (
+            <p
+              key={`reasoning-${index}`}
+              className="font-serif text-lg tracking-tight leading-relaxed fade-in-up"
+              style={DUSK_HEADING}
+            >
+              {step.text}
+            </p>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Prominent lens factors — "What if we weighted this differently?"
+// Surfaces the three ranking lenses (balanced/restorative/movement) in
+// the main flow so the user can shape how Mira weighs what fits, not
+// just accept or reject her result. See docs/plans/arrival-redesign.md §3.
+function LensFactors({
+  activeLens,
+  lensData,
+  lensLoading,
+  busy,
+  onPickLens,
+  recommendation,
+}: {
+  activeLens: PerspectiveName;
+  lensData: PerspectivesPayload | null;
+  lensLoading: boolean;
+  busy: boolean;
+  onPickLens: (lens: PerspectiveName) => void;
+  recommendation: MatchResult | undefined;
+}) {
+  return (
+    <div className="border-t border-[color:var(--hairline)] pt-5">
+      <p className="tag mb-2">What if we weighted this differently?</p>
+      <p className="text-sm text-[color:var(--muted)] mb-3 italic">
+        These change how I weigh what fits. They don&apos;t change what you asked for.
+      </p>
+      <div
+        role="group"
+        aria-label="Recompute the fit under a different lens"
+        className="flex flex-wrap gap-2"
+      >
+        {(["balanced", "restorative", "movement"] as const).map((lens) => (
+          <button
+            key={lens}
+            type="button"
+            disabled={busy || lensLoading}
+            onClick={() => onPickLens(lens)}
+            className={`px-3 py-2 rounded-sm border text-sm capitalize transition-colors disabled:opacity-40 ${
+              activeLens === lens
+                ? "border-[color:var(--accent)] text-[color:var(--accent-ink)]"
+                : "border-[color:var(--hairline)] hover:border-[color:var(--accent)]"
+            }`}
+            aria-pressed={activeLens === lens}
+          >
+            {lens}
+          </button>
+        ))}
+      </div>
+      {lensLoading && (
+        <p className="text-sm text-[color:var(--muted)] mt-3 italic">
+          Re-ranking…
+        </p>
+      )}
+      {!lensLoading &&
+        activeLens !== "balanced" &&
+        lensData &&
+        lensData[activeLens] && (
+          <LensOutcome
+            lens={activeLens}
+            pick={lensData[activeLens]!}
+            sameAsMain={
+              lensData[activeLens]!.retreatRootHash ===
+              recommendation?.retreatRootHash
+            }
+          />
+        )}
+    </div>
+  );
+}
+
 function PrimaryButton({
   children,
   disabled,
@@ -989,18 +1229,15 @@ function EnergyCounterfactualOutcome({
   );
 }
 
-// Surfaces the alternatives + lens toggle as a single component.
-// Expanded when uncertainty is high, feedback is open, or no hold yet;
-// collapsed under a calm active hold (confidence check only — never
-// mutates the hold). See docs/design/experience-layer.md.
+// Surfaces the alternatives + budget/energy counterfactuals as a single
+// component. Expanded when uncertainty is high, feedback is open, or no
+// hold yet; collapsed under a calm active hold (confidence check only —
+// never mutates the hold). Lens factors are in the prominent
+// LensFactors component above. See docs/design/experience-layer.md.
 function ExploreOtherFits({
   alternatives,
   recommendation,
-  activeLens,
-  lensData,
-  lensLoading,
   busy,
-  onPickLens,
   activeBand,
   bandData,
   bandLoading,
@@ -1014,11 +1251,7 @@ function ExploreOtherFits({
 }: {
   alternatives: MatchResult[];
   recommendation: MatchResult | undefined;
-  activeLens: PerspectiveName;
-  lensData: PerspectivesPayload | null;
-  lensLoading: boolean;
   busy: boolean;
-  onPickLens: (lens: PerspectiveName) => void;
   activeBand: BudgetBand | null;
   bandData: CounterfactualResult | null;
   bandLoading: boolean;
@@ -1071,49 +1304,7 @@ function ExploreOtherFits({
         </div>
       )}
       <div>
-        <p className="tag mb-2">what would change the fit?</p>
-        <div
-          role="group"
-          aria-label="Recompute the fit under a different lens"
-          className="flex flex-wrap gap-2"
-        >
-          {(["balanced", "restorative", "movement"] as const).map((lens) => (
-            <button
-              key={lens}
-              type="button"
-              disabled={busy || lensLoading}
-              onClick={() => onPickLens(lens)}
-              className={`px-3 py-2 rounded-sm border text-sm capitalize transition-colors disabled:opacity-40 ${
-                activeLens === lens
-                  ? "border-[color:var(--accent)] text-[color:var(--accent-ink)]"
-                  : "border-[color:var(--hairline)] hover:border-[color:var(--accent)]"
-              }`}
-              aria-pressed={activeLens === lens}
-            >
-              {lens}
-            </button>
-          ))}
-        </div>
-        {lensLoading && (
-          <p className="text-sm text-[color:var(--muted)] mt-3 italic">
-            Re-ranking…
-          </p>
-        )}
-        {!lensLoading &&
-          activeLens !== "balanced" &&
-          lensData &&
-          lensData[activeLens] && (
-            <LensOutcome
-              lens={activeLens}
-              pick={lensData[activeLens]!}
-              sameAsMain={
-                lensData[activeLens]!.retreatRootHash ===
-                recommendation?.retreatRootHash
-              }
-            />          )}
-        </div>
-        <div>
-          <p className="tag mb-2">what if your budget were tighter?</p>
+        <p className="tag mb-2">what if your budget were tighter?</p>
           <div
             role="group"
             aria-label="Re-rank the fit under a hypothetical budget"
@@ -1225,10 +1416,6 @@ function HoldPanel({
   onRelease,
   onRefresh,
   recommendation,
-  activeLens,
-  lensData,
-  lensLoading,
-  onPickLens,
   activeBand,
   bandData,
   bandLoading,
@@ -1248,10 +1435,6 @@ function HoldPanel({
   onRelease: () => void;
   onRefresh: () => Promise<void>;
   recommendation: MatchResult | undefined;
-  activeLens: PerspectiveName;
-  lensData: PerspectivesPayload | null;
-  lensLoading: boolean;
-  onPickLens: (lens: PerspectiveName) => void;
   activeBand: BudgetBand | null;
   bandData: CounterfactualResult | null;
   bandLoading: boolean;
@@ -1374,11 +1557,7 @@ function HoldPanel({
       <ExploreOtherFits
         alternatives={episode.recommendation?.alternatives ?? []}
         recommendation={recommendation}
-        activeLens={activeLens}
-        lensData={lensData}
-        lensLoading={lensLoading}
         busy={busy}
-        onPickLens={onPickLens}
         activeBand={activeBand}
         bandData={bandData}
         bandLoading={bandLoading}

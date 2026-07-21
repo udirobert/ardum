@@ -274,3 +274,70 @@ export function preparationPlan(
     days,
   };
 }
+
+// ── Aesthetic calibration voice ─────────────────────────────────────
+// Per-swipe voice lines that make the calibration feel like a
+// conversation with Mira, not a calibration widget. The orb is the
+// focus; these lines are Mira reacting to what the practitioner chooses.
+
+/** Voice line before the first swipe — Mira introduces herself. */
+export function calibrationIntro(): string {
+  return "I'm Mira. Before words — show me what you're drawn to. I'll learn from what you choose.";
+}
+
+/** Voice line after each swipe, indexed by reaction count (0-based). */
+export function calibrationReactionLine(
+  reactionCount: number,
+  qualities: string[],
+): string {
+  if (reactionCount <= 0) return "Noted.";
+  if (reactionCount === 1) return "I'm seeing a pattern.";
+  if (reactionCount === 2) return "Almost there — one more.";
+  if (qualities.length > 0) {
+    return `I have a sense of what you're drawn to — ${qualities.join(", ")}.`;
+  }
+  return "I have a sense of what you're drawn to.";
+}
+
+// ── Reasoning beat ──────────────────────────────────────────────────
+// The "thinking" beat between the recommend command and the card.
+// Surfaces Mira's reasoning step by step so the recommendation feels
+// earned, not instant. Each line has a delay (ms from the start of the
+// beat) controlling when it fades in.
+
+export interface ReasoningStep {
+  text: string;
+  delayMs: number;
+}
+
+export function reasoningBeat(
+  energy?: string,
+  budget?: string,
+  social?: string,
+  poolSize?: number,
+): ReasoningStep[] {
+  const steps: ReasoningStep[] = [
+    { text: "Let me sit with what you've told me.", delayMs: 0 },
+  ];
+
+  const constraintParts: string[] = [];
+  if (energy) constraintParts.push(`You want ${energy} energy`);
+  if (budget) constraintParts.push(`${budget} budget`);
+  if (social) constraintParts.push(`${social}`);
+  if (constraintParts.length > 0) {
+    steps.push({
+      text: `${constraintParts.join(". ")}.`,
+      delayMs: 1000,
+    });
+  }
+
+  if (poolSize && poolSize > 0) {
+    steps.push({
+      text: `I'm weighing ${poolSize} ${poolSize === 1 ? "retreat" : "retreats"} against that.`,
+      delayMs: 2000,
+    });
+  }
+
+  steps.push({ text: "One sits closest.", delayMs: 3000 });
+  return steps;
+}

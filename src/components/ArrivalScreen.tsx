@@ -157,7 +157,7 @@ export default function ArrivalScreen({ greeting, preferredName }: Props) {
                 aria-live="polite"
                 style={DUSK_HEADING}
               >
-                Let me find where we left things…
+                Let me recall where we left things…
               </p>
             </div>
           )}
