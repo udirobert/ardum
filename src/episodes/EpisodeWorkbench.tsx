@@ -313,7 +313,6 @@ useEffect(() => {
   // A fresh recommendation should feel calm and focused, not overwhelming.
   const highUncertainty =
     (episode.recommendation?.uncertainties.length ?? 0) >= 2;
-  const holdActive = episode.hold?.status === "active";
   const expandSecondaryTools = feedbackOpen || highUncertainty;
 
   return (
@@ -553,15 +552,6 @@ useEffect(() => {
                   >
                     Not this one — show me another
                   </button>
-                )}
-
-                {/* "See other possibilities I'm weighing" — a visible
-                    secondary action that expands the alternatives so the
-                    user knows what else is available before rejecting. */}
-                {episode.recommendation!.alternatives.length > 0 && (
-                  <AlternativesSection
-                    alternatives={episode.recommendation!.alternatives}
-                  />
                 )}
 
                 <ExploreOtherFits
@@ -999,65 +989,6 @@ function EnergyCounterfactualOutcome({
   );
 }
 
-// "See other possibilities I'm weighing" — a collapsible section that
-// shows the alternatives with their details, so the user knows what else
-// is available before they reject the top pick. Each alternative shows
-// title, location, duration, price, and the differentiating reason from
-// the ranking policy. The action is "Not this one" on the main
-// recommendation, which walks through the ranked list.
-function AlternativesSection({
-  alternatives,
-}: {
-  alternatives: MatchResult[];
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div className="border-t border-[color:var(--hairline)] pt-4">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="text-sm text-[color:var(--muted)] hover:text-foreground"
-        aria-expanded={open}
-      >
-        <span className="inline-block mr-2" aria-hidden>
-          {open ? "−" : "+"}
-        </span>
-        See other possibilities I&apos;m weighing ({alternatives.length})
-      </button>
-      {open && (
-        <ul className="space-y-4 mt-4 pl-2">
-          {alternatives.map((alt, index) => (
-            <li
-              key={alt.retreatRootHash}
-              className="border-l-2 border-[color:var(--hairline)] pl-4"
-            >
-              <p className="text-xs text-[color:var(--muted)] mb-1">
-                {index === 0 ? "next in line" : `option ${index + 1}`}
-              </p>
-              <p className="font-serif text-lg tracking-tight">
-                {alt.retreatTitle}
-              </p>
-              <p className="text-sm text-[color:var(--muted)] mt-0.5">
-                {alt.retreatLocation} · {alt.durationDays} days · $
-                {alt.priceUsd.toLocaleString()}
-              </p>
-              {alt.reasoning.length > 0 && (
-                <p className="text-sm mt-2 italic text-[color:var(--accent-ink)]">
-                  {alt.reasoning[0].then}
-                </p>
-              )}
-            </li>
-          ))}
-          <li className="text-sm text-[color:var(--muted)] pt-2">
-            Use &ldquo;Not this one&rdquo; to move to the next in line.
-          </li>
-        </ul>
-      )}
-    </div>
-  );
-}
-
 // Surfaces the alternatives + lens toggle as a single component.
 // Expanded when uncertainty is high, feedback is open, or no hold yet;
 // collapsed under a calm active hold (confidence check only — never
@@ -1106,24 +1037,36 @@ function ExploreOtherFits({
           <p className="tag mb-2">
             {holdActive
               ? "and one more that also qualified"
-              : "and one more that qualified"}
+              : "other possibilities I'm weighing"}
           </p>
-          <ul className="space-y-2">
-            {alternatives.map((alt) => (
+          <ul className="space-y-4">
+            {alternatives.map((alt, index) => (
               <li
                 key={alt.retreatRootHash}
-                className="text-sm leading-relaxed"
+                className="border-l-2 border-[color:var(--hairline)] pl-4"
               >
-                <span className="font-serif text-base tracking-tight">
+                <p className="text-xs text-[color:var(--muted)] mb-1">
+                  {index === 0 ? "next in line" : `option ${index + 1}`}
+                </p>
+                <p className="font-serif text-lg tracking-tight">
                   {alt.retreatTitle}
-                </span>
-                <span className="text-[color:var(--muted)]">
-                  {" "}
-                  · {alt.retreatLocation} · {alt.durationDays} days · $
+                </p>
+                <p className="text-sm text-[color:var(--muted)] mt-0.5">
+                  {alt.retreatLocation} · {alt.durationDays} days · $
                   {alt.priceUsd.toLocaleString()}
-                </span>
+                </p>
+                {alt.reasoning.length > 0 && (
+                  <p className="text-sm mt-2 italic text-[color:var(--accent-ink)]">
+                    {alt.reasoning[0].then}
+                  </p>
+                )}
               </li>
             ))}
+            {!holdActive && (
+              <li className="text-sm text-[color:var(--muted)] pt-1">
+                Use &ldquo;Not this one&rdquo; to move to the next in line.
+              </li>
+            )}
           </ul>
         </div>
       )}
@@ -1258,7 +1201,7 @@ function ExploreOtherFits({
         <summary className="tag cursor-pointer">
           {holdActive
             ? "still curious what else fitted?"
-            : "other ways of looking"}
+            : "See other possibilities I'm weighing"}
         </summary>
         <div className="mt-4">{body}</div>
       </details>

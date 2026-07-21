@@ -115,6 +115,27 @@ function withExpiredHold(
   return episode;
 }
 
+/**
+ * Load cross-episode preferences from the actor profile (ADR 0011 §4).
+ * Fire-and-forget on failure — preferences are soft signals, never hard
+ * constraints. Used by both `recommend` and `reject-recommendation`.
+ */
+async function loadPreferences(
+  actorId: string,
+): Promise<PractitionerProfile["preferences"]> {
+  try {
+    const profile = await actorProfileRepository.get(actorId);
+    const p = profile.profile as Record<string, unknown>;
+    return {
+      accommodation: typeof p.accommodation === "string" ? p.accommodation : undefined,
+      dietary: typeof p.dietary === "string" ? p.dietary : undefined,
+      practiceStyle: typeof p.practiceStyle === "string" ? p.practiceStyle : undefined,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export async function applyEpisodeCommand(
   actorId: string,
   episodeId: string,
@@ -181,18 +202,7 @@ export async function applyEpisodeCommand(
       // ADR 0011 §4: load cross-episode preferences so the ranking
       // policy can apply the preference-fit tie-breaker. Fire-and-forget
       // on failure — preferences are soft signals, never hard constraints.
-      let preferences: PractitionerProfile["preferences"];
-      try {
-        const profile = await actorProfileRepository.get(actorId);
-        const p = profile.profile as Record<string, unknown>;
-        preferences = {
-          accommodation: typeof p.accommodation === "string" ? p.accommodation : undefined,
-          dietary: typeof p.dietary === "string" ? p.dietary : undefined,
-          practiceStyle: typeof p.practiceStyle === "string" ? p.practiceStyle : undefined,
-        };
-      } catch {
-        preferences = undefined;
-      }
+      const preferences = await loadPreferences(actorId);
       episode = {
         ...episode,
         status: "recommendation-ready",
@@ -242,19 +252,7 @@ export async function applyEpisodeCommand(
         ...(episode.rejectedRetreats ?? []),
         command.retreatRootHash,
       ];
-      // ADR 0011 §4: load preferences for the preference-fit tie-breaker.
-      let preferences: PractitionerProfile["preferences"];
-      try {
-        const profile = await actorProfileRepository.get(actorId);
-        const p = profile.profile as Record<string, unknown>;
-        preferences = {
-          accommodation: typeof p.accommodation === "string" ? p.accommodation : undefined,
-          dietary: typeof p.dietary === "string" ? p.dietary : undefined,
-          practiceStyle: typeof p.practiceStyle === "string" ? p.practiceStyle : undefined,
-        };
-      } catch {
-        preferences = undefined;
-      }
+      const preferences = await loadPreferences(actorId);
       try {
         const next = recommendForEpisode(episode, now, preferences, rejected);
         episode = {
