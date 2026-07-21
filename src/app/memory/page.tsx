@@ -25,6 +25,7 @@ import { actorProfileRepository } from "@/identity/actor-profile";
 import { activeEpisodePresence } from "@/episodes/detail-payload";
 import MemoryView from "@/app/memory/MemoryView";
 import NameField from "@/app/memory/NameField";
+import PreferencesSection from "@/app/memory/PreferencesSection";
 import RestoreIdentity from "@/app/memory/RestoreIdentity";
 import MiraOrb from "@/components/MiraOrb";
 import { STEADY_PRESENCE } from "@/agent/mira-presence";
@@ -128,6 +129,10 @@ export default async function MemoryPage() {
 
       {actorId && profile && (
         <NameField initialName={profile.preferredName} />
+      )}
+
+      {actorId && profile && (
+        <PreferencesSection initial={profile.profile} />
       )}
 
       {/* Cross-device restore only shows when the practitioner has no
