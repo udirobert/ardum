@@ -200,6 +200,36 @@ AmbientGradient tweens to new palette
 1. `src/components/DecisionSlide.tsx`
 2. `src/components/MiraChoices.tsx`
 
+## Demo Page vs. Live Flow
+
+The `/demo/inventory-led` page is a **dev-only sandbox** for iterating on the retreat exploration UI without waiting on the agent. It uses hardcoded mock data and simulated keyword-based re-ranking. It is reachable only by typing the URL directly; nothing in the app links to it.
+
+The live product flow is:
+1. `/` (home) — user enters intention and creates episode
+2. `/episode/[id]` — `EpisodeWorkbench` renders `RetreatExplorationView` driven by the real agent
+
+The demo page and the live flow share the same `RetreatExplorationView` component, so UI polish applies to both. The demo exists because it gives faster feedback when you don't want to wait on the agent pipeline. It does not offer anything a user could not get from the live flow — a user saying "show me something cheaper" or "I want something solo" already works through the actual agent in the episode context.
+
+## Progress
+
+### Completed (as of 2026-07-20)
+
+All five cinematic polish features are implemented and live:
+
+1. **Orb-as-source choreography** — `RetreatImage` consumes `useMiraOrbPosition()` context directly (no prop drilling). On re-rank, retreats physically emerge from the Mira orb position along curved bezier motion paths with staggered timing.
+
+2. **WebGPU commitment transition** — `WebGPUCommitmentTransition` is wired into `RetreatExplorationView`. When a user clicks "Hold", a `committingRetreat` state triggers the canvas animation (image elevation, particle effects, radial glow) followed by a "Commitment Secured" confirmation overlay. The standard CTA is hidden during the transition.
+
+3. **Progressive disclosure** — Hovering a retreat image reveals an overlay with the operator avatar and bio, full description, highlights list, and horizontal gallery thumbnails. Uses Framer Motion `onHoverStart`/`onHoverEnd` for clean state management.
+
+4. **Real-time color extraction** — `src/lib/color-extraction.ts` samples the center region of hero images via an offscreen canvas, quantizes RGB values to group similar pixels, and extracts the top 3 dominant colors. `AmbientCanvas` uses this for live gradient palettes with a module-level cache to avoid redundant extractions. Falls back to the static `retreat.palette` from the catalog if extraction fails.
+
+5. **Reduced motion support** — `useReducedMotion` from Framer Motion gates all parallax, motion path animations, ambient canvas animation speed, and progressive disclosure transitions. Users with `prefers-reduced-motion` see a static, immediately-legible layout.
+
+### Arrival UX fix
+
+The "Tell Mira what matters" button on the home page requires both a filled intention textarea and the consent checkbox. Added a contextual hint ("Tick the box above to continue") that appears when text is entered but consent is unchecked, so users understand why the button is inactive.
+
 ## Next Steps
 
 ### Immediate

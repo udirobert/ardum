@@ -281,11 +281,19 @@ export default function ArrivalScreen({ greeting }: Props) {
                   type="button"
                   onClick={create}
                   disabled={!statement.trim() || !consent || submitting}
-                  className="mt-8 w-full px-8 py-3.5 rounded-sm disabled:opacity-40 t-stagger-line t-stagger-line--2"
+                  className="mt-8 w-full px-8 py-3.5 rounded-sm disabled:opacity-40 disabled:cursor-not-allowed t-stagger-line t-stagger-line--2"
                   style={{ background: "#f6efe3", color: "#1a120d" }}
                 >
                   {submitting ? "Giving it shape…" : "Tell Mira what matters →"}
                 </button>
+                {!submitting && statement.trim() && !consent && (
+                  <p
+                    className="mt-2 text-xs text-center"
+                    style={{ color: "rgba(246,239,227,0.5)" }}
+                  >
+                    Tick the box above to continue
+                  </p>
+                )}
               </StaggerReveal>
             )}
 

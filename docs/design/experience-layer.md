@@ -96,6 +96,38 @@ with low uncertainty. Operator chrome (revision counters, wallet substrings)
 does not belong in the primary card. Journey history lives in a quiet
 disclosure (“the journey so far”), not as hero metadata.
 
+### Inventory-led retreat exploration
+
+The episode workbench renders `RetreatExplorationView` instead of the legacy
+quiz-style clarification flow. Users see real retreat inventory immediately
+after creating an episode, presented as full-bleed hero images with parallax
+scroll, ambient color gradients extracted from retreat photos, and Mira's
+contextual notes.
+
+**Conversation over quiz:** Users react to real retreats with natural language
+("too expensive", "show me something shorter", "I want to go alone") rather
+than answering abstract multiple-choice questions. The system extracts
+constraints from reactions and re-ranks the catalog, triggering motion path
+transitions where old retreats arc away and new ones emerge from Mira's orb.
+
+**Cinematic polish (completed 2026-07-20):**
+- **Orb-as-source choreography:** Retreats physically emerge from the Mira orb
+  position along curved bezier paths with staggered timing on re-rank.
+- **Progressive disclosure:** Hover reveals operator bio, highlights, and
+  gallery thumbnails without cluttering the default view.
+- **Real-time color extraction:** Canvas-based sampling extracts dominant
+  colors from hero images for ambient gradient palettes, falling back to
+  catalog data.
+- **WebGPU commitment transition:** Holding a retreat triggers a canvas
+  animation (image elevation, particles, glow) into a confirmation overlay.
+- **Reduced motion support:** All parallax, motion paths, and ambient
+  animations respect `prefers-reduced-motion`.
+
+**Demo page:** `/demo/inventory-led` is a dev-only sandbox using mock data for
+faster UI iteration. It is reachable only by direct URL; the live flow at
+`/episode/[id]` uses the same components with real agent-driven data. See
+`docs/design/inventory-led-implementation-summary.md` for details.
+
 Hold after recommendation:
 
 - **Primary:** hold for the bounded window (non-binding, nothing charged).
