@@ -200,7 +200,9 @@ export default function ArrivalScreen({ greeting, preferredName }: Props) {
                   className="font-serif text-3xl sm:text-5xl leading-[1.08] tracking-tight t-stagger-line t-stagger-line--2"
                   style={DUSK_HEADING}
                 >
-                  What are you trying to make space for?
+                  {preferredName
+                    ? `What are you trying to make space for, ${preferredName}?`
+                    : "What are you trying to make space for?"}
                 </h1>
                 <p
                   className="mt-4 text-base sm:text-lg leading-relaxed max-w-md mx-auto t-stagger-line t-stagger-line--2"

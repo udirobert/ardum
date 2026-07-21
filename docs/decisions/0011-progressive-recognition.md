@@ -103,11 +103,18 @@ you did" into "I know how you like to be met."
 
 ### 5. Quiet "sign in to keep this" CTA — post-booking, not pre-intention
 
-After the first booking succeeds, Mira may offer: "If you want this to follow
+After the first booking succeeds, Mira offers: "If you want this to follow
 you across devices, I can remember your identity — optional." That is the
 moment the person has a reason to want continuity. Never on arrival. This
 matches ADR 0008 §6 ("durable identity compounds agency") without inverting
 the anonymous-first arrival.
+
+Implementation: the `BookedLanding` component on the episode page shows a
+quiet "keep this across devices — optional" section with a link to `/memory`
+when the actor is not yet authenticated. The `isAuthenticated` flag is
+threaded from the actor profile repository through the episode detail
+payload. The CTA never appears for authenticated practitioners or on the
+arrival surface.
 
 ## Surface hierarchy
 

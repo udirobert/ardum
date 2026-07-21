@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import MiraOrb, { preloadMiraScene } from "@/components/MiraOrb";
 import { useMiraField } from "@/components/MiraField";
@@ -357,6 +358,7 @@ useEffect(() => {
             miraPresence={miraPresence}
             commitment={episode.commitment}
             contribution={episode.widerApertureContribution}
+            isAuthenticated={payload?.isAuthenticated ?? false}
             busy={busy}
             onGrantContribution={() =>
               act({ type: "grant-wider-aperture-contribution" })
@@ -630,6 +632,7 @@ function BookedLanding({
   miraPresence,
   commitment,
   contribution,
+  isAuthenticated,
   busy,
   onGrantContribution,
   onRevokeContribution,
@@ -641,6 +644,7 @@ function BookedLanding({
   miraPresence: EpisodeDetailPayload["miraPresence"];
   commitment: Episode["commitment"];
   contribution: Episode["widerApertureContribution"];
+  isAuthenticated: boolean;
   busy: boolean;
   onGrantContribution: () => void;
   onRevokeContribution: () => void;
@@ -751,6 +755,27 @@ function BookedLanding({
           </div>
         )}
       </div>
+
+      {/* ADR 0011 §5: quiet cross-device continuity CTA. Only shown when
+          the actor is not yet authenticated — they've booked, so they
+          have a reason to want continuity, but they haven't signed in.
+          Never on arrival; never for authenticated practitioners. */}
+      {!isAuthenticated && (
+        <div className="border-t border-[color:var(--hairline)] pt-5">
+          <p className="tag mb-2">keep this across devices — optional</p>
+          <p className="text-sm text-[color:var(--muted)] leading-relaxed max-w-prose mb-3">
+            If you want this booking and your intentions to follow you on
+            other devices, sign in from the memory page. Optional — everything
+            stays on this device either way.
+          </p>
+          <Link
+            href="/memory"
+            className="text-sm text-[color:var(--accent-ink)] hover:text-foreground"
+          >
+            Set up cross-device continuity →
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { buildEpisodeDetailPayload } from "@/episodes/detail-payload";
 import { episodeRepository } from "@/episodes/repository";
 import { loadWiderApertureStores } from "@/evidence/load-wider-aperture-stores";
 import { resolveActor } from "@/identity/actor";
+import { actorProfileRepository } from "@/identity/actor-profile";
 import { projectActorMemory } from "@/memory/enrich";
 import { cogneeMemory } from "@/memory/cognee";
 
@@ -34,8 +35,22 @@ export async function GET(
   );
   const memory = await projectActorMemory(actorId, siblings, cogneeMemory);
   const widerApertureStores = await loadWiderApertureStores();
+  // ADR 0011 §5: check if the actor is authenticated so the booked
+  // landing can decide whether to show the cross-device continuity CTA.
+  // Fire-and-forget on failure — defaults to false (no CTA).
+  let isAuthenticated = false;
+  try {
+    isAuthenticated = await actorProfileRepository.isAuthenticated(actorId);
+  } catch {
+    // ignore — default to false
+  }
   return NextResponse.json(
-    buildEpisodeDetailPayload({ episode, memory, widerApertureStores }),
+    buildEpisodeDetailPayload({
+      episode,
+      memory,
+      widerApertureStores,
+      isAuthenticated,
+    }),
   );
 }
 

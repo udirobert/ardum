@@ -40,6 +40,10 @@ export interface ActorProfileRepository {
   /** Look up an actor by provider subject. Returns the actor id or null.
    *  ADR 0011 §3: the cross-device restore path. */
   findByExternalSubject(subject: string): Promise<string | null>;
+  /** Check if the actor has an attached provider subject (is authenticated).
+   *  ADR 0011 §5: used by the booked landing to decide whether to show
+   *  the cross-device continuity CTA. */
+  isAuthenticated(actorId: string): Promise<boolean>;
 }
 
 export const actorProfileRepository: ActorProfileRepository = hasSupabase()

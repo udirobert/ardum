@@ -15,6 +15,10 @@ export type EpisodeDetailPayload = {
   memory?: MemoryContext;
   /** Tier B/C evidence for Beat 2 disclosure — null fields when gates fail. */
   widerApertureEvidence?: WiderApertureEvidence;
+  /** ADR 0011 §5: whether the actor has an authenticated provider subject.
+   *  Used by the booked landing to decide whether to show the cross-device
+   *  continuity CTA. False when the actor is anonymous-only. */
+  isAuthenticated?: boolean;
 };
 
 export type EpisodeActionPayload = {
@@ -36,6 +40,7 @@ export function buildEpisodeDetailPayload(input: {
   memory?: MemoryContext;
   now?: number;
   widerApertureStores?: WiderApertureStores;
+  isAuthenticated?: boolean;
 }): EpisodeDetailPayload {
   const intention = input.episode.intentions.at(-1);
   const recommendation = input.episode.recommendation?.result;
@@ -54,6 +59,7 @@ export function buildEpisodeDetailPayload(input: {
     memory: input.memory,
     miraPresence: projectMiraPresence(input.episode, input.now),
     widerApertureEvidence,
+    isAuthenticated: input.isAuthenticated,
   };
 }
 

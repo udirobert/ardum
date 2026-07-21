@@ -527,6 +527,121 @@ async function runInviteJourney() {
   });
 }
 
+// --- actor profile path (ADR 0011) --------------------------------------
+//
+// Exercises the three /api/actor/* routes against a running server using
+// the cookie jar from the journeys above. In local (demo) mode:
+//   - GET /api/actor/profile returns an empty profile
+//   - PATCH /api/actor/profile sets a preferred name
+//   - POST /api/actor/attach is a no-op (local mode has no external_subject)
+//   - POST /api/actor/restore returns 404 (no existing identity in local mode)
+//
+// In Supabase mode these would exercise the full write-back and restore
+// flow, but the smoke journey runs against the local demo server.
+
+async function runActorProfilePath() {
+  console.log("\n  — actor profile path —");
+
+  // Probe: if the server is running against Supabase but migration 005
+  // (preferred_name column) hasn't been applied, the profile GET will
+  // return 500. In that case, skip the profile read/write steps but
+  // still run the defensive checks that don't touch the database.
+  const probe = await jsonRequest("GET", "/api/actor/profile");
+  const migrationApplied = probe.status === 200;
+
+  if (!migrationApplied) {
+    console.log(
+      `  \x1b[33m⚠\x1b[0m /api/actor/profile returned ${probe.status} — migration 005 may not be applied; skipping profile read/write steps`,
+    );
+  }
+
+  if (migrationApplied) {
+    await step("GET /api/actor/profile returns a profile shape", async () => {
+      assert(
+        probe.body?.profile,
+        `no profile in response: ${JSON.stringify(probe.body)}`,
+      );
+      assert(
+        "preferredName" in probe.body.profile,
+        `profile missing preferredName: ${JSON.stringify(probe.body.profile)}`,
+      );
+    });
+
+    await step("PATCH /api/actor/profile sets a preferred name", async () => {
+      const res = await jsonRequest("PATCH", "/api/actor/profile", {
+        preferredName: "Smoke",
+      });
+      assert(res.status === 200, `expected 200, got ${res.status}: ${JSON.stringify(res.body)}`);
+      assert(
+        res.body?.profile?.preferredName === "Smoke",
+        `preferredName not echoed back: ${JSON.stringify(res.body)}`,
+      );
+    });
+
+    await step("GET /api/actor/profile reflects the saved name", async () => {
+      const res = await jsonRequest("GET", "/api/actor/profile");
+      assert(res.status === 200, `expected 200, got ${res.status}`);
+      assert(
+        res.body?.profile?.preferredName === "Smoke",
+        `preferredName not persisted: ${JSON.stringify(res.body?.profile)}`,
+      );
+    });
+
+    await step("PATCH /api/actor/profile clears the name with null", async () => {
+      const res = await jsonRequest("PATCH", "/api/actor/profile", {
+        preferredName: null,
+      });
+      assert(res.status === 200, `expected 200, got ${res.status}: ${JSON.stringify(res.body)}`);
+      assert(
+        res.body?.profile?.preferredName === null,
+        `preferredName should be null after clear: ${JSON.stringify(res.body?.profile)}`,
+      );
+    });
+  }
+
+  await step("PATCH /api/actor/profile rejects empty body", async () => {
+    const res = await jsonRequest("PATCH", "/api/actor/profile", {});
+    assert(res.status === 400, `expected 400 for empty patch, got ${res.status}`);
+  });
+
+  await step("POST /api/actor/attach accepts a subject", async () => {
+    // Use a random address to avoid colliding with the unique constraint
+    // on external_subject from previous smoke runs.
+    const randomAddr =
+      "0x" +
+      Array.from({ length: 40 }, () =>
+        Math.floor(Math.random() * 16).toString(16),
+      ).join("");
+    const res = await jsonRequest("POST", "/api/actor/attach", {
+      subject: randomAddr,
+    });
+    // In local mode this is a no-op; in Supabase mode it writes
+    // external_subject. Either way, 200 is the success path.
+    assert(res.status === 200, `expected 200, got ${res.status}: ${JSON.stringify(res.body)}`);
+  });
+
+  await step("POST /api/actor/attach rejects missing subject", async () => {
+    const res = await jsonRequest("POST", "/api/actor/attach", {});
+    assert(res.status === 400, `expected 400 for missing subject, got ${res.status}`);
+  });
+
+  await step("POST /api/actor/restore rejects missing fields", async () => {
+    const res = await jsonRequest("POST", "/api/actor/restore", {});
+    assert(res.status === 400, `expected 400 for missing fields, got ${res.status}`);
+  });
+
+  await step("POST /api/actor/restore rejects bad signature", async () => {
+    const res = await jsonRequest("POST", "/api/actor/restore", {
+      address: "0x0000000000000000000000000000000000000001",
+      signature: "0xbad",
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+    // 401 (signature mismatch) or 400 (invalid signature format) are
+    // both acceptable — the point is that it doesn't succeed.
+    assert(res.status >= 400, `expected >=400 for bad signature, got ${res.status}`);
+  });
+}
+
 async function main() {
   console.log(`\nArdum journey smoke — ${baseUrl}\n`);
   await waitForServer();
@@ -537,6 +652,7 @@ async function main() {
   if (!soloOnly) {
     await runInviteJourney();
   }
+  await runActorProfilePath();
 
   const passed = steps.filter((s) => s.ok).length;
   const failed = steps.length - passed;

@@ -65,3 +65,11 @@ export async function findByExternalSubject(
   void subject;
   return null;
 }
+
+// Local mode never has an attached provider subject.
+export async function isAuthenticated(
+  actorId: string,
+): Promise<boolean> {
+  void actorId;
+  return false;
+}

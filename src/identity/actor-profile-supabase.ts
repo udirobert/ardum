@@ -92,3 +92,17 @@ export async function findByExternalSubject(
   if (error) throw new Error(error.message);
   return (data as { id: string } | null)?.id ?? null;
 }
+
+// ADR 0011 §5: check if the actor has an attached provider subject.
+// Used by the booked landing to decide whether to show the cross-device
+// continuity CTA. An actor is authenticated if external_subject is set.
+export async function isAuthenticated(actorId: string): Promise<boolean> {
+  const { data, error } = await client()
+    .from("actors")
+    .select("external_subject")
+    .eq("id", actorId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const row = data as { external_subject: string | null } | null;
+  return Boolean(row?.external_subject);
+}
