@@ -1,5 +1,5 @@
 import type { Attestation } from "@/attestation/schema";
-import type { PublicEvidenceRecord } from "./wider-aperture";
+import type { InspectedClaim, PublicEvidenceRecord } from "./wider-aperture";
 
 function attestationConfidence(attestation: Attestation): number {
   const hasNotes = Boolean(attestation.claims.notes?.trim());
@@ -22,7 +22,7 @@ export function publicEvidenceFromAttestation(
   extraRetreatKeys: string[] = [],
 ): PublicEvidenceRecord {
   const fetchedAt = attestation.createdAt;
-  const claims = [
+  const claims: InspectedClaim[] = [
     {
       text: `${attestation.claims.durationDays}-day container, up to ${attestation.claims.capacity} people`,
       sourceLabel: "attestation record",

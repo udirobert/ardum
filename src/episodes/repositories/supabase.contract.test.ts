@@ -192,6 +192,8 @@ describe.skipIf(!LIVE)("Supabase live: episode repository contract", () => {
           .then((ep) => stripEpisode(ep)),
       deleteOwned: (actorId, episodeId) =>
         supabase.deleteOwned(toUuid(actorId), toUuid(episodeId)),
+      listContributionEpisodes: () =>
+        supabase.listContributionEpisodes().then(filterOwnRun),
     };
   }
 
