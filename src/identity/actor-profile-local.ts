@@ -55,3 +55,12 @@ export async function attachExternalSubject(
   void actorId;
   void subject;
 }
+
+// No external_subject is stored in local mode; cross-device restore is
+// a Supabase-only feature. Returns null so the restore route responds
+// with "no existing identity found" in demo mode.
+export async function findByExternalSubject(
+  _subject: string,
+): Promise<string | null> {
+  return null;
+}

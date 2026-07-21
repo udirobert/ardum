@@ -37,6 +37,9 @@ export interface ActorProfileRepository {
    *  and flip kind to 'authenticated'. ADR 0011 §2. The subject is the
    *  cross-device join key; it is never displayed to the practitioner. */
   attachExternalSubject(actorId: string, subject: string): Promise<void>;
+  /** Look up an actor by provider subject. Returns the actor id or null.
+   *  ADR 0011 §3: the cross-device restore path. */
+  findByExternalSubject(subject: string): Promise<string | null>;
 }
 
 export const actorProfileRepository: ActorProfileRepository = hasSupabase()

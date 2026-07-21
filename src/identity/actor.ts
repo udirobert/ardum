@@ -43,6 +43,21 @@ export async function resolveActor(options?: {
   return actorId;
 }
 
+/** Re-sign the cookie against an existing actor id. Used by the
+ *  cross-device restore flow (ADR 0011 §3): after verifying the
+ *  practitioner owns the provider subject, the server re-attaches
+ *  this device's cookie to the existing actor row. */
+export async function setActorCookie(actorId: string): Promise<void> {
+  const store = await cookies();
+  store.set(COOKIE_NAME, `${actorId}.${signActorId(actorId, secret())}`, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: MAX_AGE_SECONDS,
+  });
+}
+
 export function verifyActorCookie(value: string): string | null {
   return parse(value);
 }

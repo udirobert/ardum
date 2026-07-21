@@ -77,3 +77,18 @@ export async function attachExternalSubject(
     );
   if (error) throw new Error(error.message);
 }
+
+// ADR 0011 §3: look up an actor by provider subject for cross-device
+// restore. Returns the actor id or null. The unique index on
+// external_subject (001-episodes.sql) guarantees at most one match.
+export async function findByExternalSubject(
+  subject: string,
+): Promise<string | null> {
+  const { data, error } = await client()
+    .from("actors")
+    .select("id")
+    .eq("external_subject", subject)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as { id: string } | null)?.id ?? null;
+}

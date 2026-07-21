@@ -63,14 +63,22 @@ the contract ADR 0004 already specifies; it is unimplemented, not new design.
 ### 3. Cross-device restore via the authenticated actor
 
 After step 2, the signed cookie is no longer the only ownership anchor. A
-"Continue on another device" moment on `/memory` (Magic link, email, future
-provider) re-attaches a new cookie to the existing actor row. This is the
-*progressive* part of progressive auth — it appears when the person has a
-reason to want it, never on first paint.
+"Continue on another device" moment on `/memory` re-attaches a new cookie
+to the existing actor row. This is the *progressive* part of progressive
+auth — it appears when the person has a reason to want it, never on first
+paint.
 
-Implementation note: the re-attachment must be idempotent and must not merge
-two distinct actor rows. The provider subject is the join key; if it already
-maps to an actor, that actor wins and the new cookie is re-signed against it.
+Implementation: the practitioner signs in with Magic on the new device,
+then signs a canonical message (`Ardum cross-device restore v1\naddress:
+<addr>\ntimestamp: <unix-seconds>`) proving wallet ownership. The server
+verifies the signature (EIP-191 `personal_sign` via `ethers.verifyMessage`),
+looks up the `actors` row by `external_subject`, and re-signs the cookie
+against the existing actor id (`setActorCookie`). A 5-minute skew window
+prevents replay, matching the agent API (ADR 0009).
+
+The re-attachment is idempotent: the provider subject is the join key; if
+it already maps to an actor, that actor wins and the new cookie is
+re-signed against it. No two distinct actor rows are ever merged.
 
 ### 4. Preference profile — derived and explicit
 

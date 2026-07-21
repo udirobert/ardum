@@ -25,6 +25,7 @@ import { actorProfileRepository } from "@/identity/actor-profile";
 import { activeEpisodePresence } from "@/episodes/detail-payload";
 import MemoryView from "@/app/memory/MemoryView";
 import NameField from "@/app/memory/NameField";
+import RestoreIdentity from "@/app/memory/RestoreIdentity";
 import MiraOrb from "@/components/MiraOrb";
 import { STEADY_PRESENCE } from "@/agent/mira-presence";
 import Link from "next/link";
@@ -128,6 +129,11 @@ export default async function MemoryPage() {
       {actorId && profile && (
         <NameField initialName={profile.preferredName} />
       )}
+
+      {/* Cross-device restore only shows when the practitioner has no
+          episodes on this device — the "nothing retained" state. A
+          practitioner with episodes already has their identity here. */}
+      {actorId && episodes.length === 0 && <RestoreIdentity />}
 
       <MemoryView episodes={episodes} />
     </section>
