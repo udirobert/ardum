@@ -23,43 +23,33 @@ import ArrivalScreen from "@/components/ArrivalScreen";
 
 export const dynamic = "force-dynamic";
 
-// One short warm line when the practitioner has memory worth naming.
-// Kept distinct from matchLetter() — the letter is for the episode
-// page; the home greeting is "you've been here, here's where you
-// left things" and nothing more. Booking beats match because it is
-// the more concrete marker of an ended journey.
-//
-// ADR 0011: when the practitioner has given Mira their name, the
-// greeting uses it. The name is an explicit statement by the person,
-// never inferred from email or provider metadata.
-async function buildHomeGreeting(
-  actorId: string,
-): Promise<string | null> {
-  const [episodes, profile] = await Promise.all([
-    episodeRepository.listOwned(actorId),
-    actorProfileRepository.get(actorId),
-  ]);
-  // Projector-only result — no cognee call. semantic argument omitted.
-  const memory = await projectActorMemory(actorId, episodes);
-  if (!memory.isReturning && !profile.preferredName) return null;
-  const name = profile.preferredName;
-  const booking = memory.pastBookings[0];
-  if (booking) {
-    return name
-      ? `Welcome back, ${name}. We last saw you booked ${booking.title} in ${booking.location}.`
-      : `Welcome back. We last saw you booked ${booking.title} in ${booking.location}.`;
-  }
-  const last = memory.pastMatches[0];
-  if (last) {
-    return name
-      ? `Welcome back, ${name}. Last time you were considering ${last.title} in ${last.location}.`
-      : `Welcome back. Last time you were considering ${last.title} in ${last.location}.`;
-  }
-  return name ? `Welcome back, ${name}.` : "Welcome back.";
-}
-
 export default async function Home() {
   const actorId = await resolveActor();
-  const greeting = actorId ? await buildHomeGreeting(actorId) : null;
-  return <ArrivalScreen greeting={greeting} />;
+  let greeting: string | null = null;
+  let preferredName: string | null = null;
+  if (actorId) {
+    const [episodes, profile] = await Promise.all([
+      episodeRepository.listOwned(actorId),
+      actorProfileRepository.get(actorId),
+    ]);
+    preferredName = profile.preferredName;
+    const memory = await projectActorMemory(actorId, episodes);
+    const booking = memory.pastBookings[0];
+    const last = memory.pastMatches[0];
+    const name = preferredName;
+    if (memory.isReturning || name) {
+      if (booking) {
+        greeting = name
+          ? `Welcome back, ${name}. We last saw you booked ${booking.title} in ${booking.location}.`
+          : `Welcome back. We last saw you booked ${booking.title} in ${booking.location}.`;
+      } else if (last) {
+        greeting = name
+          ? `Welcome back, ${name}. Last time you were considering ${last.title} in ${last.location}.`
+          : `Welcome back. Last time you were considering ${last.title} in ${last.location}.`;
+      } else {
+        greeting = name ? `Welcome back, ${name}.` : "Welcome back.";
+      }
+    }
+  }
+  return <ArrivalScreen greeting={greeting} preferredName={preferredName} />;
 }

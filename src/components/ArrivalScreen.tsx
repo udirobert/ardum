@@ -24,9 +24,10 @@ type Phase = "loading" | "aesthetic" | "returning" | "intention";
 
 type Props = {
   greeting?: string | null;
+  preferredName?: string | null;
 };
 
-export default function ArrivalScreen({ greeting }: Props) {
+export default function ArrivalScreen({ greeting, preferredName }: Props) {
   const router = useRouter();
   const reduced = useReducedMotion();
   const [phase, setPhase] = useState<Phase>("loading");
@@ -225,8 +226,9 @@ export default function ArrivalScreen({ greeting }: Props) {
                   className="mt-4 text-base sm:text-lg leading-relaxed max-w-md mx-auto t-stagger-line t-stagger-line--2"
                   style={DUSK_MUTED}
                 >
-                  I kept this alive. We can continue from the next decision, or
-                  change what matters now.
+                  {preferredName
+                    ? `I kept this alive for you, ${preferredName}. We can continue from the next decision, or change what matters now.`
+                    : "I kept this alive. We can continue from the next decision, or change what matters now."}
                 </p>
               </StaggerReveal>
             )}
