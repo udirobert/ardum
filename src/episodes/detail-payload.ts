@@ -2,6 +2,9 @@
 // and client islands. Projects miraPresence from operational episode truth.
 
 import { projectMiraPresence, type MiraPresence } from "@/agent/mira-presence";
+import { resolveWiderApertureEvidence } from "@/evidence/resolve-wider-aperture";
+import type { WiderApertureStores } from "@/evidence/resolve-wider-aperture";
+import type { WiderApertureEvidence } from "@/evidence/wider-aperture";
 import { nextDecision, type Episode, type NextDecision } from "./model";
 import type { MemoryContext } from "@/memory/semantic-memory";
 
@@ -10,6 +13,8 @@ export type EpisodeDetailPayload = {
   nextDecision: NextDecision;
   miraPresence: MiraPresence;
   memory?: MemoryContext;
+  /** Tier B/C evidence for Beat 2 disclosure — null fields when gates fail. */
+  widerApertureEvidence?: WiderApertureEvidence;
 };
 
 export type EpisodeActionPayload = {
@@ -30,12 +35,25 @@ export function buildEpisodeDetailPayload(input: {
   episode: Episode;
   memory?: MemoryContext;
   now?: number;
+  widerApertureStores?: WiderApertureStores;
 }): EpisodeDetailPayload {
+  const intention = input.episode.intentions.at(-1);
+  const recommendation = input.episode.recommendation?.result;
+  const widerApertureEvidence =
+    intention && recommendation && input.widerApertureStores
+      ? resolveWiderApertureEvidence({
+          constraints: intention.constraints,
+          retreatKey: recommendation.retreatRootHash,
+          stores: input.widerApertureStores,
+        })
+      : undefined;
+
   return {
     episode: input.episode,
     nextDecision: nextDecision(input.episode),
     memory: input.memory,
     miraPresence: projectMiraPresence(input.episode, input.now),
+    widerApertureEvidence,
   };
 }
 

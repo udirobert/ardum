@@ -189,6 +189,8 @@ Ardum is not:
 - a chatbot wrapped around checkout;
 - a dashboard of model reasoning;
 - an urgency engine;
+- a social-proof or activity-feed layer (“people like you booked…”, trending,
+  live holds, semi-public browse of others’ journeys);
 - a system that silently converts memory into permission;
 - a wallet, chain, or storage onboarding funnel on the primary path.
 
@@ -196,6 +198,12 @@ Browsing, alternatives, technical provenance, and provider status can exist as
 secondary tools. They do not define the primary journey. Infra differentiators
 may prove trust to partners and skeptics in secondary surfaces; they do not tax
 the practitioner path for confidence.
+
+When practitioners want normalization or outcome reassurance, Ardum answers with
+**wider aperture evidence** in Mira’s voice — opt-in anonymized cohort
+patterns, first-party reflections, and verifiable public sources — never a
+social mode or popularity surface. Full decision record:
+[0010-wider-aperture-evidence](docs/decisions/0010-wider-aperture-evidence.md).
 
 ## Agent-as-distribution
 

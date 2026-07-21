@@ -144,3 +144,13 @@ export async function deleteOwned(
     if (invite.episodeId === episodeId) invites.delete(hash);
   }
 }
+
+export async function listContributionEpisodes(): Promise<Episode[]> {
+  return [...episodes.values()]
+    .filter(
+      (episode) =>
+        episode.widerApertureContribution?.grantedAt &&
+        !episode.widerApertureContribution.revokedAt,
+    )
+    .map(clone);
+}

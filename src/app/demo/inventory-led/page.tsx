@@ -1,14 +1,14 @@
 "use client";
 
 import RetreatExplorationView from "@/components/RetreatExplorationView";
+import { SEED_WIDER_APERTURE_STORES } from "@/evidence/seed-wider-aperture";
 
 /**
  * Inventory-led demo sandbox.
  *
  * Uses the same hook and view as the live `/episode/[id]` flow — no
- * duplicate keyword logic, no direct-mode props. The demo exists for
- * faster UI iteration without waiting on the agent pipeline; it offers
- * nothing the live flow doesn't.
+ * duplicate keyword logic, no direct-mode props. Seed wider-aperture
+ * stores exercise tier B/C disclosure rows when gates pass.
  */
 export default function InventoryLedDemo() {
   return (
@@ -18,7 +18,11 @@ export default function InventoryLedDemo() {
           Ardum · Inventory-led demo
         </p>
       </div>
-      <RetreatExplorationView />
+      <RetreatExplorationView
+        initialConstraints={{ energy: "low", social: "solo" }}
+        widerApertureStores={SEED_WIDER_APERTURE_STORES}
+        uncertainties={["Final group size for October dates"]}
+      />
     </main>
   );
 }

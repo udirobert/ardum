@@ -33,6 +33,8 @@ export interface EpisodeRepository {
     response: ParticipantResponse,
   ): Promise<Episode>;
   deleteOwned(actorId: string, episodeId: string): Promise<void>;
+  /** Episodes with an active wider-aperture contribution grant — cohort projection only. */
+  listContributionEpisodes(): Promise<Episode[]>;
 }
 
 // Callers never branch on the provider. Both adapters obey the same aggregate

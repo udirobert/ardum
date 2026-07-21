@@ -147,6 +147,9 @@ export function parseEpisodeCommand(value: unknown): EpisodeCommand {
         bookedAt,
       };
     }
+    case "grant-wider-aperture-contribution":
+    case "revoke-wider-aperture-contribution":
+      return { type, expectedRevision };
     default:
       throw new Error("Unknown episode command.");
   }

@@ -21,11 +21,41 @@ idempotent where externally visible, and guarded by an expected revision.
 | Semantic context | Cognee when configured | Supplementary, lossy, never operational truth |
 | Mira orb posture | `mira-presence` projection from episode state | `MiraOrb` renders; semantic memory does not influence posture |
 | Retreat claims | Evidence repository | 0G may provide immutable evidence references |
+| Wider-aperture evidence (public web, opt-in cohort aggregates) | Evidence repository + aggregate projection | Never a social feed; never a ranking override by popularity — [0010](decisions/0010-wider-aperture-evidence.md) |
 
 No operational decision may reconstruct state from semantic prose, URL payloads,
 or local storage. The projector/observe/enrich split and the per-route
 projector-vs-cognee contract that backs the Semantic context row above are in
 [0007-memory-architecture](docs/decisions/0007-memory-architecture.md).
+
+### Wider-aperture evidence (tier B / tier C)
+
+Product decision: [0010-wider-aperture-evidence](decisions/0010-wider-aperture-evidence.md).
+Beat 2 surfaces: [recommendation-reveal.md](design/recommendation-reveal.md).
+
+```text
+GET /api/episodes/[id]
+  → loadWiderApertureStores()          (server-only)
+      → episodeRepository.listContributionEpisodes()
+      → projectCohortSlices()          (pure; n ≥ 30 gate)
+      → evidenceRepository.listPublicEvidence()
+  → resolveWiderApertureEvidence()     (pure; gates tier B/C rows)
+  → EpisodeDetailPayload.widerApertureEvidence
+  → RetreatExplorationView disclosure rows (conditional; no placeholders)
+```
+
+| Module | Role |
+|---|---|
+| `src/evidence/repository.ts` | Tier C — normalized public evidence from attestations (+ optional fetch adapter) |
+| `src/evidence/project-cohort.ts` | Tier B — pure cohort slice projection from opted-in episodes |
+| `src/evidence/load-wider-aperture-stores.ts` | Server assembly for episode detail |
+| `src/evidence/resolve-wider-aperture.ts` | Visibility gates (sample size, confidence, shape match) |
+| `src/evidence/adapters/http-fetch.ts` | Optional `EVIDENCE_FETCH_*` proxy for Exa / Firecrawl / Tinyfish |
+
+Contribution is a **separate grant** on the episode (`widerApertureContribution`),
+not implied by persistence consent on arrival. Commands:
+`grant-wider-aperture-contribution` / `revoke-wider-aperture-contribution`
+(post-booking only). Cohort aggregates never reorder the ranking policy.
 
 ## Boundaries
 

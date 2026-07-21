@@ -8,8 +8,16 @@ import { MiraOrbProvider } from "./MiraOrbContext";
 import type { IntentionConstraints } from "@/agent/constraint-updater";
 import type { Retreat } from "@/inventory/retreat";
 import type { Recommendation } from "@/agent/retreat-response";
+import { composeBeat2Letter } from "@/evidence/wider-aperture";
+import type { WiderApertureEvidence } from "@/evidence/wider-aperture";
+import type { WiderApertureStores } from "@/evidence/resolve-wider-aperture";
+import { resolveWiderApertureEvidence } from "@/evidence/resolve-wider-aperture";
 import AmbientCanvas from "./AmbientCanvas";
 import WebGPUCommitmentTransition from "./WebGPUCommitmentTransition";
+import {
+  CohortEvidencePanel,
+  PublicEvidencePanel,
+} from "./WiderApertureDisclosurePanels";
 import { DUSK_PANEL, CREAM } from "@/aesthetics/dusk-theme";
 
 /**
@@ -22,16 +30,26 @@ import { DUSK_PANEL, CREAM } from "@/aesthetics/dusk-theme";
 interface RetreatExplorationViewProps {
   initialConstraints?: IntentionConstraints;
   onConstraintChange?: (constraints: IntentionConstraints) => void;
+  /** Pre-resolved tier B/C evidence from episode detail API. */
+  widerApertureEvidence?: WiderApertureEvidence | null;
+  /** Client-side resolve for demo/dev when retreat or constraints change. */
+  widerApertureStores?: WiderApertureStores;
+  /** Recommendation uncertainties — drives nudge + optional letter clause. */
+  uncertainties?: string[];
 }
 
 export default function RetreatExplorationView({
   initialConstraints,
   onConstraintChange,
+  widerApertureEvidence: widerApertureEvidenceProp,
+  widerApertureStores,
+  uncertainties = [],
 }: RetreatExplorationViewProps) {
   const exploration = useRetreatExploration(initialConstraints, onConstraintChange);
   const {
     state,
     recommendation,
+    constraints,
     voiceLaneNudge,
     openAlternatives,
     closeAlternatives,
@@ -62,6 +80,17 @@ export default function RetreatExplorationView({
 
   const [committingRetreat, setCommittingRetreat] = useState<Retreat | null>(null);
 
+  const widerApertureEvidence = (() => {
+    if (widerApertureStores && recommendation) {
+      return resolveWiderApertureEvidence({
+        constraints,
+        retreatKey: recommendation.retreat.id,
+        stores: widerApertureStores,
+      });
+    }
+    return widerApertureEvidenceProp ?? null;
+  })();
+
   const handleCommit = (retreatId: string) => {
     if (!recommendation) return;
     const retreat = recommendation.retreat;
@@ -86,6 +115,8 @@ export default function RetreatExplorationView({
             revealing={state === "arriving"}
             onCommit={handleCommit}
             onOpenAlternatives={openAlternatives}
+            widerApertureEvidence={widerApertureEvidence}
+            uncertainties={uncertainties}
           />
         )}
 
@@ -152,10 +183,24 @@ interface Beat2Props {
   revealing: boolean;
   onCommit: (retreatId: string) => void;
   onOpenAlternatives: () => void;
+  widerApertureEvidence: WiderApertureEvidence | null;
+  uncertainties: string[];
 }
 
-function Beat2({ recommendation, revealing, onCommit, onOpenAlternatives }: Beat2Props) {
+function Beat2({
+  recommendation,
+  revealing,
+  onCommit,
+  onOpenAlternatives,
+  widerApertureEvidence,
+  uncertainties,
+}: Beat2Props) {
   const { retreat, letter } = recommendation;
+  const displayLetter = composeBeat2Letter(
+    letter,
+    widerApertureEvidence,
+    uncertainties,
+  );
 
   return (
     <motion.div
@@ -174,10 +219,12 @@ function Beat2({ recommendation, revealing, onCommit, onOpenAlternatives }: Beat
         <DecisionCard
           key={retreat.id}
           retreat={retreat}
-          letter={letter}
+          letter={displayLetter}
           revealing={revealing}
           onCommit={() => onCommit(retreat.id)}
           onOpenAlternatives={onOpenAlternatives}
+          widerApertureEvidence={widerApertureEvidence}
+          uncertainties={uncertainties}
         />
       </div>
     </motion.div>
@@ -209,7 +256,18 @@ interface DecisionCardProps {
   revealing: boolean;
   onCommit: () => void;
   onOpenAlternatives: () => void;
+  widerApertureEvidence: WiderApertureEvidence | null;
+  uncertainties: string[];
 }
+
+type DisclosureKey =
+  | "none"
+  | "alternatives"
+  | "provenance"
+  | "cohort"
+  | "public-evidence"
+  | "counterfactual"
+  | "operator";
 
 function DecisionCard({
   retreat,
@@ -217,8 +275,13 @@ function DecisionCard({
   revealing,
   onCommit,
   onOpenAlternatives,
+  widerApertureEvidence,
+  uncertainties,
 }: DecisionCardProps) {
-  const [disclosure, setDisclosure] = useState<"none" | "alternatives" | "provenance" | "counterfactual" | "operator">("none");
+  const [disclosure, setDisclosure] = useState<DisclosureKey>("none");
+  const cohortEvidence = widerApertureEvidence?.cohort ?? null;
+  const publicEvidence = widerApertureEvidence?.public ?? null;
+  const uncertaintyCount = uncertainties.length;
 
   return (
     <motion.div
@@ -268,10 +331,22 @@ function DecisionCard({
         </span>
       </button>
 
-      {/* 3. Status — one quiet line. */}
+      {/* 3. Status — one quiet line; optional uncertainty nudge. */}
       <p className="text-xs mt-4" style={{ color: "rgba(246,239,227,0.5)" }}>
         No hold active yet.
       </p>
+      {uncertaintyCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setDisclosure("provenance")}
+          className="text-xs mt-2 text-left transition-opacity hover:opacity-100"
+          style={{ color: "rgba(246,239,227,0.45)" }}
+        >
+          There {uncertaintyCount === 1 ? "is" : "are"} {uncertaintyCount}{" "}
+          {uncertaintyCount === 1 ? "thing" : "things"} I&apos;m still uncertain
+          about.
+        </button>
+      )}
 
       {/* 4. Disclosure — collapsed by default. */}
       <div className="mt-6 pt-6 border-t" style={{ borderColor: "rgba(246,239,227,0.1)" }}>
@@ -295,11 +370,59 @@ function DecisionCard({
               setDisclosure(disclosure === "provenance" ? "none" : "provenance")
             }
           >
-            <p className="text-sm" style={{ color: "rgba(246,239,227,0.7)" }}>
-              Ranked against your intention, your constraints, and the operator&apos;s
-              track record. Provenance is held in the episode record.
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm" style={{ color: "rgba(246,239,227,0.7)" }}>
+                Ranked against your intention, your constraints, and the
+                operator&apos;s track record. Provenance is held in the episode
+                record.
+              </p>
+              {uncertaintyCount > 0 && (
+                <div>
+                  <p
+                    className="text-xs uppercase tracking-wider mb-2"
+                    style={{ color: "rgba(246,239,227,0.55)" }}
+                  >
+                    What remains uncertain
+                  </p>
+                  <ul className="space-y-1">
+                    {uncertainties.map((item) => (
+                      <li
+                        key={item}
+                        className="text-sm"
+                        style={{ color: "rgba(246,239,227,0.7)" }}
+                      >
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           </DisclosureRow>
+          {cohortEvidence && (
+            <DisclosureRow
+              label="What others found"
+              isOpen={disclosure === "cohort"}
+              onToggle={() =>
+                setDisclosure(disclosure === "cohort" ? "none" : "cohort")
+              }
+            >
+              <CohortEvidencePanel evidence={cohortEvidence} />
+            </DisclosureRow>
+          )}
+          {publicEvidence && (
+            <DisclosureRow
+              label="What public sources report"
+              isOpen={disclosure === "public-evidence"}
+              onToggle={() =>
+                setDisclosure(
+                  disclosure === "public-evidence" ? "none" : "public-evidence",
+                )
+              }
+            >
+              <PublicEvidencePanel evidence={publicEvidence} />
+            </DisclosureRow>
+          )}
           <DisclosureRow
             label="What if the timing slips"
             isOpen={disclosure === "counterfactual"}

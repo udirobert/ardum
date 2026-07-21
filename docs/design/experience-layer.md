@@ -112,7 +112,8 @@ contract is in [recommendation-reveal.md](recommendation-reveal.md)
 2. **Arriving → settled** — image emerges from the orb, then settles
    into the dark-glass decision card: Mira's letter (the *why*) →
    retreat identity → one Hold CTA → status → collapsed disclosure
-   (alternatives, provenance, counterfactual, operator). No scroll,
+   (alternatives, provenance, wider-aperture evidence when dense,
+   counterfactual, operator). No scroll,
    no chat input, no floating button.
 3. **Listening** — summoned only via "see other possibilities" or
    "not this." Bounded 3–5 alternative cards with one-line

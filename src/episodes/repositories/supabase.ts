@@ -202,3 +202,18 @@ export async function deleteOwned(
     .eq("actor_id", actorId);
   if (error) throw new Error(error.message);
 }
+
+export async function listContributionEpisodes(): Promise<Episode[]> {
+  const { data, error } = await client()
+    .from("episodes")
+    .select("state")
+    .limit(5000);
+  if (error) throw new Error(error.message);
+  return (data ?? [])
+    .map((row) => row.state as Episode)
+    .filter(
+      (episode) =>
+        episode.widerApertureContribution?.grantedAt &&
+        !episode.widerApertureContribution.revokedAt,
+    );
+}

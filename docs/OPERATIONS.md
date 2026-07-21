@@ -228,3 +228,38 @@ To register Ardum as an ASP (Agent Service Provider) on OKX.AI:
 
 Review takes ~24 hours. The endpoint must be live and return HTTP 200
 on `GET` (service discovery) and `POST` (matching).
+
+## Wider-aperture evidence (optional)
+
+Tier B (cohort) and tier C (public web) evidence power the Beat 2 disclosure
+rows **What others found** and **What public sources report**. Product
+contract: [0010-wider-aperture-evidence](decisions/0010-wider-aperture-evidence.md).
+
+### Environment variables
+
+| Variable | Purpose |
+|---|---|
+| `ARDUM_WIDER_APERTURE_SEED=1` | Merge dev/demo seed cohort + public records into `loadWiderApertureStores()`. Off in production unless exercising UI locally. |
+| `EVIDENCE_FETCH_ENDPOINT` | Optional HTTP proxy for tier C page fetch (Exa, Firecrawl, Tinyfish Fetch, etc.). POST body: `{ "url": "..." }`. Expected response: `{ "url", "title?", "text", "fetchedAt?" }`. |
+| `EVIDENCE_FETCH_API_KEY` | Optional bearer token for the fetch proxy. |
+
+Without these vars, tier C still resolves from on-repo attestation records.
+Tier B stays silent until ≥30 episodes share an active contribution grant for
+the same intention shape.
+
+### Practitioner contribution (tier B input)
+
+After booking, the preparation landing offers an optional grant:
+**Contribute anonymized patterns**. Episode commands:
+
+- `grant-wider-aperture-contribution`
+- `revoke-wider-aperture-contribution`
+
+Cohort projection reads `episodeRepository.listContributionEpisodes()` —
+never verbatim statements or actor ids in practitioner UI.
+
+### Demo
+
+`/demo/inventory-led` passes seed stores directly to `RetreatExplorationView`
+for UI iteration. Live episodes receive `widerApertureEvidence` on
+`GET /api/episodes/[id]` when gates pass.

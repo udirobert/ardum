@@ -334,6 +334,8 @@ useEffect(() => {
         {isClarifyStep ? (
           <RetreatExplorationView
             initialConstraints={intention.constraints}
+            widerApertureEvidence={payload.widerApertureEvidence ?? null}
+            uncertainties={episode.recommendation?.uncertainties ?? []}
             onConstraintChange={(newConstraints) => {
               act({
                 type: "revise-intention",
@@ -354,6 +356,14 @@ useEffect(() => {
             memory={memory}
             miraPresence={miraPresence}
             commitment={episode.commitment}
+            contribution={episode.widerApertureContribution}
+            busy={busy}
+            onGrantContribution={() =>
+              act({ type: "grant-wider-aperture-contribution" })
+            }
+            onRevokeContribution={() =>
+              act({ type: "revoke-wider-aperture-contribution" })
+            }
           />
         ) : (
           <>
@@ -619,6 +629,10 @@ function BookedLanding({
   memory,
   miraPresence,
   commitment,
+  contribution,
+  busy,
+  onGrantContribution,
+  onRevokeContribution,
 }: {
   recommendation: MatchResult;
   depositUsd: number;
@@ -626,6 +640,10 @@ function BookedLanding({
   memory: MemoryContext | undefined;
   miraPresence: EpisodeDetailPayload["miraPresence"];
   commitment: Episode["commitment"];
+  contribution: Episode["widerApertureContribution"];
+  busy: boolean;
+  onGrantContribution: () => void;
+  onRevokeContribution: () => void;
 }) {
   const dialogue = bookingDialogue(depositUsd, recommendation.retreatTitle);
   const plan = preparationPlan(recommendation, signals, memory);
@@ -697,6 +715,42 @@ function BookedLanding({
           </p>
         </details>
       )}
+
+      <div className="border-t border-[color:var(--hairline)] pt-5">
+        <p className="tag mb-2">help Mira learn — optional</p>
+        {contribution?.grantedAt && !contribution.revokedAt ? (
+          <div className="space-y-3">
+            <p className="text-sm text-[color:var(--muted)] leading-relaxed max-w-prose">
+              Anonymized patterns from this journey may help others with similar
+              intentions. You can withdraw anytime.
+            </p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onRevokeContribution}
+              className="text-sm text-[color:var(--muted)] hover:text-foreground disabled:opacity-40"
+            >
+              Withdraw contribution
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-[color:var(--muted)] leading-relaxed max-w-prose">
+              Share anonymized patterns from this journey so Mira can normalize
+              what tends to work for people with intentions like yours. Nothing
+              identifiable is shared.
+            </p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onGrantContribution}
+              className="text-sm text-[color:var(--accent-ink)] hover:text-foreground disabled:opacity-40"
+            >
+              Contribute anonymized patterns
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

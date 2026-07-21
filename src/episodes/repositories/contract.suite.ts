@@ -223,5 +223,24 @@ export function runRepositoryContract(
       expect(await repo.getInvite("alice-invite")).toBeUndefined();
       expect(await repo.getOwned("bob", "bob-ep")).toBeDefined();
     });
+
+    it("listContributionEpisodes returns only active contribution grants", async () => {
+      await repo.create(
+        makeEpisode("granted", "alice", {
+          widerApertureContribution: { grantedAt: "2026-07-01T00:00:00.000Z" },
+        }),
+      );
+      await repo.create(
+        makeEpisode("revoked", "alice", {
+          widerApertureContribution: {
+            grantedAt: "2026-07-01T00:00:00.000Z",
+            revokedAt: "2026-07-02T00:00:00.000Z",
+          },
+        }),
+      );
+      await repo.create(makeEpisode("none", "alice"));
+      const contribution = await repo.listContributionEpisodes();
+      expect(contribution.map((episode) => episode.id)).toEqual(["granted"]);
+    });
   });
 }

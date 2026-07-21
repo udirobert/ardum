@@ -357,6 +357,53 @@ export async function applyEpisodeCommand(
         `commitment:${command.bookingRootHash}`,
       );
       break;
+    case "grant-wider-aperture-contribution": {
+      if (episode.commitment?.status !== "booked") {
+        throw new Error(
+          "Contribution is available after booking, to help Mira learn from completed journeys.",
+        );
+      }
+      if (
+        episode.widerApertureContribution?.grantedAt &&
+        !episode.widerApertureContribution.revokedAt
+      ) {
+        break;
+      }
+      episode = {
+        ...episode,
+        widerApertureContribution: { grantedAt: now.toISOString() },
+        events: [
+          ...episode.events,
+          event(
+            ids,
+            now,
+            "wider-aperture-granted",
+            "Anonymized patterns from this journey may be shared to help others.",
+          ),
+        ],
+      };
+      break;
+    }
+    case "revoke-wider-aperture-contribution": {
+      if (!episode.widerApertureContribution?.grantedAt) break;
+      episode = {
+        ...episode,
+        widerApertureContribution: {
+          grantedAt: episode.widerApertureContribution.grantedAt,
+          revokedAt: now.toISOString(),
+        },
+        events: [
+          ...episode.events,
+          event(
+            ids,
+            now,
+            "wider-aperture-revoked",
+            "Anonymized contribution from this journey was withdrawn.",
+          ),
+        ],
+      };
+      break;
+    }
     case "pause":
       episode = {
         ...episode,

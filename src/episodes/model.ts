@@ -101,6 +101,8 @@ export type EpisodeEvent = {
     | "invite-created"
     | "participant-responded"
     | "commitment-recorded"
+    | "wider-aperture-granted"
+    | "wider-aperture-revoked"
     | "episode-paused"
     | "episode-completed";
   summary: string;
@@ -123,6 +125,11 @@ export type Episode = {
     bookingRootHash: string;
     depositTxId: string;
     bookedAt: string;
+  };
+  /** Opt-in grant to include anonymized patterns in cohort aggregates (ADR 0010). */
+  widerApertureContribution?: {
+    grantedAt: string;
+    revokedAt?: string;
   };
   processedIdempotencyKeys: string[];
   events: EpisodeEvent[];
@@ -179,6 +186,8 @@ type EpisodeCommandPayload =
       depositTxId: string;
       bookedAt: string;
     }
+  | { type: "grant-wider-aperture-contribution"; expectedRevision: number }
+  | { type: "revoke-wider-aperture-contribution"; expectedRevision: number }
   | { type: "pause"; expectedRevision: number }
   | { type: "complete"; expectedRevision: number };
 
