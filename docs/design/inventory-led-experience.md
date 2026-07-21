@@ -1,5 +1,18 @@
 # Inventory-Led Experience: Replacing the Quiz with Exploration
 
+> **Historical rationale doc.** This is the original strategic argument
+> for leading with inventory rather than a quiz-style clarification
+> flow. It argues for a browse grid that the product vision rejects
+> ("not a marketplace organized around places," "not a ranked-results
+> search engine"). The contract-pure realization of the same intent —
+> Mira presents one retreat, alternatives are summoned — is specified
+> in [recommendation-reveal.md](recommendation-reveal.md) and
+> [refinement-alternatives.md](refinement-alternatives.md), and
+> summarized in
+> [inventory-led-implementation-summary.md](inventory-led-implementation-summary.md).
+> Read this doc for the "why lead with inventory at all" argument, not
+> for the current surface contract.
+
 ## Executive Summary
 
 **Problem:** The current multiple-choice clarification flow (energy/budget/social questions) creates cognitive load and feels like a quiz rather than a peaceful, guided experience. Users are forced to introspect into abstract categories ("Settled / In movement / Low / Sharp") when they should be reacting to concrete offerings.

@@ -43,11 +43,3 @@ export interface Retreat {
     social?: "solo" | "small-circle" | "open-circle" | "communal";
   };
 }
-
-export interface RetreatExplorationProps {
-  retreats: Retreat[];
-  miraNote?: string;
-  onUserMessage: (text: string) => void;
-  onCommit: (retreatId: string) => void;
-  busy?: boolean;
-}

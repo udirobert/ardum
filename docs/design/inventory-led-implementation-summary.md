@@ -1,264 +1,134 @@
-# Inventory-Led Experience - Implementation Summary
+# Inventory-Led Experience — Implementation Summary
 
 ## Overview
 
-Successfully replaced the quiz-style clarification flow (energy/budget/social multiple choice) with an inventory-led exploration experience that showcases actual retreats upfront.
+The episode workbench's recommendation surface is a four-beat reveal
+flow: Mira presents **one** retreat as her strongest current fit, and
+alternatives / refinement are summoned by the practitioner rather than
+always-on. This replaced the earlier browse-grid + chat-input + floating-
+hold screen, which violated the product contract (one primary decision
+per state; ranking is Mira's job, not the user's).
 
-## What Was Built
+The full design contract lives in:
+- [recommendation-reveal.md](recommendation-reveal.md) — Beat 2
+- [refinement-alternatives.md](refinement-alternatives.md) — Beat 3
 
-### Track A: Intelligence & State (Person A - droid)
+The original strategic rationale for leading with inventory (vs. the
+quiz-style clarification flow) is in
+[inventory-led-experience.md](inventory-led-experience.md). That doc
+argues for a browse grid that the product vision rejects; the
+four-beat flow is the contract-pure realization of the same intent.
 
-#### Data Layer
-- **`src/inventory/retreat.ts`** - TypeScript interface for retreat data with operator info, pricing, capacity, dates, and color palettes
-- **`public/retreats/mock-catalog.json`** - 5 curated retreats with rich metadata:
-  1. Silent Mountain Retreat (Himalayan Foothills, India) - $1,850
-  2. Ocean Breath Intensive (Bali, Indonesia) - $1,450
-  3. Forest Silence Solo (Pacific Northwest, USA) - $750
-  4. Desert Moon Immersion (Sedona, Arizona) - $2,400
-  5. Coastal Flow & Restore (Algarve, Portugal) - $1,650
-- **`src/inventory/catalog.ts`** - Functions to load and filter retreats based on constraints
-- **`src/inventory/color-extraction.ts`** - Canvas-based dominant color extraction from retreat images
+## What's built
 
-#### Agent Layer
-- **`src/agent/conversation-extractor.ts`** - Parses natural language reactions ("too expensive", "something shorter") into structured constraints
-- **`src/agent/constraint-updater.ts`** - Safely merges new constraints into episode state
-- **`src/inventory/use-retreat-exploration.ts`** - Orchestration hook managing the exploration state machine with phases: loading → idle → extracting → transitioning → idle
+### State machine — `src/inventory/use-retreat-exploration.ts`
 
-### Track B: Motion & Atmosphere (Person B - you)
+Beats: `looking` → `arriving` → `settled` → `listening` (summoned) →
+`committing`. One primary decision per state. The hook never exposes a
+plural "retreats" list — it exposes a single `Recommendation` (top pick
++ letter + bounded alternatives with reasons).
 
-#### Core Components
-- **`src/components/RetreatExplorationView.tsx`** - Main presentation component with:
-  - AnimatePresence for smooth card transitions
-  - Active retreat selection state
-  - Commit button with 48-hour hold messaging
-  - Conversation input for refinement
-  - Sticky input positioning
+- `openAlternatives` / `closeAlternatives` — Beat 3 entry/exit.
+- `elevate(retreatId)` — promote an alternative to top pick; re-reveals
+  with a regenerated letter and reasons.
+- `rejectAlternative(retreatId)` — feedback that re-enters clarity;
+  rejected IDs persist for the episode lifetime.
+- `onVoiceMessage(text)` — Beat 3 voice lane; extracts constraints,
+  merges, re-ranks. On extraction failure, surfaces a specific nudge
+  naming which dimensions are still open (not generic copy).
+- `onCommit(retreatId)` / `onCommitComplete` — Beat 4 trigger/teardown.
 
-- **`src/components/RetreatCard.tsx`** - Individual retreat cards with:
-  - Framer Motion enter/exit animations (slide + fade)
-  - Hover lift effects
-  - Active state pulsing indicator
-  - Hero image with gradient overlay
-  - Location, dates, price, capacity badges
-  - Operator info and highlights
+### Letter source — `src/agent/retreat-response.ts`
 
-- **`src/components/MiraNote.tsx`** - Mira's contextual commentary with:
-  - Fade-in animation
-  - Dusk theme styling
-  - Serif typography
+`buildRecommendation()` returns a single top pick, a singular ≤40-word
+letter that names a constraint the practitioner articulated *and* a
+reason over alternatives, and a bounded set of alternatives with
+one-line differentiating reasons ("Shorter, ocean.", "Higher
+investment, desert.").
 
-- **`src/components/AmbientGradient.tsx`** - Reactive canvas background with:
-  - Color extraction from active retreat palette
-  - Smooth tweening between color states (30fps)
-  - Dual-blob gradient composition
-  - Full-viewport coverage
+- `generateRecommendationLetter()` — the Beat 2 letter. Never plural,
+  never "what stands out to you?", never generic.
+- `generateAlternativeReason()` — the Beat 3 one-liner per alternative.
+- Legacy `generateRetreatResponse` / `generateMiraNote` kept as
+  deprecated shims.
 
-#### Advanced Motion (Optional Enhancements)
-- **`src/components/StickyRetreatGrid.tsx`** - Scroll-driven sticky layout:
-  - Each retreat pins to viewport while scrolling
-  - Progress indicator at top
-  - Parallax effects
-  - 100vh scroll space per retreat
+### View — `src/components/RetreatExplorationView.tsx`
 
-- **`src/components/R3FRetreatCarousel.tsx`** - 3D wavy carousel:
-  - React Three Fiber implementation
-  - GLSL vertex/fragment shaders for wave displacement
-  - Curved plane arrangement (arc pattern)
-  - Interactive rotation based on active index
-  - Hover scaling and lighting effects
+- `LookingBeat` — orb + "Looking at what fits…" line.
+- `Beat2` — `RevealImage` + `DecisionCard` (letter → identity → one
+  Hold CTA → status → collapsed `DisclosureRow`s for alternatives /
+  provenance / counterfactual / operator).
+- `Beat3` — overlay with `AlternativeCard`s (hero image + identity +
+  one-line reason + elevate/not-this), voice lane at the bottom,
+  Escape / close to return.
+- `WebGPUCommitmentTransition` fires from the Beat 2 Hold CTA.
 
-- **`src/components/WebGPUCommitmentTransition.tsx`** - Booking commitment animation:
-  - Canvas 2D rendering (WebGPU-inspired)
-  - Image elevation and scaling
-  - Floating particle effects
-  - Radial glow effects
-  - Booking confirmation overlay
+Field posture follows the beat via `useMiraField` (`processing` →
+`arriving` → `idle` / `listening`).
+
+### Demo page — `src/app/demo/inventory-led/page.tsx`
+
+Uses the same hook and view as the live `/episode/[id]` flow — no
+duplicate keyword logic, no direct-mode props. Reachable only by direct
+URL.
 
 ## Integration
 
-### EpisodeWorkbench Wiring
-- Replaced `{isClarifyStep && <EnergyChoice/BudgetChoice/SocialChoice>}` with `<RetreatExplorationView>`
-- Connects exploration hook to episode state machine
-- Constraints flow: user message → extraction → update episode → re-rank → animate new results
+`EpisodeWorkbench` renders `<RetreatExplorationView
+initialConstraints={intention.constraints} onConstraintChange={...} />`
+inside the clarify step. The view's props contract is preserved, so the
+live flow works without changes to the workbench wiring.
 
-### Component Hierarchy
+## Component hierarchy
+
 ```
 EpisodeWorkbench
   └─ RetreatExplorationView
-      ├─ AmbientGradient (reactive background)
-      ├─ MiraNote (contextual guidance)
-      ├─ RetreatCard[] (with AnimatePresence)
-      │   └─ Framer Motion animations
-      ├─ Commit button (triggers WebGPU transition)
-      └─ Conversation input (refinement loop)
+      ├─ AmbientCanvas (reactive background, color-extracted)
+      ├─ LookingBeat          (Beat 1)
+      ├─ Beat2
+      │   ├─ RevealImage
+      │   └─ DecisionCard
+      │       └─ DisclosureRow[]
+      ├─ Beat3                (summoned)
+      │   ├─ AlternativeCard[]
+      │   └─ voice lane input
+      └─ WebGPUCommitmentTransition  (Beat 4)
 ```
 
-## How It Works
+## What was retired
 
-### User Journey
-1. User completes aesthetic calibration on arrival
-2. Enters intention: "I need a quiet week before October"
-3. System extracts temporal constraint and shows 3 ranked retreats
-4. User reacts: "That first one looks too expensive"
-5. System extracts budget constraint, re-ranks, and animates transition:
-   - Old cards slide up and fade out
-   - New cards slide in from bottom
-   - Ambient gradient shifts to new active retreat colors
-   - Mira provides contextual note explaining the change
-6. User selects a retreat and commits
-7. WebGPU transition morphs retreat image into booking confirmation
+- `src/components/RetreatImage.tsx` — superseded by `RevealImage` and
+  `AlternativeCard`.
+- `src/components/MiraNote.tsx` — superseded by the letter in
+  `DecisionCard`.
+- `RetreatExplorationProps` interface in `src/inventory/retreat.ts` —
+  dead type.
+- The always-on top chat input, the full-bleed scroll grid as the
+  steady state, the floating global Hold button, and the "what stands
+  out to you?" copy. The catalog scroll now only exists as a bounded
+  Beat 3 expansion.
 
-### State Flow
-```
-User Input
-  ↓
-ConversationExtractor.parseReaction()
-  ↓
-ExtractedConstraints { budget?, duration?, social?, dates? }
-  ↓
-ConstraintUpdater.mergeConstraints()
-  ↓
-Episode state update (revise-intention command)
-  ↓
-Catalog.filterRetreats() with new constraints
-  ↓
-New retreat array
-  ↓
-AnimatePresence detects change
-  ↓
-Exit animations → Enter animations
-  ↓
-AmbientGradient tweens to new palette
-```
+## Carried over from the cinematic polish work
 
-## Design Principles
+- **Real-time color extraction** — `src/lib/color-extraction.ts` +
+  `AmbientCanvas`. Samples the active retreat's hero image for ambient
+  gradient palettes, with a module-level cache and catalog fallback.
+- **WebGPU commitment transition** — `WebGPUCommitmentTransition`. Image
+  elevation, particles, radial glow, "Commitment Secured" overlay.
+- **Reduced motion support** — motion respects `prefers-reduced-motion`.
 
-### Peaceful, Not Quiz-Like
-- No multiple choice questions
-- Natural language reactions feel conversational
-- Retreating appears as exploration, not assessment
+## Open items
 
-### Inventory-Led
-- Shows actual retreats immediately (no abstract questions)
-- Builds trust through transparency
-- Leverages proprietary supply as competitive advantage
-
-### Motion-Driven
-- Smooth transitions maintain flow state
-- Ambient gradients create emotional resonance
-- Animations communicate state changes without text
-
-### Agentically Guided
-- Mira's notes contextualize each result set
-- System anticipates needs (e.g., "too expensive" → show cheaper options)
-- Conversation feels like working with a knowledgeable guide
-
-## Technical Highlights
-
-### Performance
-- Canvas 2D rendering for gradients (60fps on modern devices)
-- Framer Motion layout animations (GPU-accelerated)
-- Lazy-loaded retreat images
-- Efficient constraint merging (O(n) complexity)
-
-### Accessibility
-- Semantic HTML structure
-- ARIA labels on interactive elements
-- Keyboard navigation support
-- Reduced motion preferences respected
-
-### Extensibility
-- Modular component architecture
-- Clean separation of concerns (Track A/B)
-- Type-safe interfaces
-- Easy to add new retreats or constraints
-
-## Files Created/Modified
-
-### New Files (16)
-1. `src/inventory/retreat.ts`
-2. `src/inventory/catalog.ts`
-3. `src/inventory/color-extraction.ts`
-4. `src/inventory/use-retreat-exploration.ts`
-5. `public/retreats/mock-catalog.json`
-6. `src/agent/conversation-extractor.ts`
-7. `src/agent/constraint-updater.ts`
-8. `src/components/RetreatExplorationView.tsx`
-9. `src/components/RetreatCard.tsx`
-10. `src/components/MiraNote.tsx`
-11. `src/components/AmbientGradient.tsx`
-12. `src/components/StickyRetreatGrid.tsx`
-13. `src/components/R3FRetreatCarousel.tsx`
-14. `src/components/WebGPUCommitmentTransition.tsx`
-15. `docs/design/inventory-led-experience.md` (updated)
-
-### Modified Files (2)
-1. `src/episodes/EpisodeWorkbench.tsx` - Integrated RetreatExplorationView
-2. `src/app/globals.css` - Removed orphaned quiz CSS classes
-
-### Deleted Files (2)
-1. `src/components/DecisionSlide.tsx`
-2. `src/components/MiraChoices.tsx`
-
-## Demo Page vs. Live Flow
-
-The `/demo/inventory-led` page is a **dev-only sandbox** for iterating on the retreat exploration UI without waiting on the agent. It uses hardcoded mock data and simulated keyword-based re-ranking. It is reachable only by typing the URL directly; nothing in the app links to it.
-
-The live product flow is:
-1. `/` (home) — user enters intention and creates episode
-2. `/episode/[id]` — `EpisodeWorkbench` renders `RetreatExplorationView` driven by the real agent
-
-The demo page and the live flow share the same `RetreatExplorationView` component, so UI polish applies to both. The demo exists because it gives faster feedback when you don't want to wait on the agent pipeline. It does not offer anything a user could not get from the live flow — a user saying "show me something cheaper" or "I want something solo" already works through the actual agent in the episode context.
-
-## Progress
-
-### Completed (as of 2026-07-20)
-
-All five cinematic polish features are implemented and live:
-
-1. **Orb-as-source choreography** — `RetreatImage` consumes `useMiraOrbPosition()` context directly (no prop drilling). On re-rank, retreats physically emerge from the Mira orb position along curved bezier motion paths with staggered timing.
-
-2. **WebGPU commitment transition** — `WebGPUCommitmentTransition` is wired into `RetreatExplorationView`. When a user clicks "Hold", a `committingRetreat` state triggers the canvas animation (image elevation, particle effects, radial glow) followed by a "Commitment Secured" confirmation overlay. The standard CTA is hidden during the transition.
-
-3. **Progressive disclosure** — Hovering a retreat image reveals an overlay with the operator avatar and bio, full description, highlights list, and horizontal gallery thumbnails. Uses Framer Motion `onHoverStart`/`onHoverEnd` for clean state management.
-
-4. **Real-time color extraction** — `src/lib/color-extraction.ts` samples the center region of hero images via an offscreen canvas, quantizes RGB values to group similar pixels, and extracts the top 3 dominant colors. `AmbientCanvas` uses this for live gradient palettes with a module-level cache to avoid redundant extractions. Falls back to the static `retreat.palette` from the catalog if extraction fails.
-
-5. **Reduced motion support** — `useReducedMotion` from Framer Motion gates all parallax, motion path animations, ambient canvas animation speed, and progressive disclosure transitions. Users with `prefers-reduced-motion` see a static, immediately-legible layout.
-
-### Arrival UX fix
-
-The "Tell Mira what matters" button on the home page requires both a filled intention textarea and the consent checkbox. Added a contextual hint ("Tick the box above to continue") that appears when text is entered but consent is unchecked, so users understand why the button is inactive.
-
-## Next Steps
-
-### Immediate
-1. Test the flow end-to-end with real images (currently using placeholder paths)
-2. Run typecheck and lint to catch any issues
-3. Verify episode state machine integration
-
-### Enhancement Opportunities
-1. Add real retreat images to mock catalog
-2. Implement StickyRetreatGrid as alternative layout option
-3. Add R3F carousel as desktop enhancement
-4. Refine WebGPU transition timing and easing
-5. Add sound design for transitions
-
-### Production Readiness
-1. Replace mock catalog with real operator data
-2. Add error boundaries and loading states
-3. Optimize image loading (blur-up placeholders)
-4. Add analytics tracking for engagement metrics
-5. A/B test against old quiz flow
-
-## Strategic Impact
-
-This implementation directly addresses the feedback that the quiz felt like a test rather than a peaceful experience. By leading with inventory:
-
-- **Builds trust** - Shows what's actually available
-- **Reduces cognitive load** - No abstract self-assessment
-- **Creates differentiation** - Proprietary supply visible immediately
-- **Enables discovery** - Users see retreats they might not have considered
-- **Supports the Thiel/PG thesis** - Moat is the inventory, not the conversation
-
-The experience now feels like working with a knowledgeable guide who shows you options and helps you refine, rather than filling out a form.
+- **EpisodeWorkbench deeper integration** — the view is rendered inside
+  the clarify step, but the workbench's broader `nextDecision` /
+  recommend / hold state machine isn't touched. That's a larger
+  refactor for a separate change.
+- **"Retreats you've set aside" disclosure** — rejected alternatives
+  persist in hook state for the episode lifetime but aren't yet
+  surfaced in a disclosure row for inspection/reversal.
+- **Reveal duration tuning** — 700ms looking + 900ms reveal are
+  defaults. Preloading the top pick during Beat 1 is the right fix if
+  the reveal feels broken on slow networks.
+- **Set size (3 vs 5)** — currently bounded to 4. Tie to the ranking
+  policy's natural tier break once the live catalog grows.

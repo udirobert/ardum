@@ -1,297 +1,639 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRetreatExploration } from "@/inventory/use-retreat-exploration";
 import { useMiraField } from "./MiraField";
 import { MiraOrbProvider } from "./MiraOrbContext";
 import type { IntentionConstraints } from "@/agent/constraint-updater";
 import type { Retreat } from "@/inventory/retreat";
-import RetreatImage from "./RetreatImage";
+import type { Recommendation } from "@/agent/retreat-response";
 import AmbientCanvas from "./AmbientCanvas";
-import MiraNote from "./MiraNote";
 import WebGPUCommitmentTransition from "./WebGPUCommitmentTransition";
+import { DUSK_PANEL, CREAM } from "@/aesthetics/dusk-theme";
 
+/**
+ * Recommendation reveal flow — Beats 1 through 4.
+ *
+ * Replaces the legacy browse + chat + hold screen. One primary decision
+ * per state. See docs/design/recommendation-reveal.md and
+ * docs/design/refinement-alternatives.md for the contract.
+ */
 interface RetreatExplorationViewProps {
-  // Hook mode props (for EpisodeWorkbench)
   initialConstraints?: IntentionConstraints;
   onConstraintChange?: (constraints: IntentionConstraints) => void;
-  
-  // Direct mode props (for demo/testing)
-  retreats?: Retreat[];
-  miraNote?: string;
-  onUserMessage?: (text: string) => void | Promise<void>;
-  onCommit?: (retreatId: string) => void;
-  onSelect?: (retreatId: string) => void;
-  busy?: boolean;
 }
 
 export default function RetreatExplorationView({
   initialConstraints,
   onConstraintChange,
-  retreats: propRetreats,
-  miraNote: propMiraNote,
-  onUserMessage: propOnUserMessage,
-  onCommit: propOnCommit,
-  onSelect: propOnSelect,
-  busy: propBusy,
 }: RetreatExplorationViewProps) {
-  // Determine mode: if retreats prop is provided, use direct mode
-  const isDirectMode = propRetreats !== undefined;
-  
-  // Use hook only in hook mode
-  const hookResult = useRetreatExploration(
-    isDirectMode ? undefined : initialConstraints
-  );
-  
-  // Select data source based on mode
-  const retreats = isDirectMode ? propRetreats : hookResult.retreats;
-  const miraNote = isDirectMode ? propMiraNote : hookResult.miraNote;
-  const busy = isDirectMode ? (propBusy ?? false) : (hookResult.state !== "idle");
-  
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [activeTarget, setActiveTarget] = useState<{ x: number; y: number } | null>(null);
-  const [hasConversed, setHasConversed] = useState(false);
-  const [input, setInput] = useState("");
-  const [committingRetreat, setCommittingRetreat] = useState<Retreat | null>(null);
-  
-  // Track retreat array identity for motion path transitions
-  const [transitioning, setTransitioning] = useState(false);
-  const prevRetreatIdsRef = useRef<string[]>([]);
-  
-  const arraysEqual = (a: string[], b: string[]) => {
-    if (a.length !== b.length) return false;
-    return a.every((val, idx) => val === b[idx]);
-  };
-  
-  useEffect(() => {
-    const currentIds = retreats.map(r => r.id);
-    const prevIds = prevRetreatIdsRef.current;
-    
-    // Check if retreats changed (new query or re-rank)
-    if (prevIds.length > 0 && !arraysEqual(prevIds, currentIds)) {
-      setTransitioning(true);
-      // Reset active index to show first new retreat
-      setActiveIndex(0);
-      // Clear transition flag after animations complete
-      setTimeout(() => setTransitioning(false), 1200);
-    }
-    
-    prevRetreatIdsRef.current = currentIds;
-  }, [retreats]);
+  const exploration = useRetreatExploration(initialConstraints, onConstraintChange);
+  const {
+    state,
+    recommendation,
+    voiceLaneNudge,
+    openAlternatives,
+    closeAlternatives,
+    elevate,
+    rejectAlternative,
+    onVoiceMessage,
+    onCommit,
+    onCommitComplete,
+  } = exploration;
 
-  // Scroll container ref for tracking orb movement
-  const containerRef = useRef<HTMLDivElement>(null);
-  
-  // Track scroll progress (0-1) through the retreat list
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start start", "end end"],
-  });
-  
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const [scrollVelocity, setScrollVelocity] = useState(0);
-  
-  useMotionValueEvent(scrollYProgress, "change", (value) => {
-    const prevValue = scrollProgress;
-    setScrollProgress(value);
-    
-    // Calculate scroll velocity (change in progress per frame)
-    const velocity = Math.abs(value - prevValue) * 1000;
-    setScrollVelocity(velocity);
-    
-    // Determine active retreat based on scroll position
-    if (retreats.length > 0) {
-      const retreatIndex = Math.min(
-        Math.floor(value * retreats.length),
-        retreats.length - 1
-      );
-      if (retreatIndex !== activeIndex) {
-        setActiveIndex(retreatIndex);
-        setActiveTarget({
-          x: window.innerWidth / 2,
-          y: window.innerHeight / 2,
-        });
-      }
-    }
-  });
-  
-  // Integrate with Mira's field - enable free-roam mode and feed motion state
+  // Field posture follows the beat.
+  const activity =
+    state === "looking" || state === "processing"
+      ? "processing"
+      : state === "arriving"
+        ? "arriving"
+        : state === "listening"
+          ? "listening"
+          : state === "committing"
+            ? "processing"
+            : "idle";
+
   useMiraField({
-    activity: busy ? "processing" : "idle",
-    freeRoam: true,
-    scrollProgress,
-    scrollVelocity,
-    activeTarget,
+    activity,
+    veil: state === "settled" || state === "listening" ? 0.4 : 0.2,
+    fieldTier: "hero",
   });
-  
-  const handleUserMessage = (text: string) => {
-    if (isDirectMode && propOnUserMessage) {
-      propOnUserMessage(text);
-    } else if (!isDirectMode) {
-      hookResult.onUserMessage(text);
-      // Trigger constraint change callback after a brief delay
-      setTimeout(() => {
-        if (onConstraintChange && hookResult.constraints) {
-          onConstraintChange(hookResult.constraints);
-        }
-      }, 100);
-    }
-    setHasConversed(true);
-  };
-  
+
+  const [committingRetreat, setCommittingRetreat] = useState<Retreat | null>(null);
+
   const handleCommit = (retreatId: string) => {
-    const retreat = retreats.find(r => r.id === retreatId);
-    if (retreat) {
-      setCommittingRetreat(retreat);
-      if (isDirectMode && propOnCommit) {
-        propOnCommit(retreatId);
-      } else if (!isDirectMode) {
-        hookResult.onCommit(retreatId);
-      }
-    }
-  };
-
-  const handleSelect = (retreatId: string, index: number) => {
-    setActiveIndex(index);
-    if (isDirectMode && propOnSelect) {
-      propOnSelect(retreatId);
-    }
-  };
-
-  const safeIndex = Math.min(activeIndex, Math.max(0, retreats.length - 1));
-  const activeRetreat = retreats[safeIndex] ?? null;
-
-  const handleSend = () => {
-    if (!input.trim() || busy) return;
-    handleUserMessage(input.trim());
-    setInput("");
-    setActiveIndex(0);
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      handleSend();
-    }
+    if (!recommendation) return;
+    const retreat = recommendation.retreat;
+    if (retreat.id !== retreatId) return;
+    setCommittingRetreat(retreat);
+    onCommit(retreatId);
   };
 
   return (
     <MiraOrbProvider>
-      {/* Ambient canvas - reactive gradient background */}
-      <AmbientCanvas retreat={activeRetreat} />
-      
-      {/* Fixed conversation input - always accessible */}
-      <div className="fixed top-0 left-0 right-0 z-50 p-6 sm:p-10">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <MiraNote animate>
-            {miraNote ??
-              "I'm listening. Tell me what you're looking for, and I'll find something that fits."}
-          </MiraNote>
+      <AmbientCanvas retreat={recommendation?.retreat ?? null} />
 
-          {/* Primary conversation input - hero position */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-            className="relative"
-          >
-            <div
-              className="rounded-full border-2 backdrop-blur-lg px-6 sm:px-8 py-4 sm:py-5 flex items-center gap-4 shadow-2xl"
-              style={{
-                background: "rgba(16,10,8,0.7)",
-                borderColor: "rgba(246,239,227,0.2)",
-                boxShadow: "0 0 60px rgba(168,90,58,0.15)",
-              }}
-            >
-              <input
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="What kind of retreat are you looking for?"
-                disabled={busy}
-                className="flex-1 bg-transparent border-none outline-none text-[#f6efe3] placeholder:text-[#f6efe3]/50 text-lg sm:text-xl py-2"
-              />
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={busy || !input.trim()}
-                className="px-6 py-3 rounded-full bg-[#a85a3a] hover:bg-[#c06a48] text-[#f6efe3] text-base font-medium disabled:opacity-40 disabled:hover:bg-[#a85a3a] transition-all duration-200"
-              >
-                {busy ? "Thinking…" : "Send"}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* Commit CTA - floating above scroll when active */}
-      <AnimatePresence>
-        {activeRetreat && hasConversed && !committingRetreat && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.4, delay: 0.2 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50"
-          >
-            <button
-              type="button"
-              onClick={() => handleCommit(activeRetreat.id)}
-              disabled={busy}
-              className="px-8 py-4 rounded-full bg-[#a85a3a] hover:bg-[#c06a48] text-[#f6efe3] text-base font-medium disabled:opacity-40 transition-all duration-200 shadow-lg hover:shadow-xl backdrop-blur-lg"
-              style={{
-                boxShadow: "0 0 40px rgba(168,90,58,0.4)",
-              }}
-            >
-              Hold {activeRetreat.title.split(" ").slice(0, 2).join(" ")} for 48 hours
-            </button>
-          </motion.div>
+      <AnimatePresence mode="wait">
+        {state === "looking" && !recommendation && (
+          <LookingBeat key="looking" />
         )}
-      </AnimatePresence>
 
-      {/* WebGPU Commitment Transition */}
-      <AnimatePresence>
-        {committingRetreat && (
-          <WebGPUCommitmentTransition
-            retreat={committingRetreat}
-            isActive={true}
-            onComplete={() => setCommittingRetreat(null)}
+        {recommendation && (state === "arriving" || state === "settled") && (
+          <Beat2
+            key={`beat2-${recommendation.retreat.id}`}
+            recommendation={recommendation}
+            revealing={state === "arriving"}
+            onCommit={handleCommit}
+            onOpenAlternatives={openAlternatives}
+          />
+        )}
+
+        {state === "listening" && recommendation && (
+          <Beat3
+            key="beat3"
+            recommendation={recommendation}
+            voiceLaneNudge={voiceLaneNudge}
+            onElevate={elevate}
+            onReject={rejectAlternative}
+            onVoiceMessage={onVoiceMessage}
+            onClose={closeAlternatives}
+            busy={false}
           />
         )}
       </AnimatePresence>
 
-      {/* Scroll container - full-screen retreat images */}
-      <div ref={containerRef} className="relative z-10">
-        {retreats.length > 0 ? (
-          retreats.map((retreat, index) => (
-            <RetreatImage
+      {/* Beat 4: hold transition. Fires from the Beat 2 CTA. */}
+      <AnimatePresence>
+        {committingRetreat && state === "committing" && (
+          <WebGPUCommitmentTransition
+            retreat={committingRetreat}
+            isActive={true}
+            onComplete={() => {
+              setCommittingRetreat(null);
+              onCommitComplete();
+            }}
+          />
+        )}
+      </AnimatePresence>
+    </MiraOrbProvider>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Beat 1 — looking
+// ──────────────────────────────────────────────────────────────────────
+
+function LookingBeat() {
+  return (
+    <motion.div
+      className="relative z-10 min-h-[60vh] flex items-center justify-center px-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.4 }}
+    >
+      <p
+        className="font-serif text-xl sm:text-2xl text-center max-w-md"
+        style={{ color: CREAM, opacity: 0.7 }}
+      >
+        Looking at what fits…
+      </p>
+    </motion.div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Beat 2 — recommendation reveal + steady-state decision card
+// ──────────────────────────────────────────────────────────────────────
+
+interface Beat2Props {
+  recommendation: Recommendation;
+  revealing: boolean;
+  onCommit: (retreatId: string) => void;
+  onOpenAlternatives: () => void;
+}
+
+function Beat2({ recommendation, revealing, onCommit, onOpenAlternatives }: Beat2Props) {
+  const { retreat, letter } = recommendation;
+
+  return (
+    <motion.div
+      className="relative z-10 min-h-[calc(100svh-56px)] flex flex-col justify-end px-6 sm:px-10 pb-10 sm:pb-16"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.4 }}
+    >
+      <div className="mx-auto w-full max-w-2xl">
+        {/* Reveal: image emerges first, then the card settles over it. */}
+        <RevealImage retreat={retreat} revealing={revealing} />
+
+        {/* Keyed on retreat.id so disclosure state resets naturally on
+            re-rank / elevate via remount, no effect needed. */}
+        <DecisionCard
+          key={retreat.id}
+          retreat={retreat}
+          letter={letter}
+          revealing={revealing}
+          onCommit={() => onCommit(retreat.id)}
+          onOpenAlternatives={onOpenAlternatives}
+        />
+      </div>
+    </motion.div>
+  );
+}
+
+function RevealImage({ retreat, revealing }: { retreat: Retreat; revealing: boolean }) {
+  return (
+    <motion.div
+      className="relative w-full aspect-[16/9] rounded-sm overflow-hidden mb-6"
+      initial={revealing ? { opacity: 0, scale: 0.92, y: 24 } : false}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={retreat.heroImage}
+        alt={retreat.title}
+        className="w-full h-full object-cover"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/30" />
+    </motion.div>
+  );
+}
+
+interface DecisionCardProps {
+  retreat: Retreat;
+  letter: string;
+  revealing: boolean;
+  onCommit: () => void;
+  onOpenAlternatives: () => void;
+}
+
+function DecisionCard({
+  retreat,
+  letter,
+  revealing,
+  onCommit,
+  onOpenAlternatives,
+}: DecisionCardProps) {
+  const [disclosure, setDisclosure] = useState<"none" | "alternatives" | "provenance" | "counterfactual" | "operator">("none");
+
+  return (
+    <motion.div
+      className="rounded-sm p-6 sm:p-8 surface-card"
+      style={{
+        background: DUSK_PANEL.background,
+        borderColor: DUSK_PANEL.borderColor,
+        border: "1px solid var(--hairline)",
+      }}
+      initial={revealing ? { opacity: 0, y: 32 } : false}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+      aria-live="polite"
+    >
+      {/* 1. Mira's letter — the why, not the what. */}
+      <p
+        className="font-serif text-xl sm:text-2xl leading-relaxed mb-6"
+        style={{ color: CREAM }}
+      >
+        {letter}
+      </p>
+
+      {/* Retreat identity — evidence for the letter, not a brochure. */}
+      <div className="mb-6">
+        <h2 className="font-serif text-2xl sm:text-3xl tracking-tight" style={{ color: CREAM }}>
+          {retreat.title}
+        </h2>
+        <p className="text-sm mt-1" style={{ color: "rgba(246,239,227,0.7)" }}>
+          {retreat.dates.duration} days · ${retreat.price.amount.toLocaleString()} · {retreat.location}
+        </p>
+      </div>
+
+      {/* 2. One primary decision — hold. */}
+      <button
+        type="button"
+        onClick={onCommit}
+        className="w-full px-6 py-4 rounded-full text-base font-medium transition-all duration-200 hover:scale-[1.01]"
+        style={{
+          background: "var(--accent-soft, #a85a3a)",
+          color: CREAM,
+          boxShadow: "0 0 40px rgba(168,90,58,0.3)",
+        }}
+      >
+        Hold this for 48 hours
+        <span className="block text-sm font-normal opacity-80 mt-1">
+          Nothing charged. I&apos;ll watch it.
+        </span>
+      </button>
+
+      {/* 3. Status — one quiet line. */}
+      <p className="text-xs mt-4" style={{ color: "rgba(246,239,227,0.5)" }}>
+        No hold active yet.
+      </p>
+
+      {/* 4. Disclosure — collapsed by default. */}
+      <div className="mt-6 pt-6 border-t" style={{ borderColor: "rgba(246,239,227,0.1)" }}>
+        <ul className="space-y-2">
+          <DisclosureRow
+            label="See other possibilities I'm weighing"
+            isOpen={disclosure === "alternatives"}
+            onToggle={() =>
+              setDisclosure(disclosure === "alternatives" ? "none" : "alternatives")
+            }
+            onOpen={onOpenAlternatives}
+          >
+            <p className="text-sm" style={{ color: "rgba(246,239,227,0.7)" }}>
+              I&apos;ll show you a few others and what makes each different.
+            </p>
+          </DisclosureRow>
+          <DisclosureRow
+            label="How I chose this"
+            isOpen={disclosure === "provenance"}
+            onToggle={() =>
+              setDisclosure(disclosure === "provenance" ? "none" : "provenance")
+            }
+          >
+            <p className="text-sm" style={{ color: "rgba(246,239,227,0.7)" }}>
+              Ranked against your intention, your constraints, and the operator&apos;s
+              track record. Provenance is held in the episode record.
+            </p>
+          </DisclosureRow>
+          <DisclosureRow
+            label="What if the timing slips"
+            isOpen={disclosure === "counterfactual"}
+            onToggle={() =>
+              setDisclosure(disclosure === "counterfactual" ? "none" : "counterfactual")
+            }
+          >
+            <p className="text-sm" style={{ color: "rgba(246,239,227,0.7)" }}>
+              A re-ranking under shifted timing is available. It&apos;s read-only —
+              it never changes a hold.
+            </p>
+          </DisclosureRow>
+          <DisclosureRow
+            label="Operator & highlights"
+            isOpen={disclosure === "operator"}
+            onToggle={() =>
+              setDisclosure(disclosure === "operator" ? "none" : "operator")
+            }
+          >
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={retreat.operator.avatar}
+                  alt={retreat.operator.name}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: CREAM }}>
+                    {retreat.operator.name}
+                  </p>
+                  <p className="text-xs" style={{ color: "rgba(246,239,227,0.6)" }}>
+                    {retreat.operator.bio}
+                  </p>
+                </div>
+              </div>
+              {retreat.highlights.length > 0 && (
+                <ul className="space-y-1">
+                  {retreat.highlights.map((h, i) => (
+                    <li
+                      key={i}
+                      className="text-xs flex items-start gap-2"
+                      style={{ color: "rgba(246,239,227,0.8)" }}
+                    >
+                      <span style={{ color: "var(--accent-soft, #a85a3a)" }}>•</span>
+                      <span>{h}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </DisclosureRow>
+        </ul>
+      </div>
+    </motion.div>
+  );
+}
+
+function DisclosureRow({
+  label,
+  isOpen,
+  onToggle,
+  onOpen,
+  children,
+}: {
+  label: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  onOpen?: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => {
+          onToggle();
+          // For the alternatives row, opening disclosure also opens Beat 3.
+          if (!isOpen && onOpen) onOpen();
+        }}
+        aria-expanded={isOpen}
+        className="w-full text-left text-sm py-1 transition-opacity hover:opacity-100"
+        style={{ color: "rgba(246,239,227,0.6)" }}
+      >
+        <span className="inline-block mr-2" aria-hidden>
+          {isOpen ? "−" : "+"}
+        </span>
+        {label}
+      </button>
+      <AnimatePresence initial={false}>
+        {isOpen && children && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden pl-6 pt-2"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </li>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Beat 3 — alternatives overlay (summoned)
+// ──────────────────────────────────────────────────────────────────────
+
+interface Beat3Props {
+  recommendation: Recommendation;
+  voiceLaneNudge: string | null;
+  onElevate: (retreatId: string) => void;
+  onReject: (retreatId: string) => void;
+  onVoiceMessage: (text: string) => Promise<void>;
+  onClose: () => void;
+  busy: boolean;
+}
+
+function Beat3({
+  recommendation,
+  voiceLaneNudge,
+  onElevate,
+  onReject,
+  onVoiceMessage,
+  onClose,
+  busy,
+}: Beat3Props) {
+  const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus the voice lane on mount.
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  // Escape closes Beat 3.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const handleSubmit = () => {
+    if (!input.trim() || busy) return;
+    onVoiceMessage(input.trim());
+    setInput("");
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-30 flex flex-col px-6 sm:px-10 pt-16 pb-10"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25 }}
+    >
+      {/* Dimmed backdrop over the Beat 2 card. */}
+      <div
+        className="absolute inset-0"
+        style={{ background: "rgba(9,5,3,0.55)", backdropFilter: "blur(2px)" }}
+        onClick={onClose}
+        aria-hidden
+      />
+
+      <div className="relative mx-auto w-full max-w-2xl flex flex-col gap-6">
+        {/* Mira's frame for the alternatives set. */}
+        <div>
+          <p
+            className="font-serif text-xl sm:text-2xl leading-relaxed"
+            style={{ color: CREAM }}
+          >
+            Other possibilities I&apos;m weighing
+          </p>
+          <p className="text-sm mt-1" style={{ color: "rgba(246,239,227,0.6)" }}>
+            {recommendation.alternatives.length} that sit close to what you named.
+          </p>
+        </div>
+
+        {/* Alternative cards — bounded set, no infinite scroll. */}
+        <div className="space-y-4 max-h-[55svh] overflow-y-auto pr-1">
+          {recommendation.alternatives.length === 0 && (
+            <p className="text-sm" style={{ color: "rgba(246,239,227,0.6)" }}>
+              I&apos;m not weighing anything else right now. Tell me what feels off,
+              or stay with the one I presented.
+            </p>
+          )}
+          {recommendation.alternatives.map(({ retreat, reason }) => (
+            <AlternativeCard
               key={retreat.id}
               retreat={retreat}
-              index={index}
-              isActive={index === safeIndex}
-              onSelect={() => handleSelect(retreat.id, index)}
-              transitioning={transitioning}
+              reason={reason}
+              onElevate={() => onElevate(retreat.id)}
+              onReject={() => onReject(retreat.id)}
             />
-          ))
-        ) : (
-          !busy && (
-            <div className="h-screen flex items-center justify-center">
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.4, duration: 0.6 }}
-                className="text-[#f6efe3]/40 text-lg"
-              >
-                {hasConversed 
-                  ? "I'm still thinking. Try refining what you're looking for."
-                  : "Start a conversation with me. I'll find something that fits."
+          ))}
+        </div>
+
+        {/* Voice lane — only in Beat 3. */}
+        <div className="mt-auto">
+          {voiceLaneNudge && (
+            <p
+              className="font-serif text-base mb-3 italic"
+              style={{ color: "rgba(246,239,227,0.85)" }}
+            >
+              {voiceLaneNudge}
+            </p>
+          )}
+          <div
+            className="rounded-full flex items-center gap-3 px-5 py-3"
+            style={{
+              background: DUSK_PANEL.background,
+              border: `1px solid ${DUSK_PANEL.borderColor}`,
+            }}
+          >
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSubmit();
                 }
-              </motion.p>
-            </div>
-          )
-        )}
+              }}
+              placeholder="tell me what feels off"
+              disabled={busy}
+              className="flex-1 bg-transparent border-none outline-none text-base"
+              style={{ color: CREAM }}
+              aria-label="Tell Mira what feels off"
+            />
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={busy || !input.trim()}
+              className="text-sm px-4 py-2 rounded-full disabled:opacity-40"
+              style={{
+                background: "var(--accent-soft, #a85a3a)",
+                color: CREAM,
+              }}
+            >
+              {busy ? "…" : "Send"}
+            </button>
+          </div>
+        </div>
+
+        {/* Close — return to top pick. */}
+        <button
+          type="button"
+          onClick={onClose}
+          className="self-center text-xs underline"
+          style={{ color: "rgba(246,239,227,0.5)" }}
+        >
+          close — return to the one I presented
+        </button>
       </div>
-    </MiraOrbProvider>
+    </motion.div>
+  );
+}
+
+function AlternativeCard({
+  retreat,
+  reason,
+  onElevate,
+  onReject,
+}: {
+  retreat: Retreat;
+  reason: string;
+  onElevate: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <motion.div
+      layout
+      className="rounded-sm overflow-hidden"
+      style={{
+        background: DUSK_PANEL.background,
+        border: `1px solid ${DUSK_PANEL.borderColor}`,
+      }}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div className="flex gap-4 p-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={retreat.heroImage}
+          alt={retreat.title}
+          className="w-24 h-24 sm:w-32 sm:h-32 rounded-sm object-cover flex-shrink-0"
+        />
+        <div className="flex-1 min-w-0">
+          <h3 className="font-serif text-lg" style={{ color: CREAM }}>
+            {retreat.title}
+          </h3>
+          <p className="text-xs mt-0.5" style={{ color: "rgba(246,239,227,0.6)" }}>
+            {retreat.dates.duration} days · ${retreat.price.amount.toLocaleString()} · {retreat.location}
+          </p>
+          <p
+            className="text-sm mt-2 italic"
+            style={{ color: "rgba(246,239,227,0.85)" }}
+          >
+            {reason}
+          </p>
+          <div className="flex gap-3 mt-3">
+            <button
+              type="button"
+              onClick={onElevate}
+              className="text-xs px-3 py-1.5 rounded-full"
+              style={{
+                background: "var(--accent-soft, #a85a3a)",
+                color: CREAM,
+              }}
+            >
+              elevate this
+            </button>
+            <button
+              type="button"
+              onClick={onReject}
+              className="text-xs px-3 py-1.5 rounded-full"
+              style={{
+                background: "transparent",
+                color: "rgba(246,239,227,0.6)",
+                border: `1px solid ${DUSK_PANEL.borderColor}`,
+              }}
+            >
+              not this
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
   );
 }

@@ -98,35 +98,52 @@ disclosure (“the journey so far”), not as hero metadata.
 
 ### Inventory-led retreat exploration
 
-The episode workbench renders `RetreatExplorationView` instead of the legacy
-quiz-style clarification flow. Users see real retreat inventory immediately
-after creating an episode, presented as full-bleed hero images with parallax
-scroll, ambient color gradients extracted from retreat photos, and Mira's
-contextual notes.
+The episode workbench renders `RetreatExplorationView` as a four-beat
+recommendation reveal flow, not a browse grid. Mira owns ranking and
+presents **one** retreat as her strongest current fit; alternatives and
+refinement are summoned by the practitioner, not always-on. The full
+contract is in [recommendation-reveal.md](recommendation-reveal.md)
+(Beat 2) and [refinement-alternatives.md](refinement-alternatives.md)
+(Beat 3).
 
-**Conversation over quiz:** Users react to real retreats with natural language
-("too expensive", "show me something shorter", "I want to go alone") rather
-than answering abstract multiple-choice questions. The system extracts
-constraints from reactions and re-ranks the catalog, triggering motion path
-transitions where old retreats arc away and new ones emerge from Mira's orb.
+**Beats:**
+1. **Looking** — orb + quiet "looking at what fits" line. The breath
+   between intention and recommendation.
+2. **Arriving → settled** — image emerges from the orb, then settles
+   into the dark-glass decision card: Mira's letter (the *why*) →
+   retreat identity → one Hold CTA → status → collapsed disclosure
+   (alternatives, provenance, counterfactual, operator). No scroll,
+   no chat input, no floating button.
+3. **Listening** — summoned only via "see other possibilities" or
+   "not this." Bounded 3–5 alternative cards with one-line
+   differentiating reasons, elevate/not-this actions, and the voice
+   lane (the only place free-text refinement lives).
+4. **Committing** — the existing WebGPU commitment transition fires
+   from the card's Hold CTA.
 
-**Cinematic polish (completed 2026-07-20):**
-- **Orb-as-source choreography:** Retreats physically emerge from the Mira orb
-  position along curved bezier paths with staggered timing on re-rank.
-- **Progressive disclosure:** Hover reveals operator bio, highlights, and
-  gallery thumbnails without cluttering the default view.
-- **Real-time color extraction:** Canvas-based sampling extracts dominant
-  colors from hero images for ambient gradient palettes, falling back to
-  catalog data.
-- **WebGPU commitment transition:** Holding a retreat triggers a canvas
-  animation (image elevation, particles, glow) into a confirmation overlay.
-- **Reduced motion support:** All parallax, motion paths, and ambient
-  animations respect `prefers-reduced-motion`.
+**Carried over from the cinematic polish work:**
+- **Real-time color extraction:** Canvas-based sampling extracts
+  dominant colors from the active retreat's hero image for ambient
+  gradient palettes, falling back to catalog data.
+- **WebGPU commitment transition:** Holding a retreat triggers the
+  canvas animation (image elevation, particles, glow) into a
+  confirmation overlay.
+- **Reduced motion support:** All motion respects
+  `prefers-reduced-motion`.
 
-**Demo page:** `/demo/inventory-led` is a dev-only sandbox using mock data for
-faster UI iteration. It is reachable only by direct URL; the live flow at
-`/episode/[id]` uses the same components with real agent-driven data. See
-`docs/design/inventory-led-implementation-summary.md` for details.
+**What was retired:** the always-on chat input, the full-bleed scroll
+grid as the steady state, the floating global Hold button, the
+"what stands out to you?" copy, and the `RetreatImage` / `MiraNote`
+components. The catalog scroll now only exists as a bounded Beat 3
+expansion.
+
+**Demo page:** `/demo/inventory-led` is a dev-only sandbox using the
+same hook and view as the live flow. It is reachable only by direct
+URL; the live flow at `/episode/[id]` uses the same components with
+real agent-driven data. See
+[inventory-led-implementation-summary.md](inventory-led-implementation-summary.md)
+for implementation details.
+
 
 Hold after recommendation:
 
