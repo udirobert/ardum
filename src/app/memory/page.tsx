@@ -21,8 +21,10 @@
 import { resolveActor } from "@/identity/actor";
 import { episodeRepository } from "@/episodes/repository";
 import { projectActorMemory } from "@/memory/enrich";
+import { actorProfileRepository } from "@/identity/actor-profile";
 import { activeEpisodePresence } from "@/episodes/detail-payload";
 import MemoryView from "@/app/memory/MemoryView";
+import NameField from "@/app/memory/NameField";
 import MiraOrb from "@/components/MiraOrb";
 import { STEADY_PRESENCE } from "@/agent/mira-presence";
 import Link from "next/link";
@@ -35,9 +37,10 @@ export default async function MemoryPage() {
   // no summary card, the "Nothing retained" empty state will render
   // (because listOwned for an unknown actor returns []). Same shape
   // as a first-time visitor.
-  const episodes = actorId
-    ? await episodeRepository.listOwned(actorId)
-    : [];
+  const [episodes, profile] = await Promise.all([
+    actorId ? episodeRepository.listOwned(actorId) : Promise.resolve([]),
+    actorId ? actorProfileRepository.get(actorId) : Promise.resolve(null),
+  ]);
   const memory = actorId
     ? // Projector-only result; no Cognee recall on this surface.
       await projectActorMemory(actorId, episodes)
@@ -120,6 +123,10 @@ export default async function MemoryPage() {
             )}
           </div>
         </aside>
+      )}
+
+      {actorId && profile && (
+        <NameField initialName={profile.preferredName} />
       )}
 
       <MemoryView episodes={episodes} />

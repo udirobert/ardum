@@ -88,6 +88,23 @@ Authentication expands continuity; it does not change the episode contract.
 Coordination invitations use random, expiring tokens. Only a hash is stored.
 The invitation view exposes the minimum proposal fields approved by the owner.
 
+### Progressive recognition
+
+Recognition is earned in rungs, never gated on arrival. Decision record:
+[0011-progressive-recognition](decisions/0011-progressive-recognition.md).
+
+| Rung | Stored on | Surfaces | Authority |
+|---|---|---|---|
+| Voluntary name | `actors.preferred_name` | home greeting, voice lane, `/memory` | The person's explicit statement |
+| Authenticated subject | `actors.external_subject` + `kind: 'authenticated'` | cross-device restore | Provider login (Magic, future) |
+| Preference profile | `actors.profile` (JSONB) | `/memory`, ranking policy input | The person's explicit statement |
+| Continuity CTA | n/a (offers rung 2) | post-booking, never on arrival | Practitioner opt-in |
+
+The cookie remains the ownership primitive the adapter layer enforces. The
+provider subject is the cross-device join key; it is never displayed to the
+practitioner and never shared with retreats or invitees. Names and preferences
+are private to the actor and deletable on `/memory` alongside episode history.
+
 ### Agent API identity
 
 Agent API calls (`/api/agent/*`) don't use cookies. Identity is proven by

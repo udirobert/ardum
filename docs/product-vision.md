@@ -180,6 +180,28 @@ People can inspect, revise, export, or delete retained information. Claims of
 cross-device or long-term continuity are made only when identity and storage
 actually provide them.
 
+## Recognition is progressive
+
+Mira meets every practitioner anonymously first. Recognition is earned in
+rungs, never gated on arrival:
+
+1. **Voluntary naming** — the practitioner may tell Mira their name at any
+   moment; it joins the home greeting and the voice lane. No auth, no
+   friction, no requirement.
+2. **Authenticated actor** — when a provider (Magic, future) completes login,
+   the provider subject writes back to the actor row, enabling cross-device
+   continuity. The cookie remains the ownership primitive; the subject is
+   the join key across devices.
+3. **Preference profile** — explicit preferences (accommodation, time-of-day,
+   dietary, accessibility) live on the actor row, surfaced on `/memory` as
+   "what Mira has learned about you," editable and deletable.
+4. **Quiet continuity CTA** — after the first booking, Mira may offer to
+   remember identity across devices. Never on arrival.
+
+Names and preferences are private to the actor. There is no directory, no
+public profile, no "people like you" surface. Full decision record:
+[0011-progressive-recognition](docs/decisions/0011-progressive-recognition.md).
+
 ## What Ardum is not
 
 Ardum is not:

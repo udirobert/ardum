@@ -164,6 +164,13 @@ export function MagicAuthProvider({ children }: { children: ReactNode }) {
               setAddress(ethAddress);
               rememberPaymentIdentity(ethAddress);
               setReturningPayer(true);
+              // ADR 0011 §2: re-attach on session restore so a returning
+              // practitioner's actor row stays authenticated across visits.
+              void fetch("/api/actor/attach", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ subject: ethAddress }),
+              }).catch(() => {});
             }
           }
         } catch {
@@ -197,6 +204,17 @@ export function MagicAuthProvider({ children }: { children: ReactNode }) {
         setAddress(addr);
         rememberPaymentIdentity(addr);
         setReturningPayer(true);
+        // ADR 0011 §2: write the wallet address back to the actor row so
+        // the actor transitions from anonymous to authenticated and becomes
+        // a cross-device join key. Fire-and-forget; the booking flow does
+        // not depend on the write completing synchronously.
+        void fetch("/api/actor/attach", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ subject: addr }),
+        }).catch(() => {
+          // ignore — the next booking attempt will retry the attach.
+        });
       }
       return addr;
     } catch (err: unknown) {
