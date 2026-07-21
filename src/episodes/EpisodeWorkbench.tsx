@@ -464,10 +464,6 @@ useEffect(() => {
               />
             ) : (
               <>
-                <p className="why mb-3">
-                  Mira places a non-binding hold, or watches this retreat
-                  for changes. Neither charges you. Either expires on its own.
-                </p>
                 <div className="flex flex-wrap gap-3">
                   <PrimaryButton
                     disabled={busy}
@@ -551,10 +547,6 @@ useEffect(() => {
             >
               This doesn’t feel right →
             </button>
-            <p className="why mt-2">
-              Tell Mira what is off. The journey re-enters clarity — never
-              checkout.
-            </p>
             {feedbackOpen && (
               <fieldset className="border-t border-[color:var(--hairline)] pt-5">
                 <legend className="tag mb-3">what is off?</legend>
@@ -900,26 +892,12 @@ function ExploreOtherFits({
 }) {
   const body = (
     <div className="space-y-5">
-      <p className="why mb-1">
-        {holdActive
-          ? "Your hold continues below. These alternatives and a re-ranking are a confidence check — nothing here moves without your word."
-          : "Mira can re-weight the criteria. Nothing is committed — you stay where you are."}
-      </p>
-      <p className="why mb-3">
-        A re-ranking may flip the top pick — that&apos;s what this surface
-        is here to catch.
-      </p>
       {alternatives.length > 0 && (
         <div>
           <p className="tag mb-2">
             {holdActive
               ? "and one more that also qualified"
               : "and one more that qualified"}
-          </p>
-          <p className="why mb-3">
-            {holdActive
-              ? "The hold is unchanged. These are what would have fit if you had not held."
-              : "Mira saw these too. She chose the top fit because the reasoning below weighed energy, social, and budget together."}
           </p>
           <ul className="space-y-2">
             {alternatives.map((alt) => (
@@ -984,11 +962,6 @@ function ExploreOtherFits({
         </div>
         <div>
           <p className="tag mb-2">what if your budget were tighter?</p>
-          <p className="why mb-3">
-            If you had set a different limit, Mira would re-rank. Your
-            stated budget never changes — this is a confidence
-            check, not a commitment.
-          </p>
           <div
             role="group"
             aria-label="Re-rank the fit under a hypothetical budget"
@@ -1029,11 +1002,6 @@ function ExploreOtherFits({
         </div>
         <div>
           <p className="tag mb-2">what if your energy were different?</p>
-          <p className="why mb-3">
-            If you had arrived with a different energy, Mira would
-            re-rank. Your stated energy never changes — this is
-            a confidence check, not a commitment.
-          </p>
           <div
             role="group"
             aria-label="Re-rank the fit under a hypothetical energy"
