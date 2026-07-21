@@ -59,3 +59,4 @@ videos/ardum-demo/capture/
 # captures or provides themselves. Only the composition source
 # (index.html, frame.md, compositions/, scripts/) stays tracked.
 videos/ardum-demo/assets/
+supabase/.temp/

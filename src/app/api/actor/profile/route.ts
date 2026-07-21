@@ -25,6 +25,12 @@ type UpdateBody = {
 export async function PATCH(request: Request) {
   try {
     const body = (await request.json()) as UpdateBody;
+    if (body.preferredName === undefined && body.profile === undefined) {
+      return NextResponse.json(
+        { error: "Nothing to update. Send preferredName or profile." },
+        { status: 400 },
+      );
+    }
     const actorId = await resolveActor({ create: true });
     if (!actorId) throw new Error("Could not establish ownership.");
 
