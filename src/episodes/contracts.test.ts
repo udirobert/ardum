@@ -82,6 +82,12 @@ describe("parseEpisodeCommand", () => {
       ).toEqual({ type: "release-hold", expectedRevision: 1 });
     });
 
+    it("close-coordination", () => {
+      expect(
+        parseEpisodeCommand({ type: "close-coordination", ...baseRevision }),
+      ).toEqual({ type: "close-coordination", expectedRevision: 1 });
+    });
+
     it("pause", () => {
       expect(parseEpisodeCommand({ type: "pause", ...baseRevision })).toEqual({
         type: "pause",

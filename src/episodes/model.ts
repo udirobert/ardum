@@ -101,6 +101,7 @@ export type EpisodeEvent = {
     | "hold-expired"
     | "invite-created"
     | "participant-responded"
+    | "coordination-closed"
     | "commitment-recorded"
     | "wider-aperture-granted"
     | "wider-aperture-revoked"
@@ -150,11 +151,9 @@ export type NextDecision = {
     | "clarify-social"
     | "review-recommendation"
     | "review-hold"
-    | "invite-participant"
     | "await-responses"
     | "ready-to-book"
-    | "preparation"
-    | "resume";
+    | "preparation";
   prompt: string;
   primaryLabel: string;
 };
@@ -183,6 +182,7 @@ type EpisodeCommandPayload =
   | { type: "check-monitor"; expectedRevision: number }
   | { type: "create-hold"; expectedRevision: number }
   | { type: "release-hold"; expectedRevision: number }
+  | { type: "close-coordination"; expectedRevision: number }
   | {
       type: "create-invite";
       expectedRevision: number;

@@ -25,13 +25,37 @@ type Phase = "loading" | "aesthetic" | "returning" | "intention";
 type Props = {
   greeting?: string | null;
   preferredName?: string | null;
+  /** When set, arrival skips the client episode list fetch. */
+  episodeBootstrap?: {
+    episode: Episode | null;
+    presence: MiraPresence | null;
+  };
 };
 
-export default function ArrivalScreen({ greeting, preferredName }: Props) {
+function resolveInitialPhase(
+  active: Episode | null | undefined,
+): Exclude<Phase, "loading"> {
+  if (active) return "returning";
+  if (hasCompletedAestheticCalibration()) return "intention";
+  return "aesthetic";
+}
+
+export default function ArrivalScreen({
+  greeting,
+  preferredName,
+  episodeBootstrap,
+}: Props) {
   const router = useRouter();
   const reduced = useReducedMotion();
-  const [phase, setPhase] = useState<Phase>("loading");
-  const [episode, setEpisode] = useState<Episode | null>(null);
+  const bootstrapped = episodeBootstrap !== undefined;
+  const [phase, setPhase] = useState<Phase>(
+    bootstrapped
+      ? resolveInitialPhase(episodeBootstrap.episode)
+      : "loading",
+  );
+  const [episode, setEpisode] = useState<Episode | null>(
+    episodeBootstrap?.episode ?? null,
+  );
   const [statement, setStatement] = useState("");
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -39,13 +63,14 @@ export default function ArrivalScreen({ greeting, preferredName }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [inputFocused, setInputFocused] = useState(false);
   const [activePresence, setActivePresence] = useState<MiraPresence | null>(
-    null,
+    episodeBootstrap?.presence ?? null,
   );
   const [aestheticVector, setAestheticVector] = useState<AestheticVector>(
     () => readAestheticVector(),
   );
 
   useEffect(() => {
+    if (bootstrapped) return;
     fetch("/api/episodes")
       .then((response) => response.json())
       .then(
@@ -69,7 +94,7 @@ export default function ArrivalScreen({ greeting, preferredName }: Props) {
       )
       .catch(() => setPhase("intention"))
       .finally(() => {});
-  }, []);
+  }, [bootstrapped]);
 
   async function create() {
     if (!statement.trim() || !consent) return;

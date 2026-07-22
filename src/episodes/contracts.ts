@@ -103,6 +103,7 @@ export function parseEpisodeCommand(value: unknown): EpisodeCommand {
     case "check-monitor":
     case "create-hold":
     case "release-hold":
+    case "close-coordination":
     case "pause":
     case "complete":
       return { type, expectedRevision };

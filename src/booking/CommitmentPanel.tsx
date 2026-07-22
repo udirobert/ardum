@@ -29,11 +29,6 @@ export default function CommitmentPanel({
           recommendation.attestor ??
           "0x0000000000000000000000000000000000000000"
         }
-        signals={{
-          energy: intention.constraints.energy,
-          budget: intention.constraints.budget,
-          social: intention.constraints.social,
-        }}
         onClose={onClose}
         onBooked={onBooked}
       />

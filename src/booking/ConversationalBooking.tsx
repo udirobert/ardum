@@ -8,7 +8,6 @@
 // ambiently under "Securing your place…". Rails stay under disclosure.
 
 import { useCallback, useState } from "react";
-import Link from "next/link";
 import MiraOrb from "@/components/MiraOrb";
 import { presenceFromActivity } from "@/agent/mira-presence";
 import { useMagicAuth } from "./MagicAuth";
@@ -21,7 +20,7 @@ import {
   usdToTokenUnits,
   DEFAULT_CHECKIN_WINDOW_HOURS,
 } from "./constants";
-import { bookingDialogue, preparationPlan } from "@/agent/mira-voice";
+import { bookingDialogue } from "@/agent/mira-voice";
 import type { BookingAttestation } from "./types";
 import BreathSync from "./BreathSync";
 
@@ -32,12 +31,11 @@ type ConversationalBookingProps = {
   retreatTitle: string;
   depositUsd: number;
   operatorAddress: string;
-  signals: { energy?: string; budget?: string; social?: string };
   onClose: () => void;
   onBooked?: () => void;
 };
 
-type Surface = "grant" | "securing" | "done" | "error";
+type Surface = "grant" | "securing" | "error";
 
 export default function ConversationalBooking({
   episodeId,
@@ -46,7 +44,6 @@ export default function ConversationalBooking({
   retreatTitle,
   depositUsd,
   operatorAddress,
-  signals,
   onClose,
   onBooked,
 }: ConversationalBookingProps) {
@@ -69,8 +66,6 @@ export default function ConversationalBooking({
 
   const [surface, setSurface] = useState<Surface>("grant");
   const [error, setError] = useState<string | null>(null);
-  const [depositTxId, setDepositTxId] = useState<string | null>(null);
-  const [bookingRootHash, setBookingRootHash] = useState<string | null>(null);
   const [securingLabel, setSecuringLabel] = useState("Securing your place…");
 
   const dialogue = bookingDialogue(depositUsd, retreatTitle);
@@ -121,7 +116,6 @@ export default function ConversationalBooking({
         return;
       }
 
-      setDepositTxId(result.transactionId);
       setSecuringLabel("Confirming your place…");
 
       const rootHash = `booking-${retreatRootHash.slice(0, 16)}-${Date.now().toString(36)}`;
@@ -169,9 +163,7 @@ export default function ConversationalBooking({
         );
       }
 
-      setBookingRootHash(json.rootHash ?? rootHash);
       onBooked?.();
-      setSurface("done");
     } catch (err) {
       setError(
         err instanceof Error
@@ -206,163 +198,6 @@ export default function ConversationalBooking({
       setSurface("error");
     }
   }, [connectWithUI]);
-
-  // ── Done: preparation is the landing, not a receipt ────────────────
-  if (surface === "done") {
-    const plan = preparationPlan(
-      {
-        id: retreatRootHash,
-        retreatRootHash,
-        retreatTitle,
-        retreatDescription: "",
-        retreatLocation: "",
-        durationDays: 0,
-        priceUsd: depositUsd,
-        capacity: 0,
-        practiceStyle: [],
-        score: 0,
-        headline: "",
-        reasoning: [],
-        attestationCount: 1,
-        attestor: "",
-        attestedAt: "",
-      },
-      signals,
-      undefined,
-    );
-
-    return (
-      <div className="mt-8 fade-in-up">
-        <div className="flex items-start gap-4 mb-8">
-          <MiraOrb
-            size={48}
-            presence={presenceFromActivity("arriving")}
-            className="flex-shrink-0 mt-1"
-          />
-          <div className="space-y-3 flex-1">
-            {dialogue.done.map((line, i) => (
-              <p
-                key={i}
-                className={`text-lg leading-relaxed mira-line mira-line-${Math.min(i + 1, 5)}`}
-              >
-                {line}
-              </p>
-            ))}
-          </div>
-        </div>
-
-        <details className="ml-16 mb-8 opacity-70">
-          <summary className="tag cursor-pointer">How this is secured</summary>
-          <p className="tag mt-3 break-all leading-relaxed">
-            Deposit held in escrow until you arrive
-            {depositTxId ? ` · ref ${depositTxId.slice(0, 18)}…` : ""}
-            {bookingRootHash ? ` · record ${bookingRootHash.slice(0, 22)}…` : ""}
-          </p>
-        </details>
-
-        <div className="ml-16 mb-8">
-          <p className="font-serif text-2xl tracking-tight mb-1 mira-line">
-            {plan.title}
-          </p>
-          <p className="text-sm text-[color:var(--muted)] mb-6">
-            Five minutes a day. Start tonight.
-          </p>
-          <ol className="space-y-5">
-            {plan.days.map((day, i) => (
-              <li
-                key={day.day}
-                className="flex gap-4 mira-line"
-                style={{ animationDelay: `${200 + i * 100}ms` }}
-              >
-                <span className="font-serif text-3xl text-[color:var(--accent-soft)] leading-none w-10 flex-shrink-0">
-                  {day.day}
-                </span>
-                <div className="flex-1">
-                  <div className="flex items-baseline justify-between gap-3 mb-1">
-                    <p className="font-serif text-lg tracking-tight">{day.title}</p>
-                    <span className="tag opacity-60 flex-shrink-0">{day.duration}</span>
-                  </div>
-                  <p className="text-sm text-[color:var(--muted)] leading-relaxed">
-                    {day.description}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        {/* Continuity after commitment — worry collapse, not a dashboard */}
-        <div className="ml-16 mb-8 border-l-2 border-[color:var(--accent-soft)] pl-5">
-          <p className="tag mb-2">what Mira will watch next</p>
-          {dialogue.watchNext.map((line, i) => (
-            <p
-              key={i}
-              className="text-sm leading-relaxed text-[color:var(--muted)] max-w-prose"
-            >
-              {line}
-            </p>
-          ))}
-        </div>
-
-        <div className="ml-16 mb-8">
-          <div className="flex items-start gap-3 mb-3">
-            <MiraOrb
-              size={28}
-              presence={presenceFromActivity("speaking")}
-              className="flex-shrink-0 mt-0.5"
-            />
-            <p className="text-sm leading-relaxed max-w-prose">
-              Your spot is held. If a friend books through your link, you both
-              get $50 off. Want to share?
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3 ml-10">
-            <button
-              type="button"
-              onClick={() => {
-                const url =
-                  typeof window !== "undefined"
-                    ? `${window.location.origin}/match/${retreatRootHash}?ref=booked`
-                    : "";
-                const text = `I booked ${retreatTitle} through Ardum — an agent matched me. ${url}`;
-                const nav = navigator as Navigator & {
-                  share?: (data: {
-                    title?: string;
-                    text?: string;
-                    url?: string;
-                  }) => Promise<void>;
-                };
-                if (typeof nav.share === "function") {
-                  nav.share({ title: `Ardum — ${retreatTitle}`, text, url }).catch(() => {
-                    nav.clipboard?.writeText(text).catch(() => {});
-                  });
-                } else {
-                  nav.clipboard?.writeText(text).catch(() => {});
-                }
-              }}
-              className="text-sm font-serif text-[color:var(--accent)] hover:text-[color:var(--accent-ink)] transition-colors text-left"
-            >
-              Share with a friend →
-            </button>
-            <Link
-              href={`/match/${retreatRootHash}`}
-              className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
-            >
-              View your retreat →
-            </Link>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={onClose}
-          className="ml-16 text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
-        >
-          ↓
-        </button>
-      </div>
-    );
-  }
 
   // ── Error ──────────────────────────────────────────────────────────
   if (surface === "error") {

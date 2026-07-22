@@ -378,6 +378,29 @@ export async function applyEpisodeCommand(
       };
       break;
     }
+    case "close-coordination": {
+      if (!episode.coordination) {
+        throw new Error("No coordination branch is open.");
+      }
+      if (episode.hold?.status !== "active") {
+        throw new Error("No hold is active.");
+      }
+      episode = {
+        ...episode,
+        status: "held",
+        coordination: undefined,
+        events: [
+          ...episode.events,
+          event(
+            ids,
+            now,
+            "coordination-closed",
+            "The optional coordination branch was closed — you can continue solo.",
+          ),
+        ],
+      };
+      break;
+    }
     case "create-invite": {
       if (episode.hold?.status !== "active") {
         throw new Error("Create a hold before inviting someone.");

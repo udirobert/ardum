@@ -6,7 +6,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import MiraOrb, { preloadMiraScene } from "@/components/MiraOrb";
 import { useMiraField } from "@/components/MiraField";
-import RetreatExplorationView from "@/components/RetreatExplorationView";
+import ClarifyPanel from "@/episodes/ClarifyPanel";
 import { readAestheticVector } from "@/aesthetics/aesthetic-store";
 import type { MatchResult } from "@/matching/types";
 import type { BudgetBand, EnergyState } from "@/calibration/schema";
@@ -19,6 +19,7 @@ import type {
   Episode,
   EpisodeCommand,
   IntentionConstraints,
+  NextDecision,
 } from "./model";
 import type { EpisodeDetailPayload } from "./detail-payload";
 import { createAbortableRunner } from "@/lib/abortableFetch";
@@ -362,6 +363,11 @@ useEffect(() => {
     nextDecision.kind === "clarify-budget" ||
     nextDecision.kind === "clarify-social";
 
+  const holdDecision =
+    nextDecision.kind === "await-responses" ||
+    nextDecision.kind === "review-hold" ||
+    nextDecision.kind === "ready-to-book";
+
   // Secondary tools (lenses, counterfactuals, alternatives): only expand when
   // uncertainty is genuinely high or the person is actively questioning the fit.
   // A fresh recommendation should feel calm and focused, not overwhelming.
@@ -415,20 +421,7 @@ useEffect(() => {
         className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 sm:p-8 surface-card"
         aria-live="polite"
       >
-        {isClarifyStep ? (
-          <RetreatExplorationView
-            initialConstraints={intention.constraints}
-            widerApertureEvidence={payload.widerApertureEvidence ?? null}
-            uncertainties={episode.recommendation?.uncertainties ?? []}
-            onConstraintChange={(newConstraints) => {
-              act({
-                type: "revise-intention",
-                constraints: newConstraints,
-                reason: "Refined through conversation",
-              });
-            }}
-          />
-        ) : episode.status === "booked" && recommendation ? (
+        {nextDecision.kind === "preparation" && recommendation ? (
           <BookedLanding
             recommendation={recommendation}
             depositUsd={recommendation.priceUsd}
@@ -448,6 +441,41 @@ useEffect(() => {
             }
             onRevokeContribution={() =>
               act({ type: "revoke-wider-aperture-contribution" })
+            }
+          />
+        ) : nextDecision.kind === "describe-intention" ? (
+          <>
+            <h2 className="font-serif text-3xl tracking-tight mb-6">
+              {nextDecision.prompt}
+            </h2>
+            <p className="why mb-4">
+              Your intention needs a few words before Mira can continue.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              className="px-6 py-3 rounded-sm bg-foreground text-background"
+            >
+              {nextDecision.primaryLabel}
+            </button>
+          </>
+        ) : isClarifyStep ? (
+          <ClarifyPanel
+            kind={
+              nextDecision.kind as
+                | "clarify-energy"
+                | "clarify-budget"
+                | "clarify-social"
+            }
+            prompt={nextDecision.prompt}
+            primaryLabel={nextDecision.primaryLabel}
+            busy={busy}
+            onPick={(constraints) =>
+              act({
+                type: "revise-intention",
+                constraints,
+                reason: "Clarified through calibration",
+              })
             }
           />
         ) : (
@@ -546,7 +574,7 @@ useEffect(() => {
               </details>
             )}
 
-            {episode.hold?.status === "active" ? (
+            {holdDecision && episode.hold?.status === "active" ? (
               <>
                 {/* Mira's voice during hold — she's watching, not silent. */}
                 <div className="flex items-start gap-3">
@@ -557,6 +585,7 @@ useEffect(() => {
                   </p>
                 </div>
                 <HoldPanel
+                nextDecision={nextDecision}
                 episode={episode}
                 participant={participant}
                 setParticipant={setParticipant}
@@ -570,6 +599,7 @@ useEffect(() => {
                   })
                 }
                 onRelease={() => act({ type: "release-hold" })}
+                onCloseCoordination={() => act({ type: "close-coordination" })}
                 onRefresh={load}
                 recommendation={recommendation}
                 activeBand={activeBand}
@@ -1500,6 +1530,7 @@ function ExploreOtherFits({
 }
 
 function HoldPanel({
+  nextDecision,
   episode,
   participant,
   setParticipant,
@@ -1507,6 +1538,7 @@ function HoldPanel({
   busy,
   onInvite,
   onRelease,
+  onCloseCoordination,
   onRefresh,
   recommendation,
   activeBand,
@@ -1519,6 +1551,7 @@ function HoldPanel({
   onPickEnergy,
   expandSecondaryTools,
 }: {
+  nextDecision: NextDecision;
   episode: Episode;
   participant: string;
   setParticipant: (value: string) => void;
@@ -1526,6 +1559,7 @@ function HoldPanel({
   busy: boolean;
   onInvite: () => void;
   onRelease: () => void;
+  onCloseCoordination: () => void;
   onRefresh: () => Promise<void>;
   recommendation: MatchResult | undefined;
   activeBand: BudgetBand | null;
@@ -1541,6 +1575,8 @@ function HoldPanel({
   const hold = episode.hold!;
   const inviteOpen = Boolean(episode.coordination?.inviteExpiresAt);
   const hasResponses = Boolean(episode.coordination?.responses.length);
+  const reviewHold = nextDecision.kind === "review-hold";
+  const awaitResponses = nextDecision.kind === "await-responses";
 
   return (
     <div className="border border-[color:var(--accent-soft)] rounded-sm p-5">
@@ -1551,6 +1587,30 @@ function HoldPanel({
       <p className="text-sm text-[color:var(--muted)] mb-5">
         Nothing has been booked or charged.
       </p>
+
+      {reviewHold && (
+        <div className="mb-5 border-l-2 border-[color:var(--accent-soft)] pl-4">
+          <p className="text-sm leading-relaxed mb-3">{nextDecision.prompt}</p>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onCloseCoordination}
+              className="px-5 py-2.5 rounded-sm bg-foreground text-background text-sm disabled:opacity-40"
+            >
+              Continue solo — secure my place
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onRelease}
+              className="px-5 py-2.5 rounded-sm border border-[color:var(--hairline)] text-sm disabled:opacity-40"
+            >
+              Release the hold
+            </button>
+          </div>
+        </div>
+      )}
 
       {hasResponses ? (
         <div className="mb-5">
@@ -1628,7 +1688,12 @@ function HoldPanel({
       )}
 
       <div className="flex flex-wrap gap-3">
-        {inviteOpen && (
+        {awaitResponses && inviteOpen && (
+          <PrimaryButton disabled={busy} onClick={() => void onRefresh()}>
+            {nextDecision.primaryLabel}
+          </PrimaryButton>
+        )}
+        {!reviewHold && inviteOpen && !awaitResponses && (
           <button
             type="button"
             disabled={busy}
@@ -1638,14 +1703,16 @@ function HoldPanel({
             Check for a response
           </button>
         )}
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onRelease}
-          className="text-sm text-[color:var(--muted)]"
-        >
-          Release the hold
-        </button>
+        {!reviewHold && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onRelease}
+            className="text-sm text-[color:var(--muted)]"
+          >
+            Release the hold
+          </button>
+        )}
       </div>
       <ExploreOtherFits
         alternatives={episode.recommendation?.alternatives ?? []}

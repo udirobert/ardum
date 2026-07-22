@@ -2,10 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRetreatExploration } from "@/inventory/use-retreat-exploration";
+import { useRevealPresentation } from "@/inventory/use-retreat-exploration";
 import { useMiraField } from "./MiraField";
 import { MiraOrbProvider } from "./MiraOrbContext";
-import type { IntentionConstraints } from "@/agent/constraint-updater";
 import type { Retreat } from "@/inventory/retreat";
 import type { Recommendation } from "@/agent/retreat-response";
 import { composeBeat2Letter } from "@/evidence/wider-aperture";
@@ -19,48 +18,59 @@ import {
   PublicEvidencePanel,
 } from "./WiderApertureDisclosurePanels";
 import { DUSK_PANEL, CREAM } from "@/aesthetics/dusk-theme";
+import type { IntentionConstraints } from "@/agent/constraint-updater";
 
 /**
- * Recommendation reveal flow — Beats 1 through 4.
+ * Recommendation reveal flow — Beats 1 through 4 (presentation only).
  *
- * Replaces the legacy browse + chat + hold screen. One primary decision
- * per state. See docs/design/recommendation-reveal.md and
- * docs/design/refinement-alternatives.md for the contract.
+ * Receives persisted recommendation data and delegates hold, refinement,
+ * and rejection to canonical episode commands via callbacks.
  */
 interface RetreatExplorationViewProps {
-  initialConstraints?: IntentionConstraints;
-  onConstraintChange?: (constraints: IntentionConstraints) => void;
+  recommendation: Recommendation | null;
+  holdActive?: boolean;
+  holdPending?: boolean;
+  busy?: boolean;
+  voiceLaneNudge?: string | null;
   /** Pre-resolved tier B/C evidence from episode detail API. */
   widerApertureEvidence?: WiderApertureEvidence | null;
   /** Client-side resolve for demo/dev when retreat or constraints change. */
   widerApertureStores?: WiderApertureStores;
-  /** Recommendation uncertainties — drives nudge + optional letter clause. */
+  constraints?: IntentionConstraints;
   uncertainties?: string[];
+  onHold: () => void;
+  onVoiceMessage?: (text: string) => Promise<void>;
+  onElevate?: (retreatId: string) => void;
+  onReject?: (retreatId: string) => void;
+  onHoldCeremonyComplete?: () => void;
 }
 
 export default function RetreatExplorationView({
-  initialConstraints,
-  onConstraintChange,
+  recommendation,
+  holdActive = false,
+  holdPending = false,
+  busy = false,
+  voiceLaneNudge = null,
   widerApertureEvidence: widerApertureEvidenceProp,
   widerApertureStores,
+  constraints = {},
   uncertainties = [],
+  onHold,
+  onVoiceMessage,
+  onElevate,
+  onReject,
+  onHoldCeremonyComplete,
 }: RetreatExplorationViewProps) {
-  const exploration = useRetreatExploration(initialConstraints, onConstraintChange);
+  const beats = useRevealPresentation(recommendation);
   const {
     state,
-    recommendation,
-    constraints,
-    voiceLaneNudge,
     openAlternatives,
     closeAlternatives,
-    elevate,
-    rejectAlternative,
-    onVoiceMessage,
-    onCommit,
-    onCommitComplete,
-  } = exploration;
+    beginHoldCeremony,
+    endHoldCeremony,
+    setProcessing,
+  } = beats;
 
-  // Field posture follows the beat.
   const activity =
     state === "looking" || state === "processing"
       ? "processing"
@@ -78,7 +88,9 @@ export default function RetreatExplorationView({
     fieldTier: "hero",
   });
 
-  const [committingRetreat, setCommittingRetreat] = useState<Retreat | null>(null);
+  const [committingRetreat, setCommittingRetreat] = useState<Retreat | null>(
+    null,
+  );
 
   const widerApertureEvidence = (() => {
     if (widerApertureStores && recommendation) {
@@ -91,13 +103,25 @@ export default function RetreatExplorationView({
     return widerApertureEvidenceProp ?? null;
   })();
 
-  const handleCommit = (retreatId: string) => {
+  const handleCommit = () => {
     if (!recommendation) return;
-    const retreat = recommendation.retreat;
-    if (retreat.id !== retreatId) return;
-    setCommittingRetreat(retreat);
-    onCommit(retreatId);
+    setCommittingRetreat(recommendation.retreat);
+    beginHoldCeremony();
+    onHold();
   };
+
+  const handleVoiceMessage = async (text: string) => {
+    if (!onVoiceMessage) return;
+    setProcessing(true);
+    try {
+      await onVoiceMessage(text);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const showHoldCeremony =
+    holdPending || (committingRetreat !== null && state === "committing");
 
   return (
     <MiraOrbProvider>
@@ -113,6 +137,7 @@ export default function RetreatExplorationView({
             key={`beat2-${recommendation.retreat.id}`}
             recommendation={recommendation}
             revealing={state === "arriving"}
+            holdActive={holdActive}
             onCommit={handleCommit}
             onOpenAlternatives={openAlternatives}
             widerApertureEvidence={widerApertureEvidence}
@@ -125,24 +150,24 @@ export default function RetreatExplorationView({
             key="beat3"
             recommendation={recommendation}
             voiceLaneNudge={voiceLaneNudge}
-            onElevate={elevate}
-            onReject={rejectAlternative}
-            onVoiceMessage={onVoiceMessage}
+            onElevate={onElevate ?? (() => {})}
+            onReject={onReject ?? (() => {})}
+            onVoiceMessage={handleVoiceMessage}
             onClose={closeAlternatives}
-            busy={false}
+            busy={busy}
           />
         )}
       </AnimatePresence>
 
-      {/* Beat 4: hold transition. Fires from the Beat 2 CTA. */}
       <AnimatePresence>
-        {committingRetreat && state === "committing" && (
+        {showHoldCeremony && committingRetreat && (
           <WebGPUCommitmentTransition
             retreat={committingRetreat}
             isActive={true}
             onComplete={() => {
               setCommittingRetreat(null);
-              onCommitComplete();
+              endHoldCeremony();
+              onHoldCeremonyComplete?.();
             }}
           />
         )}
@@ -181,7 +206,8 @@ function LookingBeat() {
 interface Beat2Props {
   recommendation: Recommendation;
   revealing: boolean;
-  onCommit: (retreatId: string) => void;
+  holdActive: boolean;
+  onCommit: () => void;
   onOpenAlternatives: () => void;
   widerApertureEvidence: WiderApertureEvidence | null;
   uncertainties: string[];
@@ -190,6 +216,7 @@ interface Beat2Props {
 function Beat2({
   recommendation,
   revealing,
+  holdActive,
   onCommit,
   onOpenAlternatives,
   widerApertureEvidence,
@@ -221,7 +248,8 @@ function Beat2({
           retreat={retreat}
           letter={displayLetter}
           revealing={revealing}
-          onCommit={() => onCommit(retreat.id)}
+          holdActive={holdActive}
+          onCommit={onCommit}
           onOpenAlternatives={onOpenAlternatives}
           widerApertureEvidence={widerApertureEvidence}
           uncertainties={uncertainties}
@@ -254,6 +282,7 @@ interface DecisionCardProps {
   retreat: Retreat;
   letter: string;
   revealing: boolean;
+  holdActive: boolean;
   onCommit: () => void;
   onOpenAlternatives: () => void;
   widerApertureEvidence: WiderApertureEvidence | null;
@@ -273,6 +302,7 @@ function DecisionCard({
   retreat,
   letter,
   revealing,
+  holdActive,
   onCommit,
   onOpenAlternatives,
   widerApertureEvidence,
@@ -318,22 +348,25 @@ function DecisionCard({
       <button
         type="button"
         onClick={onCommit}
-        className="w-full px-6 py-4 rounded-full text-base font-medium transition-all duration-200 hover:scale-[1.01]"
+        disabled={holdActive}
+        className="w-full px-6 py-4 rounded-full text-base font-medium transition-all duration-200 hover:scale-[1.01] disabled:opacity-50"
         style={{
           background: "var(--accent-soft, #a85a3a)",
           color: CREAM,
           boxShadow: "0 0 40px rgba(168,90,58,0.3)",
         }}
       >
-        Hold this for 48 hours
+        {holdActive ? "Hold active" : "Hold this for 48 hours"}
         <span className="block text-sm font-normal opacity-80 mt-1">
-          Nothing charged. I&apos;ll watch it.
+          {holdActive
+            ? "Nothing charged. I'm watching it."
+            : "Nothing charged. I'll watch it."}
         </span>
       </button>
 
       {/* 3. Status — one quiet line; optional uncertainty nudge. */}
       <p className="text-xs mt-4" style={{ color: "rgba(246,239,227,0.5)" }}>
-        No hold active yet.
+        {holdActive ? "Hold active." : "No hold active yet."}
       </p>
       {uncertaintyCount > 0 && (
         <button

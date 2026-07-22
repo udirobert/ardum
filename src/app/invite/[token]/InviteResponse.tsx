@@ -61,9 +61,12 @@ export default function InviteResponse({ token }: { token: string }) {
       {done ? (
         <div className="flex-1 flex flex-col items-center justify-center">
           <p className="tag mb-3">response received</p>
-          <h1 className="font-serif text-4xl tracking-tight">
+          <h1 className="font-serif text-4xl tracking-tight mb-4">
             Thank you. Mira will carry that back.
           </h1>
+          <p className="text-[color:var(--muted)] max-w-md">
+            You can close this page — nothing else is required from you here.
+          </p>
         </div>
       ) : error ? (
         <div className="flex-1 flex flex-col items-center justify-center">
@@ -71,7 +74,11 @@ export default function InviteResponse({ token }: { token: string }) {
           <h1 className="font-serif text-4xl tracking-tight mb-4">
             This link can no longer be used.
           </h1>
-          <p className="text-[color:var(--muted)]">{error}</p>
+          <p className="text-[color:var(--muted)] mb-3">{error}</p>
+          <p className="text-sm text-[color:var(--muted)] max-w-md">
+            Ask the person who invited you to send a new link from their
+            episode.
+          </p>
         </div>
       ) : !invitation ? (
         <p

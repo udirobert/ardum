@@ -17,9 +17,11 @@
 
 import { resolveActor } from "@/identity/actor";
 import { episodeRepository } from "@/episodes/repository";
+import { activeEpisodePresence } from "@/episodes/detail-payload";
 import { projectActorMemory } from "@/memory/enrich";
 import { actorProfileRepository } from "@/identity/actor-profile";
 import ArrivalScreen from "@/components/ArrivalScreen";
+import type { Episode } from "@/episodes/model";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +29,21 @@ export default async function Home() {
   const actorId = await resolveActor();
   let greeting: string | null = null;
   let preferredName: string | null = null;
+  let episodeBootstrap:
+    | { episode: Episode | null; presence: ReturnType<typeof activeEpisodePresence> }
+    | undefined;
   if (actorId) {
     const [episodes, profile] = await Promise.all([
       episodeRepository.listOwned(actorId),
       actorProfileRepository.get(actorId),
     ]);
     preferredName = profile.preferredName;
+    const activeEpisode =
+      episodes.find((item) => item.status !== "completed") ?? null;
+    episodeBootstrap = {
+      episode: activeEpisode,
+      presence: activeEpisodePresence(episodes),
+    };
     const memory = await projectActorMemory(actorId, episodes);
     const booking = memory.pastBookings[0];
     const last = memory.pastMatches[0];
@@ -51,5 +62,11 @@ export default async function Home() {
       }
     }
   }
-  return <ArrivalScreen greeting={greeting} preferredName={preferredName} />;
+  return (
+    <ArrivalScreen
+      greeting={greeting}
+      preferredName={preferredName}
+      episodeBootstrap={episodeBootstrap}
+    />
+  );
 }
