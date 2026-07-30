@@ -43,6 +43,36 @@ function makeResult(): MatchResult {
 }
 
 describe("reasoningBeat", () => {
+  it("includes partySize and travelWindow in the constraint summary", () => {
+    const steps = reasoningBeat(
+      undefined,
+      undefined,
+      {
+        energy: "low",
+        budget: "1k-2k",
+        social: "solo",
+        partySize: 2,
+        travelWindow: "one-week",
+      },
+      3,
+    );
+    const summary = steps.find((s) => s.text.startsWith("You asked for"));
+    expect(summary).toBeDefined();
+    expect(summary!.text).toContain("a party of 2");
+    expect(summary!.text).toContain("about a week");
+  });
+
+  it("phrases a solo party size as 'a solo trip'", () => {
+    const steps = reasoningBeat(
+      undefined,
+      undefined,
+      { energy: "low", partySize: 1 },
+      3,
+    );
+    const summary = steps.find((s) => s.text.startsWith("You asked for"));
+    expect(summary!.text).toContain("a solo trip");
+  });
+
   it("emits constraints + pool + conclusion without a top pick", () => {
     const steps = reasoningBeat(
       undefined,

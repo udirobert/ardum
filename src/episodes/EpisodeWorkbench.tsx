@@ -356,10 +356,8 @@ useEffect(() => {
   // "tell Mira → click Show me again." (docs/plans/arrival-redesign.md §4)
   //
   // The extractor's vocabulary is wider than the constraint model:
-  // `dates` maps to the free-text horizon; `duration` has no model slot
-  // and stays in the reason text only. Unmapped fields must not be
-  // passed through — the command parser would silently drop them and
-  // the user would see a no-op revision.
+  // `dates` maps to the free-text horizon; `duration` maps to the
+  // travelWindow band (weekend/one-week/extended) via a day-count bucket.
   async function submitVoiceFeedback(): Promise<void> {
     const message = voiceInput.trim();
     if (!message) return;
@@ -371,6 +369,14 @@ useEffect(() => {
       if (extracted.budget) constraints.budget = extracted.budget;
       if (extracted.social) constraints.social = extracted.social;
       if (extracted.dates) constraints.horizon = extracted.dates;
+      if (extracted.duration) {
+        constraints.travelWindow =
+          extracted.duration <= 4
+            ? "weekend"
+            : extracted.duration <= 8
+              ? "one-week"
+              : "extended";
+      }
       const revised = await act({
         type: "revise-intention",
         constraints,
@@ -1144,6 +1150,8 @@ function ThinkingBeat({
           energy: constraints.energy,
           budget: constraints.budget,
           social: constraints.social,
+          partySize: constraints.partySize,
+          travelWindow: constraints.travelWindow,
         },
         poolSize,
       );
@@ -1165,10 +1173,12 @@ function ThinkingBeat({
         energy: constraints.energy,
         budget: constraints.budget,
         social: constraints.social,
+        partySize: constraints.partySize,
+        travelWindow: constraints.travelWindow,
       },
       poolSize,
     );
-  }, [constraints.energy, constraints.budget, constraints.social, poolSize, upcomingPick, rejectedTitle]);
+  }, [constraints.energy, constraints.budget, constraints.social, constraints.partySize, constraints.travelWindow, poolSize, upcomingPick, rejectedTitle]);
 
   const [visibleCount, setVisibleCount] = useState(0);
 

@@ -332,7 +332,13 @@ export interface ReasoningStep {
 export function reasoningBeat(
   topPick?: MatchResult,
   alternative?: MatchResult,
-  constraints?: { energy?: string; budget?: string; social?: string },
+  constraints?: {
+    energy?: string;
+    budget?: string;
+    social?: string;
+    partySize?: number;
+    travelWindow?: string;
+  },
   poolSize?: number,
 ): ReasoningStep[] {
   const steps: ReasoningStep[] = [
@@ -344,6 +350,23 @@ export function reasoningBeat(
   if (constraints?.energy) constraintParts.push(`${constraints.energy} energy`);
   if (constraints?.budget) constraintParts.push(`${constraints.budget} budget`);
   if (constraints?.social) constraintParts.push(`${constraints.social} comfort`);
+  if (constraints?.partySize) {
+    constraintParts.push(
+      constraints.partySize === 1
+        ? "a solo trip"
+        : `a party of ${constraints.partySize}`,
+    );
+  }
+  if (constraints?.travelWindow) {
+    const windowPhrase: Record<string, string> = {
+      weekend: "a long weekend",
+      "one-week": "about a week",
+      extended: "an extended stay",
+    };
+    constraintParts.push(
+      windowPhrase[constraints.travelWindow] ?? constraints.travelWindow,
+    );
+  }
   if (constraintParts.length > 0) {
     steps.push({
       text: `You asked for ${constraintParts.join(", ")}.`,
