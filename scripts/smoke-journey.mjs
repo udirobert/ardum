@@ -281,17 +281,22 @@ async function runInviteJourney() {
   });
 
   // 4. Reject the recommendation — feedback clears it.
-  await step("feedback → status:clarifying, recommendation cleared", async () => {
+  // 4. Feedback on the recommendation — "place" sets aside the current
+  // pick and promotes the next-best fit (same mechanics as
+  // reject-recommendation). The episode stays in recommendation-ready.
+  await step("feedback (place) → set-aside promotes alternative", async () => {
     const res = await send({
       type: "feedback",
       expectedRevision: revision,
       reason: "place",
     });
     assert(res.status === 200, `got ${res.status}: ${JSON.stringify(res.body)}`);
-    assert(res.body?.episode?.status === "clarifying",
-      `expected status=clarifying, got ${res.body.episode.status}`);
-    assert(res.body?.episode?.recommendation === undefined,
-      `recommendation should be cleared, got: ${JSON.stringify(res.body.episode.recommendation)}`);
+    assert(res.body?.episode?.status === "recommendation-ready",
+      `expected status=recommendation-ready, got ${res.body.episode.status}`);
+    assert(Array.isArray(res.body?.episode?.rejectedRetreats) && res.body.episode.rejectedRetreats.length > 0,
+      `rejectedRetreats should track the set-aside pick, got: ${JSON.stringify(res.body.episode.rejectedRetreats)}`);
+    assert(res.body?.episode?.recommendation?.result?.retreatRootHash,
+      `a new recommendation should be present after set-aside`);
     revision = res.body.episode.revision;
   });
 
