@@ -34,6 +34,8 @@ const fullConstraints = {
   energy: "low" as const,
   budget: "1k-2k" as const,
   social: "solo" as const,
+  partySize: 1,
+  travelWindow: "one-week" as const,
 };
 
 const stubResult = {
@@ -91,6 +93,21 @@ describe("episode decisions", () => {
     expect(
       nextDecision(episode({ energy: "low", budget: "1k-2k" })).kind,
     ).toBe("clarify-social");
+    expect(
+      nextDecision(
+        episode({ energy: "low", budget: "1k-2k", social: "solo" }),
+      ).kind,
+    ).toBe("clarify-party-size");
+    expect(
+      nextDecision(
+        episode({
+          energy: "low",
+          budget: "1k-2k",
+          social: "solo",
+          partySize: 2,
+        }),
+      ).kind,
+    ).toBe("clarify-horizon");
   });
 
   it("moves to recommendation only when context is sufficient", () => {
@@ -100,6 +117,8 @@ describe("episode decisions", () => {
           energy: "low",
           budget: "1k-2k",
           social: "small-circle",
+          partySize: 4,
+          travelWindow: "one-week",
         }),
       ).kind,
     ).toBe("review-recommendation");

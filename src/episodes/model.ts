@@ -2,6 +2,7 @@ import type {
   BudgetBand,
   EnergyState,
   SocialComfort,
+  TravelWindow,
 } from "@/calibration/schema";
 import type { MatchResult } from "@/matching/types";
 
@@ -25,8 +26,12 @@ export type IntentionConstraints = {
   energy?: EnergyState;
   budget?: BudgetBand;
   social?: SocialComfort;
-  horizon?: string;
+  // Scoreable: the duration band the practitioner wants to be away.
+  travelWindow?: TravelWindow;
+  // Scoreable: how many people are travelling.
   partySize?: number;
+  // Free-text travel window (voice feedback only) — contextual, not scored.
+  horizon?: string;
 };
 
 export type IntentionRevision = {
@@ -149,6 +154,8 @@ export type NextDecision = {
     | "clarify-energy"
     | "clarify-budget"
     | "clarify-social"
+    | "clarify-party-size"
+    | "clarify-horizon"
     | "review-recommendation"
     | "review-hold"
     | "await-responses"
@@ -238,6 +245,20 @@ export function nextDecision(episode: Episode): NextDecision {
     return {
       kind: "clarify-social",
       prompt: "How much company would support this intention?",
+      primaryLabel: "Continue",
+    };
+  }
+  if (!intention.constraints.partySize) {
+    return {
+      kind: "clarify-party-size",
+      prompt: "How many people are making this trip?",
+      primaryLabel: "Continue",
+    };
+  }
+  if (!intention.constraints.travelWindow) {
+    return {
+      kind: "clarify-horizon",
+      prompt: "How much time do you want to be away?",
       primaryLabel: "Find the next step",
     };
   }

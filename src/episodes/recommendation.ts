@@ -20,7 +20,7 @@ export function recommendForEpisode(
   excludedRootHashes?: string[],
 ): RecommendationSnapshot {
   const intention = currentIntention(episode);
-  const { energy, budget, social } = intention.constraints;
+  const { energy, budget, social, partySize, travelWindow } = intention.constraints;
   if (!energy || !budget || !social) {
     throw new Error("The intention needs energy, budget, and social context.");
   }
@@ -29,6 +29,8 @@ export function recommendForEpisode(
     energy,
     budget,
     social,
+    partySize,
+    travelWindow,
     notes: [intention.statement, intention.desiredShift]
       .filter(Boolean)
       .join(" — "),
@@ -52,13 +54,10 @@ export function recommendForEpisode(
   const top = ranked[0]?.result;
   if (!top) throw new Error("No retreat evidence is available after exclusions.");
 
+  // Only the actionable weak-fit signal. partySize and travelWindow are now
+  // collected during clarify and fed into the ranking as real axes, so they
+  // are no longer standing uncertainties on every pick.
   const uncertainties: string[] = [];
-  if (!intention.constraints.horizon) {
-    uncertainties.push("You have not set a firm travel window yet.");
-  }
-  if (!intention.constraints.partySize) {
-    uncertainties.push("The final party size is still open.");
-  }
   if (top.score < 0.75) {
     uncertainties.push("The fit is useful, but at least one constraint is a stretch.");
   }

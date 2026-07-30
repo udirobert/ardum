@@ -171,7 +171,11 @@ export async function applyEpisodeCommand(
       const statement = command.statement?.trim() || current.statement;
       const nextVersion = current.version + 1;
       const ready =
-        nextConstraints.energy && nextConstraints.budget && nextConstraints.social;
+        nextConstraints.energy &&
+        nextConstraints.budget &&
+        nextConstraints.social &&
+        nextConstraints.partySize &&
+        nextConstraints.travelWindow;
       episode = {
         ...episode,
         status: ready ? "ready" : "clarifying",

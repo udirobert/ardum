@@ -3,16 +3,23 @@
 import {
   BUDGET_BANDS,
   ENERGY_STATES,
+  PARTY_SIZE_OPTIONS,
   SOCIAL_COMFORT,
+  TRAVEL_WINDOWS,
   type BudgetBand,
   type EnergyState,
   type SocialComfort,
+  type TravelWindow,
 } from "@/calibration/schema";
 import type { NextDecision } from "./model";
 
 type ClarifyKind = Extract<
   NextDecision["kind"],
-  "clarify-energy" | "clarify-budget" | "clarify-social"
+  | "clarify-energy"
+  | "clarify-budget"
+  | "clarify-social"
+  | "clarify-party-size"
+  | "clarify-horizon"
 >;
 
 type Props = {
@@ -24,6 +31,8 @@ type Props = {
     energy?: EnergyState;
     budget?: BudgetBand;
     social?: SocialComfort;
+    travelWindow?: TravelWindow;
+    partySize?: number;
   }) => void;
 };
 
@@ -39,7 +48,11 @@ export default function ClarifyPanel({
       ? ENERGY_STATES
       : kind === "clarify-budget"
         ? BUDGET_BANDS
-        : SOCIAL_COMFORT;
+        : kind === "clarify-social"
+          ? SOCIAL_COMFORT
+          : kind === "clarify-party-size"
+            ? PARTY_SIZE_OPTIONS
+            : TRAVEL_WINDOWS;
 
   return (
     <div>
@@ -56,8 +69,12 @@ export default function ClarifyPanel({
                 onPick({ energy: value as EnergyState });
               } else if (kind === "clarify-budget") {
                 onPick({ budget: value as BudgetBand });
-              } else {
+              } else if (kind === "clarify-social") {
                 onPick({ social: value as SocialComfort });
+              } else if (kind === "clarify-party-size") {
+                onPick({ partySize: value as number });
+              } else {
+                onPick({ travelWindow: value as TravelWindow });
               }
             }}
             className="w-full text-left border border-[color:var(--hairline)] rounded-sm px-5 py-4 hover:border-[color:var(--accent)] disabled:opacity-40 transition-colors"

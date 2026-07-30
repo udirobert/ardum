@@ -53,6 +53,8 @@ function profile(overrides: Partial<PractitionerProfile>): PractitionerProfile {
     notes: overrides.notes,
     createdAt: overrides.createdAt ?? "2026-06-23T00:00:00.000Z",
     preferences: overrides.preferences,
+    travelWindow: overrides.travelWindow,
+    partySize: overrides.partySize,
   };
 }
 
@@ -639,5 +641,130 @@ describe("scoreAll — preference fit axis", () => {
     const sidemen = ranked.find((r) => r.result.retreatRootHash === SIDEMEN)!;
     const prefStep = sidemen.steps.find((s) => s.axis === "Preference fit");
     expect(prefStep).toBeUndefined();
+  });
+});
+
+// ─── Party size + travel window axes ─────────────────────────────────────
+// Both are collected during clarify and fed into the ranking as real axes.
+// Each retreat carries a cohort `capacity` and `durationDays`, so these are
+// genuine fit signals, not standing uncertainties.
+
+describe("scoreRetreat — party size axis", () => {
+  const SIDEMEN = "bali-sidemen-restoration-0003"; // capacity 8
+  const JOSHUA_TREE = "joshua-tree-desert-silent-0010"; // capacity 6
+
+  it("is skipped when the practitioner has no party size", () => {
+    const ranked = scoreAll(
+      profile({ energy: "low", social: "solo", budget: "under-1k" }),
+      attestations(),
+    );
+    const sidemen = ranked.find((r) => r.result.retreatRootHash === SIDEMEN)!;
+    expect(sidemen.steps.find((s) => s.axis === "Party size")).toBeUndefined();
+  });
+
+  it("scores 1.0 when the cohort can hold the whole party", () => {
+    const ranked = scoreAll(
+      profile({
+        energy: "low",
+        social: "solo",
+        budget: "under-1k",
+        partySize: 4,
+      }),
+      attestations(),
+    );
+    const sidemen = ranked.find((r) => r.result.retreatRootHash === SIDEMEN)!;
+    const step = sidemen.steps.find((s) => s.axis === "Party size")!;
+    expect(step).toBeDefined();
+    expect(step.then).toContain("Capacity fits");
+  });
+
+  it("decays for an over-subscribed cohort", () => {
+    // Joshua Tree holds 6; a party of 12 is double capacity.
+    const ranked = scoreAll(
+      profile({
+        energy: "settled",
+        social: "open-circle",
+        budget: "3k-plus",
+        partySize: 12,
+      }),
+      attestations(),
+    );
+    const jt = ranked.find((r) => r.result.retreatRootHash === JOSHUA_TREE)!;
+    const step = jt.steps.find((s) => s.axis === "Party size")!;
+    expect(step).toBeDefined();
+    expect(step.then).toContain("can't hold");
+  });
+});
+
+describe("scoreRetreat — travel window axis", () => {
+  const SIDEMEN = "bali-sidemen-restoration-0003"; // 5 days
+  const RISHIKESH = "rishikesh-ashram-stay-0008"; // 14 days
+
+  it("is skipped when the practitioner has no travel window", () => {
+    const ranked = scoreAll(
+      profile({ energy: "low", social: "solo", budget: "under-1k" }),
+      attestations(),
+    );
+    const sidemen = ranked.find((r) => r.result.retreatRootHash === SIDEMEN)!;
+    expect(sidemen.steps.find((s) => s.axis === "Travel window")).toBeUndefined();
+  });
+
+  it("scores inside the desired window", () => {
+    // one-week window is 5-8 days; Sidemen runs 5 days.
+    const ranked = scoreAll(
+      profile({
+        energy: "low",
+        social: "solo",
+        budget: "under-1k",
+        travelWindow: "one-week",
+      }),
+      attestations(),
+    );
+    const sidemen = ranked.find((r) => r.result.retreatRootHash === SIDEMEN)!;
+    const step = sidemen.steps.find((s) => s.axis === "Travel window")!;
+    expect(step).toBeDefined();
+    expect(step.then).toContain("right length");
+  });
+
+  it("decays outside the desired window", () => {
+    // one-week window is 5-8 days; Rishikesh runs 14 days — well over.
+    const ranked = scoreAll(
+      profile({
+        energy: "settled",
+        social: "solo",
+        budget: "1k-2k",
+        travelWindow: "one-week",
+      }),
+      attestations(),
+    );
+    const rishikesh = ranked.find(
+      (r) => r.result.retreatRootHash === RISHIKESH,
+    )!;
+    const step = rishikesh.steps.find((s) => s.axis === "Travel window")!;
+    expect(step).toBeDefined();
+    expect(step.when).toContain("Longer than");
+  });
+});
+
+describe("scoreAll — party size and travel window move the composite", () => {
+  it("stating a matching party size and window raises a retreat's score", () => {
+    const SIDEMEN = "bali-sidemen-restoration-0003";
+    const withoutSignals = scoreAll(
+      profile({ energy: "low", social: "solo", budget: "under-1k" }),
+      attestations(),
+    ).find((r) => r.result.retreatRootHash === SIDEMEN)!.result.score;
+
+    const withSignals = scoreAll(
+      profile({
+        energy: "low",
+        social: "solo",
+        budget: "under-1k",
+        partySize: 2,
+        travelWindow: "one-week",
+      }),
+      attestations(),
+    ).find((r) => r.result.retreatRootHash === SIDEMEN)!.result.score;
+
+    expect(withSignals).toBeGreaterThan(withoutSignals);
   });
 });

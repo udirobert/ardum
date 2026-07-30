@@ -149,6 +149,8 @@ async function main() {
         { energy: "low" },
         { budget: "1k-2k" },
         { social: "solo" },
+        { partySize: 1 },
+        { travelWindow: "one-week" },
       ]) {
         const r = await jsonRequest("POST", `/api/episodes/${epId}/actions`, {
           type: "revise-intention",

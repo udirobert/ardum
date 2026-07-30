@@ -354,7 +354,14 @@ const preferenceAxis: Axis = {
 // Keys are typed as a union so callers can override weights with full
 // type safety. Adding a new scoreable axis requires extending both this
 // union and the type in `CompositeOverrides`.
-type CompositeAxis = "Energy alignment" | "Social comfort" | "Budget" | "Breath & practice" | "Preference fit";
+type CompositeAxis =
+  | "Energy alignment"
+  | "Social comfort"
+  | "Budget"
+  | "Breath & practice"
+  | "Preference fit"
+  | "Party size"
+  | "Travel window";
 
 const COMPOSITE_WEIGHTS: Record<CompositeAxis, number> = {
   "Energy alignment": 0.35,
@@ -362,6 +369,97 @@ const COMPOSITE_WEIGHTS: Record<CompositeAxis, number> = {
   Budget: 0.15,
   "Breath & practice": 0.15,
   "Preference fit": 0.10,
+  "Party size": 0.05,
+  "Travel window": 0.05,
+};
+
+// Party size: how well the retreat's cohort capacity fits the practitioner's
+// party. A solo traveller in a 20-person cohort and a group of 8 in a 6-person
+// cohort are both mismatches. Score 1.0 when capacity >= partySize (the
+// retreat can hold them); decays as the gap widens for over-subscribed
+// cohorts. Skip when the practitioner hasn't stated a party size.
+const partySizeAxis: Axis = {
+  name: "Party size",
+  weight: 0.05,
+  describe() {
+    return "Party size (weight 0.05): if the practitioner stated a party size, score 1.0 when the retreat's cohort capacity can hold them (capacity >= partySize), decaying for over-subscribed cohorts. Skip when party size is unset. Output axis name 'Party size'.";
+  },
+  apply(p, a) {
+    if (!p.partySize) return null;
+    const capacity = a.claims.capacity;
+    const party = p.partySize;
+    const given = `Party of ${party}. Retreat cohort holds ${capacity}.`;
+    if (capacity >= party) {
+      return {
+        score: 1,
+        given,
+        when: "The cohort can hold the whole party.",
+        then: "Capacity fits — no crowding risk.",
+      };
+    }
+    // Over-subscribed: decay with how far over capacity the party is.
+    const overshoot = (party - capacity) / capacity;
+    const score = Math.max(0.05, 1 - overshoot);
+    return {
+      score,
+      given,
+      when: `Party of ${party} exceeds a ${capacity}-person cohort.`,
+      then: score > 0.5
+        ? "Slightly over capacity — a stretch."
+        : "Well over capacity — the cohort can't hold this party.",
+    };
+  },
+};
+
+// Travel window: how well the retreat's duration matches the practitioner's
+// desired time away. Each window maps to an ideal day-range; retreats inside
+// the band score 1.0, and the score decays with distance from the nearest
+// bound. Skip when no window is stated.
+const TRAVEL_WINDOW_DAYS: Record<
+  NonNullable<PractitionerProfile["travelWindow"]>,
+  [number, number]
+> = {
+  weekend: [2, 4],
+  "one-week": [5, 8],
+  extended: [9, 21],
+};
+
+const travelWindowAxis: Axis = {
+  name: "Travel window",
+  weight: 0.05,
+  describe() {
+    return "Travel window (weight 0.05): if the practitioner stated a travel window (weekend 2-4 days, one-week 5-8 days, extended 9+ days), score 1.0 when the retreat's duration falls inside the band, decaying with distance from the nearest bound. Skip when no window is stated. Output axis name 'Travel window'.";
+  },
+  apply(p, a) {
+    if (!p.travelWindow) return null;
+    const band = TRAVEL_WINDOW_DAYS[p.travelWindow];
+    if (!band) return null;
+    const days = a.claims.durationDays;
+    const [low, high] = band;
+    const given = `Travel window: ${p.travelWindow} (${low}-${high} days). Retreat runs ${days} days.`;
+    if (days >= low && days <= high) {
+      return {
+        score: 1,
+        given,
+        when: "Duration lands inside the desired window.",
+        then: "The right length of time away.",
+      };
+    }
+    // Distance from the nearest bound, as a fraction of the window width.
+    const distance = days < low ? low - days : days - high;
+    const width = high - low;
+    const score = Math.max(0.05, 1 - distance / (width * 2));
+    return {
+      score,
+      given,
+      when: days < low
+        ? `Shorter than the ${p.travelWindow} window.`
+        : `Longer than the ${p.travelWindow} window.`,
+      then: score > 0.5
+        ? "Close to the desired length — workable."
+        : "A different shape of trip than requested.",
+    };
+  },
 };
 
 // Single source of truth for the matching logic. Order is the order the
@@ -374,6 +472,8 @@ export const AXES: readonly Axis[] = [
   breathCycleAxis,
   mobilityAxis,
   preferenceAxis,
+  partySizeAxis,
+  travelWindowAxis,
 ];
 
 // ─── Headline + scoring ──────────────────────────────────────────────────

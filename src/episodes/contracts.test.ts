@@ -272,6 +272,17 @@ describe("parseEpisodeCommand", () => {
       ).toThrow("Invalid energy.");
     });
 
+    it("throws on revise-intention with invalid travel window", () => {
+      expect(() =>
+        parseEpisodeCommand({
+          type: "revise-intention",
+          ...baseRevision,
+          reason: "Set the window.",
+          constraints: { travelWindow: "fortnight" },
+        }),
+      ).toThrow("Invalid travel window.");
+    });
+
     it("throws when root is not an object", () => {
       expect(() => parseEpisodeCommand("recommend")).toThrow(
         "Expected an object.",

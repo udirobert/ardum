@@ -387,7 +387,9 @@ useEffect(() => {
       if (
         revisedConstraints?.energy &&
         revisedConstraints.budget &&
-        revisedConstraints.social
+        revisedConstraints.social &&
+        revisedConstraints.partySize &&
+        revisedConstraints.travelWindow
       ) {
         await act({ type: "recommend" });
       }
@@ -439,7 +441,9 @@ useEffect(() => {
   const isClarifyStep =
     nextDecision.kind === "clarify-energy" ||
     nextDecision.kind === "clarify-budget" ||
-    nextDecision.kind === "clarify-social";
+    nextDecision.kind === "clarify-social" ||
+    nextDecision.kind === "clarify-party-size" ||
+    nextDecision.kind === "clarify-horizon";
 
   const holdDecision =
     nextDecision.kind === "await-responses" ||
@@ -449,10 +453,10 @@ useEffect(() => {
   // Secondary tools (lenses, counterfactuals, alternatives): only expand when
   // the fit is genuinely weak or the person is actively questioning it.
   // A fresh recommendation should feel calm and focused, not overwhelming.
-  // Standing informational gaps (travel window, party size) are not collected
-  // by the clarify flow and are always present, so counting uncertainties
-  // would expand the tools on every pick — the fit score is the signal that
-  // actually says "this one is shaky."
+  // The uncertainty array now carries only the actionable weak-fit signal
+  // (partySize and travelWindow are collected in clarify and ranked as real
+  // axes), so keying off the fit score is the signal that says "this one is
+  // shaky."
   const fitScore = episode.recommendation?.result.score ?? 1;
   const highUncertainty = fitScore < 0.75;
   const expandSecondaryTools = feedbackOpen || highUncertainty;
@@ -540,6 +544,8 @@ useEffect(() => {
                 | "clarify-energy"
                 | "clarify-budget"
                 | "clarify-social"
+                | "clarify-party-size"
+                | "clarify-horizon"
             }
             prompt={nextDecision.prompt}
             primaryLabel={nextDecision.primaryLabel}

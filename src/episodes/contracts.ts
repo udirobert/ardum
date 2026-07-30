@@ -12,6 +12,7 @@ const SOCIAL = new Set([
   "open-circle",
   "communal",
 ]);
+const TRAVEL_WINDOW = new Set(["weekend", "one-week", "extended"]);
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -54,6 +55,10 @@ function constraints(value: unknown): Partial<IntentionConstraints> {
   }
   if (input.horizon !== undefined) {
     result.horizon = text(input.horizon, "Horizon", 120);
+  }
+  if (input.travelWindow !== undefined) {
+    if (!TRAVEL_WINDOW.has(String(input.travelWindow))) throw new Error("Invalid travel window.");
+    result.travelWindow = input.travelWindow as IntentionConstraints["travelWindow"];
   }
   if (input.partySize !== undefined) {
     const partySize = Number(input.partySize);

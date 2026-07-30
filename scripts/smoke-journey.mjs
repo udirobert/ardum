@@ -124,7 +124,9 @@ async function walkToSoloHold(prefix) {
   for (const [label, constraints, reason] of [
     ["clarify energy → status:clarifying", { energy: "settled" }, "Resolve energy first."],
     ["clarify budget → status:clarifying", { budget: "1k-2k" }, "Add a responsible limit."],
-    ["clarify social → status:ready", { social: "solo" }, "Solo path — no invite required."],
+    ["clarify social → status:clarifying", { social: "solo" }, "Solo path — no invite required."],
+    ["clarify party size → status:clarifying", { partySize: 1 }, "Travelling alone."],
+    ["clarify travel window → status:ready", { travelWindow: "one-week" }, "About a week away."],
   ]) {
     await step(`${prefix}${label}`, async () => {
       const res = await send({
@@ -249,12 +251,38 @@ async function runInviteJourney() {
     revision = res.body.episode.revision;
   });
 
-  await step("clarify social → status:ready", async () => {
+  await step("clarify social → status:clarifying", async () => {
     const res = await send({
       type: "revise-intention",
       expectedRevision: revision,
       constraints: { social: "small-circle" },
       reason: "Set the kind of company.",
+    });
+    assert(res.status === 200, `got ${res.status}: ${JSON.stringify(res.body)}`);
+    assert(res.body?.episode?.status === "clarifying",
+      `expected status=clarifying, got ${res.body.episode.status}`);
+    revision = res.body.episode.revision;
+  });
+
+  await step("clarify party size → status:clarifying", async () => {
+    const res = await send({
+      type: "revise-intention",
+      expectedRevision: revision,
+      constraints: { partySize: 2 },
+      reason: "Travelling with a partner.",
+    });
+    assert(res.status === 200, `got ${res.status}: ${JSON.stringify(res.body)}`);
+    assert(res.body?.episode?.status === "clarifying",
+      `expected status=clarifying, got ${res.body.episode.status}`);
+    revision = res.body.episode.revision;
+  });
+
+  await step("clarify travel window → status:ready", async () => {
+    const res = await send({
+      type: "revise-intention",
+      expectedRevision: revision,
+      constraints: { travelWindow: "one-week" },
+      reason: "About a week away.",
     });
     assert(res.status === 200, `got ${res.status}: ${JSON.stringify(res.body)}`);
     assert(res.body?.episode?.status === "ready",
@@ -483,6 +511,8 @@ async function runInviteJourney() {
         { energy: "low" },
         { budget: "1k-2k" },
         { social: "solo" },
+        { partySize: 1 },
+        { travelWindow: "one-week" },
       ]) {
         const r = await jsonRequest("POST", `/api/episodes/${ep2Id}/actions`, {
           type: "revise-intention",

@@ -16,6 +16,8 @@ const base: Episode = {
         energy: "low",
         budget: "1k-2k",
         social: "small-circle",
+        partySize: 1,
+        travelWindow: "one-week",
       },
       changeReason: "Initial intention",
       createdAt: "2026-07-11T00:00:00.000Z",
@@ -43,9 +45,15 @@ describe("episode recommendation", () => {
     );
     expect(result.result.retreatRootHash).toBeTruthy();
     expect(result.alternatives).toHaveLength(2);
-    expect(result.uncertainties).toContain(
-      "You have not set a firm travel window yet.",
-    );
+    // partySize and travelWindow are now collected in clarify and ranked as
+    // real axes, so they no longer appear as standing uncertainties. Only a
+    // genuinely weak fit surfaces a line.
+    expect(
+      result.uncertainties.some((u) => u.includes("travel window")),
+    ).toBe(false);
+    expect(
+      result.uncertainties.some((u) => u.includes("party size")),
+    ).toBe(false);
   });
 
   it("excludes rejected retreats and promotes the next-best", () => {
