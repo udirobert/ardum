@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useMiraField } from "./MiraField";
@@ -34,10 +34,15 @@ type Props = {
 
 function resolveInitialPhase(
   active: Episode | null | undefined,
-): Exclude<Phase, "loading"> {
+): Phase {
   if (active) return "returning";
-  if (hasCompletedAestheticCalibration()) return "intention";
-  return "aesthetic";
+  // No active episode: we cannot decide between "aesthetic" and
+  // "intention" during the shared server/client render because that
+  // depends on localStorage. Start at "loading" and let the client
+  // derive the real entry phase from the calibration flag (see
+  // effectivePhase below) — this keeps the first paint identical on
+  // server and client and avoids a hydration mismatch.
+  return "loading";
 }
 
 export default function ArrivalScreen({
@@ -68,6 +73,27 @@ export default function ArrivalScreen({
   const [aestheticVector, setAestheticVector] = useState<AestheticVector>(
     () => readAestheticVector(),
   );
+
+  // Calibration completion lives in localStorage (client-only). Read it
+  // through useSyncExternalStore with a server snapshot of `false` so the
+  // first render matches the server exactly — no hydration mismatch and no
+  // synchronous setState inside an effect. After mount React re-renders with
+  // the true client value, which drives effectivePhase below.
+  const calibrationDone = useSyncExternalStore(
+    () => () => {},
+    hasCompletedAestheticCalibration,
+    () => false,
+  );
+
+  // The phase the UI actually renders. When bootstrapped with no active
+  // episode, the shared render lands on "loading"; the client derives the
+  // real entry phase from the calibration flag without touching setState.
+  const effectivePhase: Phase =
+    bootstrapped && phase === "loading"
+      ? calibrationDone
+        ? "intention"
+        : "aesthetic"
+      : phase;
 
   useEffect(() => {
     if (bootstrapped) return;
@@ -129,7 +155,7 @@ export default function ArrivalScreen({
   }
 
   const current = episode?.intentions.at(-1);
-  const centered = phase === "loading" || committing;
+  const centered = effectivePhase === "loading" || committing;
 
   const fieldActivity: MiraActivity = committing
     ? "arriving"
@@ -137,18 +163,18 @@ export default function ArrivalScreen({
       ? "processing"
       : inputFocused
         ? "listening"
-        : phase === "intention" || phase === "returning"
+        : effectivePhase === "intention" || effectivePhase === "returning"
           ? "speaking"
           : "idle";
 
   const fieldVeil =
-    phase === "aesthetic"
+    effectivePhase === "aesthetic"
       ? 0.12
       : centered
         ? 0.18
         : inputFocused
           ? 0.38
-          : phase === "intention"
+          : effectivePhase === "intention"
             ? 0.3
             : 0.24;
 
@@ -174,7 +200,7 @@ export default function ArrivalScreen({
     <section className="relative flex flex-col min-h-[calc(100svh-56px)] overflow-hidden">
       {centered && (
         <div className="dusk relative z-10 flex-1 flex items-center justify-center px-6 text-center">
-          {phase === "loading" && (
+          {effectivePhase === "loading" && (
             <div>
               {greetingNode}
               <p
@@ -182,7 +208,7 @@ export default function ArrivalScreen({
                 aria-live="polite"
                 style={DUSK_HEADING}
               >
-                Let me recall where we left things…
+                Mira
               </p>
             </div>
           )}
@@ -213,11 +239,11 @@ export default function ArrivalScreen({
         </div>
       )}
 
-      {!centered && phase !== "aesthetic" && (
+      {!centered && effectivePhase !== "aesthetic" && (
         <div className="dusk relative z-10 flex-1 flex flex-col max-w-xl mx-auto w-full px-6 sm:px-10">
           {/* Voice lane — Mira's line sits in the orb's lower third, not a top headline. */}
           <div className="flex-1 flex flex-col justify-end pb-6 sm:pb-10 text-center min-h-[38vh]">
-            {phase === "intention" && (
+            {effectivePhase === "intention" && (
               <StaggerReveal>
                 {greetingNode}
                 <p className="tag mb-3 t-stagger-line">Mira</p>
@@ -239,7 +265,7 @@ export default function ArrivalScreen({
               </StaggerReveal>
             )}
 
-            {phase === "returning" && episode && current && (
+            {effectivePhase === "returning" && episode && current && (
               <StaggerReveal>
                 {greetingNode}
                 <p className="tag mb-3 t-stagger-line">your active intention</p>
@@ -263,7 +289,7 @@ export default function ArrivalScreen({
 
           {/* Input lane — quiet ground; no panel chrome competing with the field. */}
           <div className="pb-12 sm:pb-14 pt-2">
-            {phase === "intention" && (
+            {effectivePhase === "intention" && (
               <StaggerReveal>
                 <label className="block text-left t-stagger-line">
                   <span className="sr-only">Your intention</span>
@@ -326,7 +352,7 @@ export default function ArrivalScreen({
               </StaggerReveal>
             )}
 
-            {phase === "returning" && episode && (
+            {effectivePhase === "returning" && episode && (
               <StaggerReveal>
                 <div className="flex flex-wrap justify-center gap-3 t-stagger-line">
                   <button
@@ -355,7 +381,7 @@ export default function ArrivalScreen({
         </div>
       )}
 
-      {phase === "aesthetic" && (
+      {effectivePhase === "aesthetic" && (
         <div className="dusk relative z-10 flex-1 flex flex-col items-center justify-center w-full max-w-3xl mx-auto px-6 sm:px-10 py-10 text-center overflow-y-auto">
           <AestheticCalibration
             onVector={setAestheticVector}

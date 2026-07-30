@@ -129,7 +129,7 @@ export function matchLetter(
     `${match.retreatTitle} in ${match.retreatLocation}.`,
     `I'm recommending this because ${arrival}, and ${socialLine}. This retreat specializes in ${match.practiceStyle.slice(0, 2).join(" and ")}.`,
     match.headline,
-    `The deposit is $${match.priceUsd.toLocaleString()}. It's held in escrow on Arbitrum — the operator doesn't get it until you check in.`,
+    `The deposit is $${match.priceUsd.toLocaleString()}. It's held for you — the operator doesn't get it until you check in.`,
     `If you book, I'll build you a preparation plan based on what I've learned about you. Five minutes a day until you leave.`,
   );
 

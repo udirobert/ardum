@@ -188,6 +188,9 @@ export async function applyEpisodeCommand(
           },
         ],
         recommendation: undefined,
+        // rejectedRetreats persist across constraint revisions: "not this
+        // one" is about the retreat, not the constraint set, and a revised
+        // intention must not resurrect what the user set aside.
         hold: undefined,
         monitor: undefined,
         coordination: undefined,
@@ -203,10 +206,17 @@ export async function applyEpisodeCommand(
       // policy can apply the preference-fit tie-breaker. Fire-and-forget
       // on failure — preferences are soft signals, never hard constraints.
       const preferences = await loadPreferences(actorId);
+      // Honor the episode's rejections: a re-recommend after feedback or
+      // pool exhaustion must never resurrect a set-aside retreat.
       episode = {
         ...episode,
         status: "recommendation-ready",
-        recommendation: recommendForEpisode(episode, now, preferences),
+        recommendation: recommendForEpisode(
+          episode,
+          now,
+          preferences,
+          episode.rejectedRetreats,
+        ),
         events: [
           ...episode.events,
           event(ids, now, "recommendation-created", "Mira chose one next step."),
@@ -222,20 +232,94 @@ export async function applyEpisodeCommand(
       break;
     }
     case "feedback": {
+      if (!episode.recommendation) {
+        throw new Error("Nothing to react to yet.");
+      }
+      const current = currentIntention(episode);
+      const summary = `The recommendation missed on ${command.reason}.`;
+
+      // "timing" / "place" are about THIS retreat, not the constraints —
+      // treat them as a set-aside and promote the next-best fit, the same
+      // mechanics as reject-recommendation.
+      if (command.reason === "timing" || command.reason === "place") {
+        const rejected = [
+          ...(episode.rejectedRetreats ?? []),
+          episode.recommendation.result.retreatRootHash,
+        ];
+        const preferences = await loadPreferences(actorId);
+        try {
+          const next = recommendForEpisode(episode, now, preferences, rejected);
+          episode = {
+            ...episode,
+            status: "recommendation-ready",
+            recommendation: next,
+            rejectedRetreats: rejected,
+            hold: undefined,
+            coordination: undefined,
+            events: [
+              ...episode.events,
+              event(ids, now, "intention-revised", summary),
+              event(ids, now, "recommendation-created", "Mira chose one next step."),
+            ],
+          };
+        } catch {
+          // Pool exhausted — reopen clarification from the top.
+          episode = {
+            ...episode,
+            status: "clarifying",
+            recommendation: undefined,
+            rejectedRetreats: rejected,
+            intentions: [
+              ...episode.intentions,
+              {
+                version: current.version + 1,
+                statement: current.statement,
+                desiredShift: current.desiredShift,
+                constraints: {},
+                changeReason: summary,
+                createdAt: now.toISOString(),
+              },
+            ],
+            events: [
+              ...episode.events,
+              event(ids, now, "intention-revised", summary),
+            ],
+          };
+        }
+        break;
+      }
+
+      // "budget" / "group" / "intention" name a constraint that is wrong.
+      // Clear it so the next decision re-asks exactly that question instead
+      // of re-recommending the identical deterministic result.
+      const nextConstraints = { ...current.constraints };
+      if (command.reason === "budget") delete nextConstraints.budget;
+      if (command.reason === "group") delete nextConstraints.social;
+      if (command.reason === "intention") {
+        delete nextConstraints.energy;
+        delete nextConstraints.budget;
+        delete nextConstraints.social;
+      }
       episode = {
         ...episode,
         status: "clarifying",
+        intentions: [
+          ...episode.intentions,
+          {
+            version: current.version + 1,
+            statement: current.statement,
+            desiredShift: current.desiredShift,
+            constraints: nextConstraints,
+            changeReason: summary,
+            createdAt: now.toISOString(),
+          },
+        ],
         recommendation: undefined,
         hold: undefined,
         coordination: undefined,
         events: [
           ...episode.events,
-          event(
-            ids,
-            now,
-            "intention-revised",
-            `The recommendation missed on ${command.reason}.`,
-          ),
+          event(ids, now, "intention-revised", summary),
         ],
       };
       break;
@@ -274,13 +358,27 @@ export async function applyEpisodeCommand(
           ],
         };
       } catch {
-        // All retreats exhausted — go back to clarification so the
-        // practitioner can widen their constraints.
+        // All retreats exhausted — reopen clarification from the top so the
+        // practitioner can widen their constraints. The intention revision
+        // clears the constraint set; without it, nextDecision would loop on
+        // "Show me" against an exhausted pool.
+        const current = currentIntention(episode);
         episode = {
           ...episode,
           status: "clarifying",
           recommendation: undefined,
           rejectedRetreats: rejected,
+          intentions: [
+            ...episode.intentions,
+            {
+              version: current.version + 1,
+              statement: current.statement,
+              desiredShift: current.desiredShift,
+              constraints: {},
+              changeReason: `Mira set aside ${command.retreatRootHash.slice(0, 8)}. Nothing else fits yet — let's revisit what matters.`,
+              createdAt: now.toISOString(),
+            },
+          ],
           hold: undefined,
           coordination: undefined,
           events: [

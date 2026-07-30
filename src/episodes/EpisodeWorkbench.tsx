@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -56,6 +56,14 @@ type CommandInput = EpisodeCommand extends infer Command
 export default function EpisodeWorkbench({ episodeId }: Props) {
   const router = useRouter();
   const [payload, setPayload] = useState<EpisodePayload | null>(null);
+  // Mirror of the latest payload for command dispatch. React state is
+  // stale inside an in-flight act() call; chained commands (e.g. voice
+  // feedback → revise → recommend) must read the revision the PREVIOUS
+  // command returned or the second call 409s on a stale revision.
+  const payloadRef = useRef<EpisodePayload | null>(null);
+  useEffect(() => {
+    payloadRef.current = payload;
+  }, [payload]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [participant, setParticipant] = useState("");
@@ -64,17 +72,23 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
   const [voiceInput, setVoiceInput] = useState("");
   const [voiceResponse, setVoiceResponse] = useState<string | null>(null);
   const [commitmentOpen, setCommitmentOpen] = useState(false);
-  // Thinking beat: when the user clicks "recommend", we show Mira's
+  // Thinking beat: when the user triggers a new top pick (recommend,
+  // reject-recommendation, or timing/place feedback), we show Mira's
   // reasoning step by step before the card appears. The beat starts
-  // when `thinking` is set and clears when the recommendation arrives
-  // or the act() promise resolves. `thinkingCommand` tracks which
-  // command triggered the beat so we can surface the right data:
-  //   - "recommend": constraints + pool size (no recommendation yet)
-  //   - "reject-recommendation": the next alternative (about to become top)
+  // when `thinking` is set and clears after both the command resolves
+  // AND the beat's minimum play time has elapsed — otherwise fast local
+  // responses skip the whole beat.
   const [thinking, setThinking] = useState(false);
-  const [thinkingCommand, setThinkingCommand] = useState<
-    "recommend" | "reject-recommendation" | null
-  >(null);
+  // Snapshot of the episode facts the beat narrates. Captured at command
+  // dispatch — the payload swaps mid-beat once the command resolves, and
+  // the beat must keep narrating what was true when the user acted
+  // (e.g. the rejected title, the about-to-be-promoted alternative).
+  const [thinkingSnapshot, setThinkingSnapshot] = useState<{
+    constraints: IntentionConstraints;
+    poolSize?: number;
+    upcomingPick?: MatchResult;
+    rejectedTitle?: string;
+  } | null>(null);
   const [activeLens, setActiveLens] = useState<PerspectiveName>("balanced");
   const [lensData, setLensData] = useState<PerspectivesPayload | null>(null);
   const [lensLoading, setLensLoading] = useState(false);
@@ -249,70 +263,134 @@ useEffect(() => {
 
   async function act(
     command: CommandInput,
-  ): Promise<void> {
-    if (!payload) return;
+  ): Promise<EpisodePayload | null> {
+    const base = payloadRef.current;
+    if (!base) return null;
     setBusy(true);
     setError(null);
-    // Start the thinking beat for recommend and reject-recommendation
-    // commands — these produce a new recommendation, so we surface
-    // Mira's reasoning before the card appears.
-    if (command.type === "recommend" || command.type === "reject-recommendation") {
+    // Start the thinking beat for commands that surface a NEW top pick —
+    // we show Mira's reasoning before the card appears. Three semantic
+    // triggers:
+    //   - "recommend": the first pick (constraints + pool size only)
+    //   - "reject-recommendation": the first alternative is promoted
+    //   - "feedback" with timing/place intent: same as a set-aside,
+    //     the first alternative is promoted (see service.ts)
+    const isSetAsideFeedback =
+      command.type === "feedback" &&
+      (command.reason === "timing" || command.reason === "place");
+    const beatCommand =
+      command.type === "recommend" || command.type === "reject-recommendation"
+        ? command.type
+        : isSetAsideFeedback
+          ? ("reject-recommendation" as const)
+          : null;
+    if (beatCommand) {
+      const currentRec = base.episode.recommendation;
+      setThinkingSnapshot({
+        constraints: base.episode.intentions.at(-1)?.constraints ?? {},
+        poolSize: currentRec?.alternatives.length
+          ? currentRec.alternatives.length + 1
+          : undefined,
+        upcomingPick:
+          beatCommand === "reject-recommendation"
+            ? currentRec?.alternatives[0]
+            : undefined,
+        rejectedTitle:
+          beatCommand === "reject-recommendation"
+            ? currentRec?.result.retreatTitle
+            : undefined,
+      });
       setThinking(true);
-      setThinkingCommand(command.type);
     }
+    // The beat's lines are scheduled over ~2.5-4.5s; hold the overlay for
+    // at least that long or the whole beat is skipped by fast responses.
+    const beatMinimumMs = beatCommand === "reject-recommendation" ? 4200 : 3400;
+    const beatStartedAt = Date.now();
     try {
       const response = await fetch(`/api/episodes/${episodeId}/actions`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           ...command,
-          expectedRevision: payload.episode.revision,
+          expectedRevision: base.episode.revision,
           idempotencyKey: crypto.randomUUID(),
         }),
       });
       const data = (await response.json()) as EpisodePayload & { error?: string };
       if (!response.ok) throw new Error(data.error ?? "Could not update.");
-      setPayload((prev) =>
-        prev
-          ? {
-              ...prev,
-              episode: data.episode,
-              nextDecision: data.nextDecision,
-              miraPresence: data.miraPresence,
-              shareToken: data.shareToken ?? prev.shareToken,
-            }
-          : data,
-      );
+      const next: EpisodePayload = {
+        ...base,
+        episode: data.episode,
+        nextDecision: data.nextDecision,
+        miraPresence: data.miraPresence,
+        shareToken: data.shareToken ?? base.shareToken,
+      };
+      setPayload(next);
+      payloadRef.current = next;
       if (data.shareToken) {
         setShareUrl(`${window.location.origin}/invite/${data.shareToken}`);
       }
+      return next;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not update.");
       await load().catch(() => {});
+      return null;
     } finally {
+      if (beatCommand) {
+        const elapsed = Date.now() - beatStartedAt;
+        const remaining = beatMinimumMs - elapsed;
+        if (remaining > 0) {
+          await new Promise((resolve) => setTimeout(resolve, remaining));
+        }
+      }
       setBusy(false);
       setThinking(false);
-      setThinkingCommand(null);
+      setThinkingSnapshot(null);
     }
   }
 
   // Conversational feedback — the user types what feels off in their own
-  // words. We extract constraints from the text and apply them via
-  // revise-intention, which re-recommends with the new constraints. If
-  // no constraints are extracted, Mira responds with a nudge instead of
-  // silently resetting. See docs/plans/arrival-redesign.md §4.
+  // words. We extract constraints from the text, apply them via
+  // revise-intention, then re-recommend in the same gesture: the promise
+  // of the voice lane is "tell Mira → Mira adjusts and shows you," not
+  // "tell Mira → click Show me again." (docs/plans/arrival-redesign.md §4)
+  //
+  // The extractor's vocabulary is wider than the constraint model:
+  // `dates` maps to the free-text horizon; `duration` has no model slot
+  // and stays in the reason text only. Unmapped fields must not be
+  // passed through — the command parser would silently drop them and
+  // the user would see a no-op revision.
   async function submitVoiceFeedback(): Promise<void> {
     const message = voiceInput.trim();
     if (!message) return;
     const extracted = extractConstraints(message);
     if (hasConstraints(extracted)) {
       setVoiceResponse(null);
-      await act({
+      const constraints: IntentionConstraints = {};
+      if (extracted.energy) constraints.energy = extracted.energy;
+      if (extracted.budget) constraints.budget = extracted.budget;
+      if (extracted.social) constraints.social = extracted.social;
+      if (extracted.dates) constraints.horizon = extracted.dates;
+      const revised = await act({
         type: "revise-intention",
-        constraints: extracted,
+        constraints,
         reason: message.slice(0, 160),
       });
+      if (!revised) return; // error surface handled inside act()
       setVoiceInput("");
+      // Chain the re-recommend while the constraint set is complete.
+      // revise-intention merges (never clears) constraints, so a voice
+      // revision leaves them complete — the check is defensive against
+      // a future extractor change.
+      const revisedConstraints =
+        revised.episode.intentions.at(-1)?.constraints;
+      if (
+        revisedConstraints?.energy &&
+        revisedConstraints.budget &&
+        revisedConstraints.social
+      ) {
+        await act({ type: "recommend" });
+      }
     } else {
       // No constraints extracted — Mira responds with a nudge rather
       // than silently resetting to clarification.
@@ -369,35 +447,31 @@ useEffect(() => {
     nextDecision.kind === "ready-to-book";
 
   // Secondary tools (lenses, counterfactuals, alternatives): only expand when
-  // uncertainty is genuinely high or the person is actively questioning the fit.
+  // the fit is genuinely weak or the person is actively questioning it.
   // A fresh recommendation should feel calm and focused, not overwhelming.
-  const highUncertainty =
-    (episode.recommendation?.uncertainties.length ?? 0) >= 2;
+  // Standing informational gaps (travel window, party size) are not collected
+  // by the clarify flow and are always present, so counting uncertainties
+  // would expand the tools on every pick — the fit score is the signal that
+  // actually says "this one is shaky."
+  const fitScore = episode.recommendation?.result.score ?? 1;
+  const highUncertainty = fitScore < 0.75;
   const expandSecondaryTools = feedbackOpen || highUncertainty;
 
   return (
     <section className="dusk mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24 min-h-[calc(100svh-56px)]">
-      {thinking && (
+      {thinking && thinkingSnapshot && (
         <ThinkingBeat
-          constraints={intention.constraints}
-          poolSize={episode.recommendation?.alternatives.length
-            ? episode.recommendation.alternatives.length + 1
-            : undefined}
+          constraints={thinkingSnapshot.constraints}
+          poolSize={thinkingSnapshot.poolSize}
           presence={miraPresence}
-          // For reject-recommendation, the first alternative is about to
-          // become the top pick. Surface its reasoning so the user sees
-          // why it's being promoted. For recommend, we don't have the
-          // new top pick yet — the beat shows constraints + pool only.
-          upcomingPick={
-            thinkingCommand === "reject-recommendation"
-              ? episode.recommendation?.alternatives[0]
-              : undefined
-          }
-          rejectedTitle={
-            thinkingCommand === "reject-recommendation"
-              ? recommendation?.retreatTitle
-              : undefined
-          }
+          // For a set-aside (reject-recommendation or timing/place
+          // feedback), the first alternative is about to become the top
+          // pick. Surface its reasoning so the user sees why it's being
+          // promoted. For recommend, we don't have the new top pick yet —
+          // the beat shows constraints + pool only. All values come from
+          // the dispatch-time snapshot so they don't mutate mid-beat.
+          upcomingPick={thinkingSnapshot.upcomingPick}
+          rejectedTitle={thinkingSnapshot.rejectedTitle}
         />
       )}
       <div className="mb-10">
