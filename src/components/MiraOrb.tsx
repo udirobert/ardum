@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
+import { motion } from "framer-motion";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { readAestheticVector } from "@/aesthetics/aesthetic-store";
 import type { AestheticVector } from "@/aesthetics/image-pool";
@@ -533,7 +534,12 @@ export default function MiraOrb({
 
   if (fill) {
     return (
-      <div className={`relative h-full w-full ${className ?? ""}`}>
+      <motion.div
+        initial={reduced ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className={`relative h-full w-full ${className ?? ""}`}
+      >
         {drawsUnderlay && (
           <canvas
             ref={canvasRef}
@@ -541,7 +547,10 @@ export default function MiraOrb({
             className="absolute inset-0 h-full w-full"
             style={{
               opacity: ambientFill || !sceneReady ? 1 : 0,
-              transition: ambientFill ? undefined : `opacity ${SCENE_FADE_MS}ms ease`,
+              // Ease-out crossfade: the scene fades in gently rather than
+              // snapping over the 2D field, so the handoff never spikes
+              // in luminance.
+              transition: ambientFill ? undefined : `opacity ${SCENE_FADE_MS}ms cubic-bezier(0.16,1,0.3,1)`,
             }}
           />
         )}
@@ -551,7 +560,7 @@ export default function MiraOrb({
             className="absolute inset-0"
             style={{
               opacity: sceneReady ? 1 : 0,
-              transition: `opacity ${SCENE_FADE_MS}ms ease`,
+              transition: `opacity ${SCENE_FADE_MS}ms cubic-bezier(0.16,1,0.3,1)`,
             }}
           >
             <MiraScene
@@ -569,7 +578,7 @@ export default function MiraOrb({
           {presenceAnnouncement(effectivePresence)}
         </span>
         {children}
-      </div>
+      </motion.div>
     );
   }
 
@@ -584,7 +593,12 @@ export default function MiraOrb({
   const visibleLength = ringCircumference - gapSize;
 
   return (
-    <div className={`flex flex-col items-center gap-3 ${className ?? ""}`}>
+    <motion.div
+      initial={reduced ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.6, ease: "easeOut" }}
+      className={`flex flex-col items-center gap-3 ${className ?? ""}`}
+    >
       {useScene ? (
         <div
           className="relative"
@@ -707,7 +721,7 @@ export default function MiraOrb({
         {presenceAnnouncement(effectivePresence)}
       </span>
       {children}
-    </div>
+    </motion.div>
   );
 }
 

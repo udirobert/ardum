@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { AnimatePresence, motion } from "framer-motion";
 import MiraOrb, { preloadMiraScene } from "@/components/MiraOrb";
 import { useMiraField } from "@/components/MiraField";
 import ClarifyPanel from "@/episodes/ClarifyPanel";
@@ -469,21 +470,26 @@ useEffect(() => {
 
   return (
     <section className="dusk mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24 min-h-[calc(100svh-56px)]">
-      {thinking && thinkingSnapshot && (
-        <ThinkingBeat
-          constraints={thinkingSnapshot.constraints}
-          poolSize={thinkingSnapshot.poolSize}
-          presence={miraPresence}
-          // For a set-aside (reject-recommendation or timing/place
-          // feedback), the first alternative is about to become the top
-          // pick. Surface its reasoning so the user sees why it's being
-          // promoted. For recommend, we don't have the new top pick yet —
-          // the beat shows constraints + pool only. All values come from
-          // the dispatch-time snapshot so they don't mutate mid-beat.
-          upcomingPick={thinkingSnapshot.upcomingPick}
-          rejectedTitle={thinkingSnapshot.rejectedTitle}
-        />
-      )}
+      {/* AnimatePresence fades the thinking beat out when it completes,
+          so Mira's presence doesn't vanish mid-frame. */}
+      <AnimatePresence>
+        {thinking && thinkingSnapshot && (
+          <ThinkingBeat
+            key="thinking-beat"
+            constraints={thinkingSnapshot.constraints}
+            poolSize={thinkingSnapshot.poolSize}
+            presence={miraPresence}
+            // For a set-aside (reject-recommendation or timing/place
+            // feedback), the first alternative is about to become the top
+            // pick. Surface its reasoning so the user sees why it's being
+            // promoted. For recommend, we don't have the new top pick yet —
+            // the beat shows constraints + pool only. All values come from
+            // the dispatch-time snapshot so they don't mutate mid-beat.
+            upcomingPick={thinkingSnapshot.upcomingPick}
+            rejectedTitle={thinkingSnapshot.rejectedTitle}
+          />
+        )}
+      </AnimatePresence>
       <div className="mb-10">
         <button
           type="button"
@@ -1185,7 +1191,11 @@ function ThinkingBeat({
   }, [steps]);
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.5, ease: "easeOut" } }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
       className="fixed inset-0 z-40 flex items-center justify-center bg-[#0c0806]/95 backdrop-blur-sm"
       aria-live="polite"
       aria-label="Mira is thinking"
@@ -1209,7 +1219,7 @@ function ThinkingBeat({
           ))}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
