@@ -646,19 +646,13 @@ useEffect(() => {
               </p>
             </div>
 
+            {/* Weak-fit caveat — shown only when the score is below 0.75.
+                Rendered as a visible muted line (not a disclosure) so the
+                user sees the flag without an extra click. */}
             {episode.recommendation!.uncertainties.length > 0 && (
-              <details className="border-l-2 border-[color:var(--accent-soft)] pl-4">
-                <summary className="tag mb-2 cursor-pointer">
-                  what remains uncertain
-                </summary>
-                <div className="space-y-1">
-                  {episode.recommendation!.uncertainties.map((uncertainty) => (
-                    <p key={uncertainty} className="text-sm text-[color:var(--muted)]">
-                      {uncertainty}
-                    </p>
-                  ))}
-                </div>
-              </details>
+              <p className="text-sm italic text-[color:var(--muted)]">
+                {episode.recommendation!.uncertainties.join(" ")}
+              </p>
             )}
 
             {holdDecision && episode.hold?.status === "active" ? (
@@ -870,13 +864,14 @@ useEffect(() => {
                     {busy ? "Sitting with that…" : "Tell Mira →"}
                   </button>
                 </div>
-                {/* Categorical fallback — for users who prefer buttons
-                    over free text. Resets to clarification. */}
-                <div className="mt-5 pt-4 border-t border-[color:var(--hairline)]">
-                  <p className="text-xs text-[color:var(--muted)] mb-2">
+                {/* Categorical fallback — collapsed behind a toggle. The
+                    voice textarea is the primary path; buttons are a
+                    secondary affordance for users who prefer picking. */}
+                <details className="mt-5 pt-4 border-t border-[color:var(--hairline)]">
+                  <summary className="text-xs text-[color:var(--muted)] cursor-pointer">
                     or pick a category
-                  </p>
-                  <div className="flex flex-wrap gap-2">
+                  </summary>
+                  <div className="flex flex-wrap gap-2 mt-3">
                     {(["timing", "budget", "group", "place", "intention"] as const).map(
                       (reason) => (
                         <button
@@ -891,53 +886,27 @@ useEffect(() => {
                       ),
                     )}
                   </div>
-                </div>
+                </details>
               </fieldset>
             )}
 
+            {/* Reasoning disclosure: the data Mira saw for each axis.
+                Weight numbers are removed — they mean nothing to a user
+                and the thinking beat already delivered the conclusions.
+                The "considered and set aside" comparison lives in the
+                alternatives list under "dig deeper" instead. */}
             <details className="pt-2">
               <summary className="tag cursor-pointer">how Mira chose this</summary>
               <div className="mt-4 space-y-4">
                 {recommendation.reasoning.map((step) => (
                   <div key={step.axis} className="text-sm border-l-2 border-[color:var(--hairline)] pl-3">
-                    <p className="font-medium mb-1">
-                      {step.axis}
-                      {step.weight > 0 && (
-                        <span className="text-[color:var(--muted)] ml-2 text-xs">
-                          weight {step.weight.toFixed(2)}
-                        </span>
-                      )}
-                    </p>
-                    {/* Given: what Mira observed (practitioner + retreat
-                        attributes). This is the citation — the specific
-                        data that drove the score. */}
+                    <p className="font-medium mb-1">{step.axis}</p>
                     <p className="text-[color:var(--muted)] text-xs mb-1">
                       {step.given}
                     </p>
-                    {/* Then: the conclusion. */}
                     <p className="text-[color:var(--foreground)]">{step.then}</p>
                   </div>
                 ))}
-                {/* Considered and rejected — the top alternative and
-                    why it scored lower. This makes the decision
-                    inspectable: not just "why this one" but "why not
-                    that one." */}
-                {episode.recommendation?.alternatives[0] && (
-                  <div className="text-sm border-l-2 border-[color:var(--accent-soft)] pl-3 pt-2">
-                    <p className="font-medium mb-1">Considered and set aside</p>
-                    <p className="text-[color:var(--muted)] text-xs mb-1">
-                      {episode.recommendation.alternatives[0].retreatTitle} —
-                      scored {Math.round(episode.recommendation.alternatives[0].score * 100)}
-                      vs {Math.round(recommendation.score * 100)} for {recommendation.retreatTitle}.
-                    </p>
-                    <p className="text-[color:var(--foreground)]">
-                      {episode.recommendation.alternatives[0].reasoning
-                        .filter((r) => r.weight > 0)
-                        .sort((a, b) => b.weight - a.weight)[0]?.then ??
-                        "A close fit, but not as close."}
-                    </p>
-                  </div>
-                )}
               </div>
             </details>
           </div>
@@ -1069,62 +1038,67 @@ function BookedLanding({
         </details>
       )}
 
-      <div className="border-t border-[color:var(--hairline)] pt-5">
-        <p className="tag mb-2">help Mira learn — optional</p>
-        {contribution?.grantedAt && !contribution.revokedAt ? (
-          <div className="space-y-3">
-            <p className="text-sm text-[color:var(--muted)] leading-relaxed max-w-prose">
-              Anonymized patterns from this journey may help others with similar
-              intentions. You can withdraw anytime.
-            </p>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onRevokeContribution}
-              className="text-sm text-[color:var(--muted)] hover:text-foreground disabled:opacity-40"
-            >
-              Withdraw contribution
-            </button>
+      {/* Optional extras — collapsed so the landing stays focused on the
+          preparation plan, the actual payoff. */}
+      <details className="border-t border-[color:var(--hairline)] pt-5">
+        <summary className="tag cursor-pointer">optional — help Mira learn, or keep this across devices</summary>
+        <div className="mt-4 space-y-6">
+          <div>
+            <p className="tag mb-2">help Mira learn — optional</p>
+            {contribution?.grantedAt && !contribution.revokedAt ? (
+              <div className="space-y-3">
+                <p className="text-sm text-[color:var(--muted)] leading-relaxed max-w-prose">
+                  Anonymized patterns from this journey may help others with similar
+                  intentions. You can withdraw anytime.
+                </p>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={onRevokeContribution}
+                  className="text-sm text-[color:var(--muted)] hover:text-foreground disabled:opacity-40"
+                >
+                  Withdraw contribution
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-[color:var(--muted)] leading-relaxed max-w-prose">
+                  Share anonymized patterns from this journey so Mira can normalize
+                  what tends to work for people with intentions like yours. Nothing
+                  identifiable is shared.
+                </p>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={onGrantContribution}
+                  className="text-sm text-[color:var(--accent-ink)] hover:text-foreground disabled:opacity-40"
+                >
+                  Contribute anonymized patterns
+                </button>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-[color:var(--muted)] leading-relaxed max-w-prose">
-              Share anonymized patterns from this journey so Mira can normalize
-              what tends to work for people with intentions like yours. Nothing
-              identifiable is shared.
-            </p>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onGrantContribution}
-              className="text-sm text-[color:var(--accent-ink)] hover:text-foreground disabled:opacity-40"
-            >
-              Contribute anonymized patterns
-            </button>
-          </div>
-        )}
-      </div>
 
-      {/* ADR 0011 §5: quiet cross-device continuity CTA. Only shown when
-          the actor is not yet authenticated — they've booked, so they
-          have a reason to want continuity, but they haven't signed in.
-          Never on arrival; never for authenticated practitioners. */}
-      {!isAuthenticated && (
-        <div className="border-t border-[color:var(--hairline)] pt-5">
-          <p className="tag mb-2">keep this across devices — optional</p>
-          <p className="text-sm text-[color:var(--muted)] leading-relaxed max-w-prose mb-3">
-            If you want this booking and your intentions to follow you on
-            other devices, sign in from the memory page. Optional — everything
-            stays on this device either way.
-          </p>
-          <Link
-            href="/memory"
-            className="text-sm text-[color:var(--accent-ink)] hover:text-foreground"
-          >
-            Set up cross-device continuity →
-          </Link>
+          {/* ADR 0011 §5: quiet cross-device continuity CTA. Only shown when
+              the actor is not yet authenticated. */}
+          {!isAuthenticated && (
+            <div>
+              <p className="tag mb-2">keep this across devices — optional</p>
+              <p className="text-sm text-[color:var(--muted)] leading-relaxed max-w-prose mb-3">
+                If you want this booking and your intentions to follow you on
+                other devices, sign in from the memory page. Optional — everything
+                stays on this device either way.
+              </p>
+              <Link
+                href="/memory"
+                className="text-sm text-[color:var(--accent-ink)] hover:text-foreground"
+              >
+                Set up cross-device continuity →
+              </Link>
+            </div>
+          )}
         </div>
-      )}
+      </details>
     </div>
   );
 }
@@ -1518,6 +1492,16 @@ function ExploreOtherFits({
                 {alt.reasoning.length > 0 && (
                   <p className="text-sm mt-2 italic text-[color:var(--accent-ink)]">
                     {alt.reasoning[0].then}
+                  </p>
+                )}
+                {/* Score delta for the next-in-line — the "why not that
+                    one" comparison, folded in here instead of a separate
+                    "considered and set aside" block. */}
+                {index === 0 && recommendation && (
+                  <p className="text-xs text-[color:var(--muted)] mt-1">
+                    Scored {Math.round(alt.score * 100)} vs{" "}
+                    {Math.round(recommendation.score * 100)} for{" "}
+                    {recommendation.retreatTitle}.
                   </p>
                 )}
               </li>
