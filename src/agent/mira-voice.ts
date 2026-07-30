@@ -124,13 +124,15 @@ export function matchLetter(
     }
   }
 
+  // The "what" (title, location, price, cohort) lives on the recommendation
+  // card directly below the voice block — don't repeat it here. The letter
+  // carries only the "why": the arrival read, the social fit, the headline.
+  // The deposit and preparation-plan lines belong to the hold and booking
+  // steps respectively, not the review, so they stay out of the letter.
   lines.push(
     `I found a retreat that fits where you are right now.`,
-    `${match.retreatTitle} in ${match.retreatLocation}.`,
     `I'm recommending this because ${arrival}, and ${socialLine}. This retreat specializes in ${match.practiceStyle.slice(0, 2).join(" and ")}.`,
     match.headline,
-    `The deposit is $${match.priceUsd.toLocaleString()}. It's held for you — the operator doesn't get it until you check in.`,
-    `If you book, I'll build you a preparation plan based on what I've learned about you. Five minutes a day until you leave.`,
   );
 
   const cta = `Want me to hold your spot?`;

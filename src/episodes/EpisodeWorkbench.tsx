@@ -566,9 +566,16 @@ useEffect(() => {
           />
         ) : (
           <>
-        <h2 className="font-serif text-3xl tracking-tight mb-6">
-          {nextDecision.prompt}
-        </h2>
+        {/* The header carries the decision prompt, but not in the
+            review-recommendation state — there the Mira voice block + card
+            below already announce the pick, and a third "here's the pick"
+            line reads as redundancy. Hold / await / booked states keep
+            their status prompt. */}
+        {!(recommendation && nextDecision.kind === "review-recommendation") && (
+          <h2 className="font-serif text-3xl tracking-tight mb-6">
+            {nextDecision.prompt}
+          </h2>
+        )}
 
         {nextDecision.kind === "review-recommendation" && !recommendation && (
           <>
@@ -587,36 +594,30 @@ useEffect(() => {
 
         {recommendation && (
           <div className="space-y-6">
-            {letter && letter.recognitionLineCount > 0 && (
-              <aside
-                aria-label="a note from Mira"
-                className="border-l-2 border-[color:var(--accent-soft)] pl-5"
-              >
-                <div className="flex items-start gap-3 mb-3">
-                  <MiraOrb size={40} presence={miraPresence} />
-                  <p className="tag pt-2">a note from Mira</p>
-                </div>
-                <div className="space-y-2 leading-relaxed">
-                  {letter.lines
-                    .slice(0, letter.recognitionLineCount)
-                    .map((line, index) => (
-                      <p
-                        key={`recognition-${index}`}
-                        className="italic text-[color:var(--accent-ink)]"
-                      >
-                        {line}
-                      </p>
-                    ))}
-                </div>
-              </aside>
-            )}
-            {/* Mira's main letter — the why, not the what. Shown for all
-                users, not just returning. This is Mira's voice explaining
-                why this retreat fits the intention. */}
-            {letter && letter.lines.length > letter.recognitionLineCount && (
+            {/* Mira's voice — one orb, one block. Recognition lines (if the
+                practitioner is returning) sit above the why; both are Mira
+                speaking, so they share a single presence instead of each
+                carrying their own orb + live region. The letter carries the
+                "why" only; the "what" (title, location, price, cohort) is
+                on the card directly below. */}
+            {letter && letter.lines.length > 0 && (
               <div className="flex items-start gap-3">
-                <MiraOrb size={32} presence={miraPresence} className="flex-shrink-0 mt-1" />
+                <MiraOrb size={40} presence={miraPresence} className="flex-shrink-0 mt-1" />
                 <div className="space-y-2 leading-relaxed flex-1">
+                  {letter.recognitionLineCount > 0 && (
+                    <div className="space-y-2">
+                      {letter.lines
+                        .slice(0, letter.recognitionLineCount)
+                        .map((line, index) => (
+                          <p
+                            key={`recognition-${index}`}
+                            className="italic text-[color:var(--accent-ink)]"
+                          >
+                            {line}
+                          </p>
+                        ))}
+                    </div>
+                  )}
                   {letter.lines
                     .slice(letter.recognitionLineCount)
                     .map((line, index) => (
@@ -701,6 +702,9 @@ useEffect(() => {
               </>
             ) : (
               <>
+                {/* The primary decision sits directly under the card:
+                    hold this pick, or ask for another. Everything else on
+                    the page is opt-in depth. */}
                 <div className="flex flex-wrap gap-3">
                   <PrimaryButton
                     disabled={busy}
@@ -720,18 +724,6 @@ useEffect(() => {
                   >
                     {episode.monitor ? "Check for changes" : "Watch this for me"}
                   </button>
-                </div>
-
-                {/* Forward-looking voice — the recommendation is the
-                    beginning of an ongoing relationship, not a terminal
-                    decision. Mira is still working. See docs/plans/
-                    arrival-redesign.md §5. */}
-                <div className="flex items-start gap-3 mt-2">
-                  <MiraOrb size={28} presence={miraPresence} className="flex-shrink-0 mt-0.5" />
-                  <p className="text-sm leading-relaxed italic text-[color:var(--accent-ink)]">
-                    This is my strongest current fit. I&apos;ll keep watching —
-                    if something fits better, I&apos;ll let you know.
-                  </p>
                 </div>
 
                 {/* "Not this one" — reject the current top pick and
@@ -755,30 +747,52 @@ useEffect(() => {
                   </button>
                 )}
 
-                <LensFactors
-                  activeLens={activeLens}
-                  lensData={lensData}
-                  lensLoading={lensLoading}
-                  busy={busy}
-                  onPickLens={recomputeWithPerspective}
-                  recommendation={recommendation}
-                />
+                {/* Forward-looking note — the recommendation is the start
+                    of an ongoing relationship, not a terminal decision.
+                    No orb here: Mira already speaks from the single voice
+                    block above, so this reads as a caption, not a second
+                    Mira. (docs/plans/arrival-redesign.md §5) */}
+                <p className="text-sm leading-relaxed italic text-[color:var(--muted)]">
+                  This is my strongest current fit. I&apos;ll keep watching —
+                  if something fits better, I&apos;ll let you know.
+                </p>
 
-                <ExploreOtherFits
-                  alternatives={episode.recommendation!.alternatives}
-                  recommendation={recommendation}
-                  busy={busy}
-                  activeBand={activeBand}
-                  bandData={bandData}
-                  bandLoading={bandLoading}
-                  onPickBand={runCounterfactualBudget}
-                  activeEnergy={activeEnergy}
-                  energyData={energyData}
-                  energyLoading={energyLoading}
-                  onPickEnergy={runCounterfactualEnergy}
-                  holdActive={false}
-                  expanded={expandSecondaryTools}
-                />
+                {/* Secondary tools (lenses, alternatives, counterfactuals)
+                    collapse behind a single disclosure. The decision above
+                    is the point of the page; this is depth for anyone who
+                    wants to interrogate the fit. The weak-fit case is
+                    already signalled by the "what remains uncertain" note,
+                    so this stays opt-in even when the score is a stretch. */}
+                <details className="border-t border-[color:var(--hairline)] pt-5">
+                  <summary className="tag cursor-pointer">
+                    dig deeper — weigh this differently, or see what else fits
+                  </summary>
+                  <div className="mt-4 space-y-6">
+                    <LensFactors
+                      activeLens={activeLens}
+                      lensData={lensData}
+                      lensLoading={lensLoading}
+                      busy={busy}
+                      onPickLens={recomputeWithPerspective}
+                      recommendation={recommendation}
+                    />
+                    <ExploreOtherFits
+                      alternatives={episode.recommendation!.alternatives}
+                      recommendation={recommendation}
+                      busy={busy}
+                      activeBand={activeBand}
+                      bandData={bandData}
+                      bandLoading={bandLoading}
+                      onPickBand={runCounterfactualBudget}
+                      activeEnergy={activeEnergy}
+                      energyData={energyData}
+                      energyLoading={energyLoading}
+                      onPickEnergy={runCounterfactualEnergy}
+                      holdActive={false}
+                      expanded
+                    />
+                  </div>
+                </details>
               </>
             )}
 
@@ -1245,7 +1259,7 @@ function LensFactors({
   recommendation: MatchResult | undefined;
 }) {
   return (
-    <div className="border-t border-[color:var(--hairline)] pt-5">
+    <div>
       <p className="tag mb-2">What if we weighted this differently?</p>
       <p className="text-sm text-[color:var(--muted)] mb-3 italic">
         These change how I weigh what fits. They don&apos;t change what you asked for.
