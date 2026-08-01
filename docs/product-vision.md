@@ -38,6 +38,12 @@ and surfaced in API responses; see [design/mira-presence.md](design/mira-presenc
 
 ## Interaction contract
 
+Voice may become an optional way to articulate an intention or reflection. The
+shared Famile direction is documented in
+`../../famile/web/docs/VOICE_PLATFORM.md`. Voice does not change the contract:
+the person supplies the intention, the Episode remains authoritative, and Mira
+does not infer readiness or mood from vocal characteristics.
+
 Every state presents one primary human decision.
 
 Mira should act autonomously when the action is reversible, authorized, and

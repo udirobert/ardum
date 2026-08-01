@@ -1,5 +1,18 @@
 # Architecture
 
+## Voice platform direction
+
+TrueVoice is a useful reference for a future voice input path: browser audio
+capture, streaming transcription, ephemeral sessions, and typed event fan-out.
+The shared Famile direction is documented in
+`../../famile/web/docs/VOICE_PLATFORM.md`.
+
+Ardum can use this for intention capture and reflective continuity. Voice is an
+input surface only; the Episode remains authoritative for intention, consent,
+monitoring, coordination, holds, and commitments. Do not infer a person's
+mood or readiness from vocal characteristics, and do not persist audio without
+explicit consent and bounded retention.
+
 ## Core aggregate
 
 An `Episode` is the authoritative record of one intention-to-outcome journey.
