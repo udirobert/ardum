@@ -69,7 +69,6 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [participant, setParticipant] = useState("");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [voiceInput, setVoiceInput] = useState("");
   const [voiceResponse, setVoiceResponse] = useState<string | null>(null);
   const [commitmentOpen, setCommitmentOpen] = useState(false);
@@ -305,7 +304,17 @@ useEffect(() => {
     }
     // The beat's lines are scheduled over ~2.5-4.5s; hold the overlay for
     // at least that long or the whole beat is skipped by fast responses.
-    const beatMinimumMs = beatCommand === "reject-recommendation" ? 4200 : 3400;
+    // The delay is artificial and can hurt time-to-confidence — gate it
+    // behind NEXT_PUBLIC_THINKING_BEAT_ENABLED so it can be measured
+    // rather than asserted. When disabled, the beat still renders its
+    // lines as they arrive but does not artificially hold the overlay.
+    const thinkingBeatEnabled =
+      process.env.NEXT_PUBLIC_THINKING_BEAT_ENABLED !== "false";
+    const beatMinimumMs = thinkingBeatEnabled
+      ? beatCommand === "reject-recommendation"
+        ? 4200
+        : 3400
+      : 0;
     const beatStartedAt = Date.now();
     try {
       const response = await fetch(`/api/episodes/${episodeId}/actions`, {
@@ -466,7 +475,7 @@ useEffect(() => {
   // shaky."
   const fitScore = episode.recommendation?.result.score ?? 1;
   const highUncertainty = fitScore < 0.75;
-  const expandSecondaryTools = feedbackOpen || highUncertainty;
+  const expandSecondaryTools = highUncertainty;
 
   return (
     <section className="dusk mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24 min-h-[calc(100svh-56px)]">
@@ -833,20 +842,15 @@ useEffect(() => {
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={() => setFeedbackOpen((open) => !open)}
-              className="text-sm text-[color:var(--muted)] hover:text-foreground"
-            >
-              This doesn’t feel right →
-            </button>
-            {feedbackOpen && (
-              <fieldset className="border-t border-[color:var(--hairline)] pt-5">
+            {/* Feedback — collapsed by default so it doesn't compete
+                with the primary Hold decision. The voice lane is the
+                primary path inside; categorical buttons are a fallback. */}
+            <details className="pt-2">
+              <summary className="tag cursor-pointer">
+                this doesn&apos;t feel right
+              </summary>
+              <fieldset className="border-t border-[color:var(--hairline)] pt-5 mt-3">
                 <legend className="tag mb-3">tell Mira what feels off</legend>
-                {/* Voice lane — the primary feedback path. The user
-                    types in their own words; we extract constraints and
-                    re-recommend. Categorical buttons are a fallback
-                    below. */}
                 <div className="space-y-3">
                   <textarea
                     value={voiceInput}
@@ -894,7 +898,7 @@ useEffect(() => {
                   </div>
                 </details>
               </fieldset>
-            )}
+            </details>
 
             {/* Reasoning disclosure: the data Mira saw for each axis.
                 Weight numbers are removed — they mean nothing to a user

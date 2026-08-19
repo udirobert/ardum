@@ -15,6 +15,7 @@ import {
 import {
   readAestheticPreference,
   writeAestheticPreference,
+  skipAestheticCalibration,
 } from "./aesthetic-store";
 import { useMiraImpulse } from "@/components/MiraImpulse";
 import StaggerReveal from "@/components/StaggerReveal";
@@ -141,17 +142,30 @@ export default function AestheticCalibration({ onComplete, onVector }: Props) {
             {calibrationIntro()}
           </p>
         </StaggerReveal>
-        <button
-          type="button"
-          onClick={() => {
-            setPhase("calibrate");
-            shownAt.current = performance.now();
-          }}
-          className="px-8 py-3 rounded-sm transition-opacity hover:opacity-90"
-          style={{ background: CREAM, color: "#1a120d" }}
-        >
-          Begin
-        </button>
+        <div className="flex flex-col items-center gap-4">
+          <button
+            type="button"
+            onClick={() => {
+              setPhase("calibrate");
+              shownAt.current = performance.now();
+            }}
+            className="px-8 py-3 rounded-sm transition-opacity hover:opacity-90"
+            style={{ background: CREAM, color: "#1a120d" }}
+          >
+            Begin
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              skipAestheticCalibration();
+              onComplete(emptyPreference());
+            }}
+            className="text-sm underline opacity-60 hover:opacity-100 transition-opacity"
+            style={{ color: CREAM }}
+          >
+            Skip — I&apos;ll just tell you what I need
+          </button>
+        </div>
       </div>
     );
   }

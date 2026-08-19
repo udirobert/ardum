@@ -1,5 +1,14 @@
 # Refinement & alternatives (Beat 3 spec)
 
+> **Status: aspirational, not built.** As of 2026-08, the Beat 3 overlay
+> this spec describes (`AlternativeCard`, summoned alternatives, voice
+> lane in the overlay) does not exist in the codebase. The shipped
+> alternatives surface is a collapsed `<details>` inside `EpisodeWorkbench`
+> with read-only alternatives and lens/counterfactual toggles. See
+> [inventory-led-implementation-summary.md](inventory-led-implementation-summary.md)
+> for what actually ships. Treat this doc as a design target, not a
+> description of current behavior.
+
 The summoned expansion from Beat 2's disclosure row "see other
 possibilities I'm weighing." This is the only place the cinematic
 inventory-led scroll grid lives, and it lives on the user's terms — never

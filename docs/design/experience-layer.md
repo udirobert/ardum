@@ -102,17 +102,25 @@ with low uncertainty. Operator chrome (revision counters, wallet substrings)
 does not belong in the primary card. Journey history lives in a quiet
 disclosure (“the journey so far”), not as hero metadata.
 
-### Inventory-led retreat exploration
+### Recommendation surface
 
-The episode workbench renders `RetreatExplorationView` as a four-beat
-recommendation reveal flow, not a browse grid. Mira owns ranking and
-presents **one** retreat as her strongest current fit; alternatives and
-refinement are summoned by the practitioner, not always-on. The full
-contract is in [recommendation-reveal.md](recommendation-reveal.md)
+> **Status note (2026-08):** The section below described a four-beat
+> cinematic flow (`RetreatExplorationView`) as built. That flow was
+> never implemented. What ships is `EpisodeWorkbench`, which renders
+> Mira's letter, the retreat card, and hold/feedback actions on a
+> single scrollable page. See
+> [inventory-led-implementation-summary.md](inventory-led-implementation-summary.md)
+> for what actually ships. The four-beat description below is a design
+> target, not current behavior.
+
+The **design target** is a four-beat reveal flow, not a browse grid.
+Mira owns ranking and presents **one** retreat as her strongest current
+fit; alternatives and refinement are summoned by the practitioner, not
+always-on. The full contract is in [recommendation-reveal.md](recommendation-reveal.md)
 (Beat 2) and [refinement-alternatives.md](refinement-alternatives.md)
-(Beat 3).
+(Beat 3). Both are aspirational; neither is implemented.
 
-**Beats:**
+**Target beats:**
 1. **Looking** — orb + quiet "looking at what fits" line. The breath
    between intention and recommendation.
 2. **Arriving → settled** — image emerges from the orb, then settles
@@ -128,28 +136,15 @@ contract is in [recommendation-reveal.md](recommendation-reveal.md)
 4. **Committing** — the existing WebGPU commitment transition fires
    from the card's Hold CTA.
 
-**Carried over from the cinematic polish work:**
-- **Real-time color extraction:** Canvas-based sampling extracts
-  dominant colors from the active retreat's hero image for ambient
-  gradient palettes, falling back to catalog data.
-- **WebGPU commitment transition:** Holding a retreat triggers the
-  canvas animation (image elevation, particles, glow) into a
-  confirmation overlay.
-- **Reduced motion support:** All motion respects
-  `prefers-reduced-motion`.
+**What ships instead:** `EpisodeWorkbench` renders Mira's letter (via
+`matchLetter`), the retreat card, a thinking beat (`reasoningBeat`),
+Hold / Watch / Not-this actions, collapsed secondary tools (lenses,
+alternatives, counterfactuals), a voice-lane feedback path, and the
+`CommitmentPanel`. It is denser than the target contract's "one
+primary decision per state" — multiple actionable paths are visible
+simultaneously below the recommendation.
 
-**What was retired:** the always-on chat input, the full-bleed scroll
-grid as the steady state, the floating global Hold button, the
-"what stands out to you?" copy, and the `RetreatImage` / `MiraNote`
-components. The catalog scroll now only exists as a bounded Beat 3
-expansion.
-
-**Demo page:** `/demo/inventory-led` is a dev-only sandbox using the
-same hook and view as the live flow. It is reachable only by direct
-URL; the live flow at `/episode/[id]` uses the same components with
-real agent-driven data. See
-[inventory-led-implementation-summary.md](inventory-led-implementation-summary.md)
-for implementation details.
+**Reduced motion support:** all motion respects `prefers-reduced-motion`.
 
 
 Hold after recommendation:

@@ -1,148 +1,119 @@
-# Inventory-Led Experience — Implementation Summary
+# Recommendation surface — Implementation Summary
 
-## Overview
+> **Status note (2026-08):** This doc previously described a four-beat
+> cinematic flow (`RetreatExplorationView`, `use-retreat-exploration`,
+> `WebGPUCommitmentTransition`, `AmbientCanvas`, `/demo/inventory-led`)
+> as "what's built." Those components do not exist in the codebase. The
+> flow was specified in [recommendation-reveal.md](recommendation-reveal.md)
+> and [refinement-alternatives.md](refinement-alternatives.md) but was
+> never implemented. This doc now describes what actually ships.
 
-The episode workbench's recommendation surface is a four-beat reveal
-flow: Mira presents **one** retreat as her strongest current fit, and
-alternatives / refinement are summoned by the practitioner rather than
-always-on. This replaced the earlier browse-grid + chat-input + floating-
-hold screen, which violated the product contract (one primary decision
-per state; ranking is Mira's job, not the user's).
+## What's actually built
 
-The full design contract lives in:
-- [recommendation-reveal.md](recommendation-reveal.md) — Beat 2
-- [refinement-alternatives.md](refinement-alternatives.md) — Beat 3
+The recommendation surface is `EpisodeWorkbench` (`src/episodes/EpisodeWorkbench.tsx`),
+a single scrollable workbench over the Mira field. It renders Mira's
+letter, the top retreat as a card, hold/monitor/not-this actions,
+collapsed secondary tools, a voice-lane feedback path, and the
+commitment panel. It is **not** the beat-based reveal-and-settle flow
+described in the design specs.
 
-The original strategic rationale for leading with inventory (vs. the
-quiz-style clarification flow) is in
-[inventory-led-experience.md](inventory-led-experience.md). That doc
-argues for a browse grid that the product vision rejects; the
-four-beat flow is the contract-pure realization of the same intent.
+### Letter source — `src/agent/mira-voice.ts`
 
-## What's built
+`matchLetter()` returns Mira's "why this fits" lines for the surfaced
+recommendation, plus recognition lines for returning practitioners
+(indices `0..recognitionLineCount-1`). The workbench renders both parts:
+recognition as an italic "note from Mira" aside, main lines as the
+primary voice above the retreat card.
 
-### State machine — `src/inventory/use-retreat-exploration.ts`
+`reasoningBeat()` produces the timed thinking-beat lines shown during
+`recommend` / `reject-recommendation` / timing-place feedback. The beat
+plays a minimum-delay overlay before the card appears.
 
-Beats: `looking` → `arriving` → `settled` → `listening` (summoned) →
-`committing`. One primary decision per state. The hook never exposes a
-plural "retreats" list — it exposes a single `Recommendation` (top pick
-+ letter + bounded alternatives with reasons).
+### Workbench surface — `src/episodes/EpisodeWorkbench.tsx`
 
-- `openAlternatives` / `closeAlternatives` — Beat 3 entry/exit.
-- `elevate(retreatId)` — promote an alternative to top pick; re-reveals
-  with a regenerated letter and reasons.
-- `rejectAlternative(retreatId)` — feedback that re-enters clarity;
-  rejected IDs persist for the episode lifetime.
-- `onVoiceMessage(text)` — Beat 3 voice lane; extracts constraints,
-  merges, re-ranks. On extraction failure, surfaces a specific nudge
-  naming which dimensions are still open (not generic copy).
-- `onCommit(retreatId)` / `onCommitComplete` — Beat 4 trigger/teardown.
+The review-recommendation state renders, in order:
 
-### Letter source — `src/agent/retreat-response.ts`
+1. Mira's letter (orb signature + recognition + main lines)
+2. Retreat identity (title, location · duration · price · cohort)
+3. Weak-fit caveats (visible muted line when uncertainties exist)
+4. Primary actions: Hold for 48 hours · Watch this for me
+5. "Not this one" (reject-recommendation → re-recommend with exclusion)
+6. Forward-looking note ("I'll keep watching…")
+7. Collapsed secondary tools (`<details>`): lens re-ranking,
+   alternatives, budget/energy counterfactuals
+8. "This doesn't feel right →" feedback (voice lane + categorical fallback)
+9. "how Mira chose this" reasoning disclosure
+10. Commitment panel (when `nextDecision.kind === "ready-to-book"`)
 
-`buildRecommendation()` returns a single top pick, a singular ≤40-word
-letter that names a constraint the practitioner articulated *and* a
-reason over alternatives, and a bounded set of alternatives with
-one-line differentiating reasons ("Shorter, ocean.", "Higher
-investment, desert.").
+This is denser than the product contract's "one primary decision per
+state." The design specs call for a single CTA with everything else in
+summoned disclosure; the built surface shows multiple actionable paths
+simultaneously. See "Gaps vs. design contract" below.
 
-- `generateRecommendationLetter()` — the Beat 2 letter. Never plural,
-  never "what stands out to you?", never generic.
-- `generateAlternativeReason()` — the Beat 3 one-liner per alternative.
-- Legacy `generateRetreatResponse` / `generateMiraNote` kept as
-  deprecated shims.
+### Wider-aperture evidence — partially wired
 
-### View — `src/components/RetreatExplorationView.tsx`
+The server side is complete:
+- `src/evidence/load-wider-aperture-stores.ts` — server assembly
+- `src/evidence/repository.ts` — tier C (attestation-backed public evidence)
+- `src/evidence/project-cohort.ts` — tier B (opt-in cohort, n ≥ 30 gate)
+- `src/evidence/resolve-wider-aperture.ts` — visibility gates
+- `buildEpisodeDetailPayload` resolves `widerApertureEvidence` into the
+  episode detail payload
 
-- `LookingBeat` — orb + "Looking at what fits…" line.
-- `Beat2` — `RevealImage` + `DecisionCard` (letter → identity → one
-  Hold CTA → status → collapsed `DisclosureRow`s for alternatives /
-  provenance / wider-aperture evidence when dense / counterfactual /
-  operator).
-- `WiderApertureDisclosurePanels` — tier B (**What others found**) and
-  tier C (**What public sources report**) panels; rows omitted when gates
-  fail (no placeholders). Spec: [recommendation-reveal.md](recommendation-reveal.md),
-  ADR: [0010-wider-aperture-evidence](../decisions/0010-wider-aperture-evidence.md).
-- `Beat3` — overlay with `AlternativeCard`s (hero image + identity +
-  one-line reason + elevate/not-this), voice lane at the bottom,
-  Escape / close to return.
-- `WebGPUCommitmentTransition` fires from the Beat 2 Hold CTA.
+The client side is **not wired**. `WiderApertureDisclosurePanels`
+(`src/components/WiderApertureDisclosurePanels.tsx`) exists but is never
+imported or rendered. Tier B/C evidence reaches `EpisodeDetailPayload`
+and dead-ends there — no component consumes it. Wiring it into the
+workbench's disclosure rows is open work.
 
-Field posture follows the beat via `useMiraField` (`processing` →
-`arriving` → `idle` / `listening`).
+## Gaps vs. design contract
 
-### Demo page — `src/app/demo/inventory-led/page.tsx`
+The design specs ([recommendation-reveal.md](recommendation-reveal.md),
+[refinement-alternatives.md](refinement-alternatives.md)) describe a
+four-beat flow that was never built:
 
-Uses the same hook and view as the live `/episode/[id]` flow — no
-duplicate keyword logic, no direct-mode props. Passes
-`SEED_WIDER_APERTURE_STORES` and sample uncertainties so tier B/C disclosure
-rows are exercisable at `/demo/inventory-led`. Reachable only by direct URL.
+| Spec describes | What ships instead |
+|---|---|
+| `RetreatExplorationView` with Beat 1–4 state machine | `EpisodeWorkbench` with episode `nextDecision` states |
+| Cinematic ≤4s reveal: image emerges from orb, settles into card | Card renders immediately after `reasoningBeat` overlay clears |
+| Beat 3 summoned alternatives overlay (bounded 3–5 cards) | Collapsed `<details>` with read-only alternatives + lens/counterfactual toggles |
+| `WebGPUCommitmentTransition` (image elevation, particles) | `CommitmentPanel` (standard form-style grant ceremony) |
+| `AmbientCanvas` real-time color extraction from hero image | Not present |
+| `/demo/inventory-led` dev sandbox | Not present |
+| Wider-aperture disclosure rows in Beat 2 card | Evidence assembled in payload, never rendered |
 
-### Wider-aperture evidence — `src/evidence/`
+The two plan docs in `docs/plans/` are the real source of truth for the
+built surface:
+- [arrival-redesign.md](../plans/arrival-redesign.md) — thinking beat,
+  voice lane, factor controls, orb prominence
+- [recommendation-dead-end-fix.md](../plans/recommendation-dead-end-fix.md) —
+  `reject-recommendation` command, full-letter rendering, alternatives
 
-- `load-wider-aperture-stores.ts` — server assembly for episode detail API.
-- `repository.ts` — tier C from attestations; optional `EVIDENCE_FETCH_*` adapter.
-- `project-cohort.ts` — tier B pure projection (n ≥ 30, contribution grant required).
-- `resolve-wider-aperture.ts` — gates before UI rows render.
-- Post-booking contribution grant on `BookedLanding` feeds tier B over time.
+Both explicitly chose to **enhance the old flow** rather than build the
+cinematic flow, and both say "Don't bridge RetreatExplorationView to
+the review state" and "Don't restructure the state machine."
 
-## Integration
+## What this means
 
-`EpisodeWorkbench` renders `<RetreatExplorationView
-initialConstraints={intention.constraints}
-widerApertureEvidence={payload.widerApertureEvidence}
-uncertainties={episode.recommendation?.uncertainties}
-onConstraintChange={...} />`
-inside the clarify step. `GET /api/episodes/[id]` loads stores via
-`loadWiderApertureStores()` and resolves `widerApertureEvidence` in
-`buildEpisodeDetailPayload`.
+The design specs are **aspirational targets**, not descriptions of
+current behavior. Anyone reading them as a spec of what ships will be
+misled. To reconcile:
 
-## Component hierarchy
+1. Either build the four-beat flow and update the specs to match, **or**
+2. Rewrite the specs to describe the workbench-based surface and retire
+   the beat vocabulary.
 
-```
-EpisodeWorkbench
-  └─ RetreatExplorationView
-      ├─ AmbientCanvas (reactive background, color-extracted)
-      ├─ LookingBeat          (Beat 1)
-      ├─ Beat2
-      │   ├─ RevealImage
-      │   └─ DecisionCard
-      │       ├─ DisclosureRow[] (alternatives, provenance, cohort, public-evidence, …)
-      │       └─ WiderApertureDisclosurePanels (when gates pass)
-      ├─ Beat3                (summoned)
-      │   ├─ AlternativeCard[]
-      │   └─ voice lane input
-      └─ WebGPUCommitmentTransition  (Beat 4)
-```
-
-## What was retired
-
-- `src/components/RetreatImage.tsx` — superseded by `RevealImage` and
-  `AlternativeCard`.
-- `src/components/MiraNote.tsx` — superseded by the letter in
-  `DecisionCard`.
-- `RetreatExplorationProps` interface in `src/inventory/retreat.ts` —
-  dead type.
-- The always-on top chat input, the full-bleed scroll grid as the
-  steady state, the floating global Hold button, and the "what stands
-  out to you?" copy. The catalog scroll now only exists as a bounded
-  Beat 3 expansion.
-
-## Carried over from the cinematic polish work
-
-- **Real-time color extraction** — `src/lib/color-extraction.ts` +
-  `AmbientCanvas`. Samples the active retreat's hero image for ambient
-  gradient palettes, with a module-level cache and catalog fallback.
-- **WebGPU commitment transition** — `WebGPUCommitmentTransition`. Image
-  elevation, particles, radial glow, "Commitment Secured" overlay.
-- **Reduced motion support** — motion respects `prefers-reduced-motion`.
+Until one of those happens, treat `EpisodeWorkbench.tsx` and the two
+plan docs as the authoritative description of the recommendation surface.
 
 ## Open items
 
-- **EpisodeWorkbench deeper integration** — the view is rendered inside
-  the clarify step, but the workbench's broader `nextDecision` /
-  recommend / hold state machine isn't touched. That's a larger
-  refactor for a separate change.
+- **Wire wider-aperture evidence to a UI surface.** The server pipeline
+  is complete; the client rendering is missing. The disclosure panels
+  exist but are unused.
+- **Decide the workbench density.** The built surface shows multiple
+  actionable paths below the recommendation; the contract calls for one
+  primary decision with secondary tools in summoned disclosure.
 - **Tier C live fetch** — `EVIDENCE_FETCH_ENDPOINT` adapter is wired;
   production proxy and cache invalidation policy TBD.
 - **Tier B density** — cohort rows appear only at n ≥ 30; no synthetic

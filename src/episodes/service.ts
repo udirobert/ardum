@@ -64,7 +64,7 @@ export async function createEpisode(
   const statement = input.statement.trim();
   if (!statement) throw new Error("Tell Mira what you are making space for.");
   if (!input.persistenceConsent) {
-    throw new Error("Persistence consent is required to create an episode.");
+    throw new Error("I need your consent to keep this intention so you can resume later. You can delete it anytime.");
   }
 
   const episode: Episode = {

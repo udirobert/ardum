@@ -54,7 +54,7 @@ GET /api/episodes/[id]
       → evidenceRepository.listPublicEvidence()
   → resolveWiderApertureEvidence()     (pure; gates tier B/C rows)
   → EpisodeDetailPayload.widerApertureEvidence
-  → RetreatExplorationView disclosure rows (conditional; no placeholders)
+  → (client rendering not yet wired — see inventory-led-implementation-summary.md)
 ```
 
 | Module | Role |

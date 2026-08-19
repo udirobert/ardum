@@ -1,5 +1,16 @@
 # Recommendation reveal (Beat 2 spec)
 
+> **Status: aspirational, not built.** As of 2026-08, the four-beat flow
+> this spec describes (`RetreatExplorationView`, reveal choreography,
+> `DecisionCard`, `DisclosureRow`) does not exist in the codebase. The
+> shipped recommendation surface is `EpisodeWorkbench`
+> (`src/episodes/EpisodeWorkbench.tsx`), which renders Mira's letter,
+> the retreat card, and hold/feedback actions on a single scrollable
+> page. See [inventory-led-implementation-summary.md](inventory-led-implementation-summary.md)
+> for what actually ships, and [../plans/](../plans/) for the real
+> evolution of the built surface. Treat this doc as a design target,
+> not a description of current behavior.
+
 Target surface for the moment Mira presents her strongest current fit. This
 replaces the always-on browse + chat + hold screen currently in
 `RetreatExplorationView` and restores the episode-workbench contract from

@@ -58,3 +58,22 @@ export function hasCompletedAestheticCalibration(): boolean {
   const pref = readAestheticPreference();
   return pref.interactions.length >= 4;
 }
+
+const SKIP_KEY = "ardum:aesthetic-skipped";
+
+/**
+ * The practitioner may skip the aesthetic calibration entirely. This is
+ * a one-time dismissal for the current device — the intention input is
+ * the primary action, and the calibration is a quieter step that should
+ * not gate it. The skip is sticky so a returning visitor who skipped
+ * doesn't see the swipe flow again.
+ */
+export function hasSkippedAestheticCalibration(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(SKIP_KEY) === "1";
+}
+
+export function skipAestheticCalibration(): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(SKIP_KEY, "1");
+}

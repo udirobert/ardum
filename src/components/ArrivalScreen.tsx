@@ -7,6 +7,7 @@ import { useMiraField } from "./MiraField";
 import { type MiraActivity, type MiraPresence } from "@/agent/mira-presence";
 import {
   hasCompletedAestheticCalibration,
+  hasSkippedAestheticCalibration,
   readAestheticVector,
 } from "@/aesthetics/aesthetic-store";
 import type { AestheticVector } from "@/aesthetics/image-pool";
@@ -62,7 +63,12 @@ export default function ArrivalScreen({
     episodeBootstrap?.episode ?? null,
   );
   const [statement, setStatement] = useState("");
-  const [consent, setConsent] = useState(false);
+  // Consent defaults to true: the anonymous actor cookie is set
+  // server-side on the first ownership-bearing request regardless (ADR
+  // 0004), so the intention is persisted by default. The checkbox stays
+  // visible for transparency and lets the person opt out before
+  // submitting — but it no longer gates the submit button.
+  const [consent, setConsent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,16 +87,22 @@ export default function ArrivalScreen({
   // the true client value, which drives effectivePhase below.
   const calibrationDone = useSyncExternalStore(
     () => () => {},
-    hasCompletedAestheticCalibration,
+    () =>
+      hasCompletedAestheticCalibration() || hasSkippedAestheticCalibration(),
     () => false,
   );
+
+  // The aesthetic calibration can be disabled via env flag. When disabled,
+  // new visitors skip straight to the intention input.
+  const calibrationEnabled =
+    process.env.NEXT_PUBLIC_AESTHETIC_CALIBRATION_ENABLED !== "false";
 
   // The phase the UI actually renders. When bootstrapped with no active
   // episode, the shared render lands on "loading"; the client derives the
   // real entry phase from the calibration flag without touching setState.
   const effectivePhase: Phase =
     bootstrapped && phase === "loading"
-      ? calibrationDone
+      ? calibrationDone || !calibrationEnabled
         ? "intention"
         : "aesthetic"
       : phase;
@@ -111,7 +123,11 @@ export default function ArrivalScreen({
           setActivePresence(data.activeMiraPresence ?? null);
           if (active) {
             setPhase("returning");
-          } else if (hasCompletedAestheticCalibration()) {
+          } else if (
+            hasCompletedAestheticCalibration() ||
+            hasSkippedAestheticCalibration() ||
+            !calibrationEnabled
+          ) {
             setPhase("intention");
           } else {
             setPhase("aesthetic");
@@ -120,10 +136,10 @@ export default function ArrivalScreen({
       )
       .catch(() => setPhase("intention"))
       .finally(() => {});
-  }, [bootstrapped]);
+  }, [bootstrapped, calibrationEnabled]);
 
   async function create() {
-    if (!statement.trim() || !consent) return;
+    if (!statement.trim()) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -335,20 +351,12 @@ export default function ArrivalScreen({
                 <button
                   type="button"
                   onClick={create}
-                  disabled={!statement.trim() || !consent || submitting}
+                  disabled={!statement.trim() || submitting}
                   className="mt-8 w-full px-8 py-3.5 rounded-sm disabled:opacity-40 disabled:cursor-not-allowed t-stagger-line t-stagger-line--2"
                   style={{ background: "#f6efe3", color: "#1a120d" }}
                 >
                   {submitting ? "Giving it shape…" : "Tell Mira what matters →"}
                 </button>
-                {!submitting && statement.trim() && !consent && (
-                  <p
-                    className="mt-2 text-xs text-center"
-                    style={{ color: "rgba(246,239,227,0.5)" }}
-                  >
-                    Tick the box above to continue
-                  </p>
-                )}
               </StaggerReveal>
             )}
 
