@@ -62,11 +62,18 @@ jobs:
         run: |
           nohup npm run start > server.log 2>&1 &
           echo $! > server.pid
-          # smoke:journey waits up to 30s; give the server a head start.
-          for i in $(seq 1 30); do
+          # Give the server up to 60s to respond before handing off to
+          # the smoke journey (which has its own 30s timeout).
+          for i in $(seq 1 60); do
             curl -sf http://localhost:3000 >/dev/null && break
             sleep 1
           done
+          # Verify the server is actually up before the smoke step.
+          if ! curl -sf http://localhost:3000 >/dev/null; then
+            echo "Server did not respond within 60s. Server logs:"
+            cat server.log
+            exit 1
+          fi
 
       - name: Smoke journey (solo + invite, in-workflow)
         run: npm run smoke:journey
