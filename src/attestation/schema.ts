@@ -60,6 +60,12 @@ export type Attestation = {
     // Optional dietary offerings. Values: "vegetarian", "vegan",
     // "gluten-free", "omnivore". Absent means undeclared.
     dietary?: string[];
+    // Optional booking URL — the operator's existing checkout (SquadTrip,
+    // WeTravel, their own site). When present, Mira sends the practitioner
+    // here when they're ready to commit, instead of running Ardum's escrow.
+    // This makes Ardum a demand layer that complements existing booking
+    // platforms, not a replacement.
+    bookingUrl?: string;
     notes?: string;
   };
   // Wallet that wrote the attestation (verification key).

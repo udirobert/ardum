@@ -74,6 +74,7 @@ export default function UploadForm() {
   const [durationDays, setDurationDays] = useState(() => Number(searchParams.get("durationDays") ?? 7));
   const [priceUsd, setPriceUsd] = useState(() => Number(searchParams.get("priceUsd") ?? 1800));
   const [capacity, setCapacity] = useState(() => Number(searchParams.get("capacity") ?? 12));
+  const [bookingUrl, setBookingUrl] = useState(() => searchParams.get("bookingUrl") ?? "");
 
   // Step 2 — The practice (pre-filled from query params if present)
   const [description, setDescription] = useState(() => searchParams.get("description") ?? "");
@@ -150,6 +151,7 @@ export default function UploadForm() {
           energyFit,
           socialFit,
           breathPhase,
+          bookingUrl: bookingUrl.trim() || undefined,
           breathCycle: includeCycle
             ? {
                 unit: "seconds",
@@ -210,31 +212,41 @@ export default function UploadForm() {
       <section className="border border-[color:var(--accent-soft)] bg-[color:var(--surface)] rounded-sm p-8 fade-in-up max-w-2xl surface-card">
         <p className="tag mb-1">published</p>
         <h2 className="font-serif text-3xl tracking-tight mb-3">{title}</h2>
-        <p className="why mb-3">
+        <p className="why mb-6">
           Your retreat is now in the matching pool. When a practitioner
           describes what they need, Mira will consider your retreat as a
-          match.
+          match — and you&apos;ll see them on your operator dashboard before
+          they inquire.
         </p>
-        <p className="text-xs text-[color:var(--muted)] break-all">
+        <div className="flex gap-3 flex-wrap">
+          <a
+            href="/operator"
+            className="px-6 py-3 rounded-sm bg-foreground text-background text-sm"
+          >
+            Go to your dashboard →
+          </a>
+          <button
+            type="button"
+            onClick={() => {
+              setResult(null);
+              setStep(0);
+              setTitle("");
+              setLocation("");
+              setDescription("");
+              setPracticeStyle([]);
+              setEnergyFit([]);
+              setSocialFit([]);
+              setBreathPhase([]);
+              setBookingUrl("");
+            }}
+            className="px-5 py-2.5 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors text-sm"
+          >
+            List another →
+          </button>
+        </div>
+        <p className="text-xs text-[color:var(--muted)] break-all mt-6">
           Reference: {result.rootHash}
         </p>
-        <button
-          type="button"
-          onClick={() => {
-            setResult(null);
-            setStep(0);
-            setTitle("");
-            setLocation("");
-            setDescription("");
-            setPracticeStyle([]);
-            setEnergyFit([]);
-            setSocialFit([]);
-            setBreathPhase([]);
-          }}
-          className="mt-6 px-5 py-2.5 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors"
-        >
-          Attest another →
-        </button>
       </section>
     );
   }
@@ -303,6 +315,24 @@ export default function UploadForm() {
                 />
               </Field>
             </div>
+          </div>
+
+          <div className="mt-5">
+            <Field label="booking URL (optional)">
+              <input
+                type="url"
+                value={bookingUrl}
+                onChange={(e) => setBookingUrl(e.target.value)}
+                placeholder="https://squadtrip.com/your-retreat"
+                className="w-full bg-transparent border border-[color:var(--hairline)] rounded-sm px-4 py-2.5 focus:border-[color:var(--accent)] outline-none"
+              />
+            </Field>
+            <p className="text-xs text-[color:var(--muted)] mt-2 max-w-prose">
+              If you already use a booking platform (SquadTrip, WeTravel, your
+              own site), put the link here. Mira will send practitioners there
+              when they&apos;re ready to commit. Leave blank to use Ardum&apos;s
+              built-in escrow.
+            </p>
           </div>
 
           <div className="flex items-center justify-between mt-10">

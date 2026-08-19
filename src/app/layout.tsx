@@ -96,6 +96,12 @@ export default function RootLayout({
             </div>
             <nav className="flex gap-5 text-sm">
               <Link
+                href="/operator"
+                className="text-[color:var(--muted)] hover:text-foreground transition-colors"
+              >
+                operators
+              </Link>
+              <Link
                 href="/memory"
                 className="text-[color:var(--muted)] hover:text-foreground transition-colors"
               >
