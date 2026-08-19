@@ -63,12 +63,13 @@ export default function ArrivalScreen({
     episodeBootstrap?.episode ?? null,
   );
   const [statement, setStatement] = useState("");
-  // Consent defaults to true: the anonymous actor cookie is set
-  // server-side on the first ownership-bearing request regardless (ADR
-  // 0004), so the intention is persisted by default. The checkbox stays
-  // visible for transparency and lets the person opt out before
-  // submitting — but it no longer gates the submit button.
-  const [consent, setConsent] = useState(true);
+  // Persistence is on by default — the anonymous actor cookie is set
+  // server-side on the first ownership-bearing request (ADR 0004), and
+  // the episode requires persistenceConsent to be created (service.ts).
+  // The transparency note below communicates this; the person can inspect
+  // or delete on /memory. No checkbox: false control that doesn't gate
+  // the submit is worse than transparent default-on.
+  const [consent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,9 +94,10 @@ export default function ArrivalScreen({
   );
 
   // The aesthetic calibration can be disabled via env flag. When disabled,
-  // new visitors skip straight to the intention input.
+  // new visitors skip straight to the intention input. Default: disabled —
+  // the intention ask is the first interaction, not image reactions.
   const calibrationEnabled =
-    process.env.NEXT_PUBLIC_AESTHETIC_CALIBRATION_ENABLED !== "false";
+    process.env.NEXT_PUBLIC_AESTHETIC_CALIBRATION_ENABLED === "true";
 
   // The phase the UI actually renders. When bootstrapped with no active
   // episode, the shared render lands on "loading"; the client derives the
@@ -324,21 +326,14 @@ export default function ArrivalScreen({
                     }}
                   />
                 </label>
-                <label
-                  className="mt-5 flex items-start gap-3 text-left text-sm t-stagger-line t-stagger-line--2"
+                <p
+                  className="mt-5 text-left text-sm t-stagger-line t-stagger-line--2"
                   style={DUSK_MUTED}
                 >
-                  <input
-                    type="checkbox"
-                    checked={consent}
-                    onChange={(event) => setConsent(event.target.checked)}
-                    className="mt-1"
-                  />
-                  <span>
-                    Keep this intention on this device so I can resume with you.
-                    You can inspect or delete it anytime.
-                  </span>
-                </label>
+                  This stays on your device so you can resume with Mira. You can
+                  inspect or delete it anytime on{" "}
+                  <span className="underline">your intention &amp; privacy</span>.
+                </p>
                 {error && (
                   <p
                     className="mt-4 text-sm"

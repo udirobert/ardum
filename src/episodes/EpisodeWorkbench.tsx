@@ -734,69 +734,70 @@ useEffect(() => {
                 {/* The primary decision: hold this pick. Everything else
                     collapses into disclosure so the page reads:
                     letter → identity → Hold → status → disclosure. */}
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-col gap-2">
                   <PrimaryButton
                     disabled={busy}
                     onClick={() => act({ type: "create-hold" })}
                   >
                     Hold this for 48 hours
                   </PrimaryButton>
-                </div>
 
-                {/* "Not this one" — reject the current top pick and
-                    re-recommend with it excluded. Distinct from "this
-                    doesn't feel right" (categorical feedback that resets
-                    to clarification). This is a specific retreat
-                    rejection that produces a different top pick. */}
-                {episode.recommendation!.alternatives.length > 0 && (
+                  {/* "Not this one" — reject the current top pick and
+                      re-recommend with it excluded. Distinct from "this
+                      doesn't feel right" (categorical feedback that resets
+                      to clarification). This is a specific retreat
+                      rejection that produces a different top pick. */}
+                  {episode.recommendation!.alternatives.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        act({
+                          type: "reject-recommendation",
+                          retreatRootHash: recommendation!.retreatRootHash,
+                        })
+                      }
+                      className="text-sm text-[color:var(--muted)] hover:text-foreground underline"
+                    >
+                      Not this one — show me another
+                    </button>
+                  )}
+
+                  {/* Watch — a quiet subordinate action, not a sibling button.
+                      Starts monitoring so Mira checks for changes over time. */}
                   <button
                     type="button"
                     disabled={busy}
                     onClick={() =>
                       act({
-                        type: "reject-recommendation",
-                        retreatRootHash: recommendation!.retreatRootHash,
+                        type: episode.monitor ? "check-monitor" : "start-monitoring",
                       })
                     }
-                    className="text-sm text-[color:var(--muted)] hover:text-foreground underline"
+                    className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
                   >
-                    Not this one — show me another
+                    {episode.monitor ? "Check for changes" : "or I can watch this for you →"}
                   </button>
-                )}
+                </div>
 
                 {/* Forward-looking note — the recommendation is the start
                     of an ongoing relationship, not a terminal decision.
                     No orb here: Mira already speaks from the single voice
                     block above, so this reads as a caption, not a second
-                    Mira. (docs/plans/arrival-redesign.md §5) */}
+                    Mira. */}
                 <p className="text-sm leading-relaxed italic text-[color:var(--muted)]">
                   This is my strongest current fit. I&apos;ll keep watching —
                   if something fits better, I&apos;ll let you know.
                 </p>
 
-                {/* Secondary tools (lenses, alternatives, counterfactuals,
-                    monitoring) collapse behind a single disclosure. The
-                    decision above is the point of the page; this is depth
-                    for anyone who wants to interrogate the fit. */}
+                {/* Secondary tools (lenses, alternatives, counterfactuals)
+                    collapse behind a single disclosure. The decision above
+                    is the point of the page; this is depth for anyone who
+                    wants to interrogate the fit. */}
                 <details className="border-t border-[color:var(--hairline)] pt-5">
                   <summary className="tag cursor-pointer">
-                    dig deeper — watch this, weigh it differently, or see what else fits
+                    weigh it differently, or see what else fits
                   </summary>
                   <div className="mt-4 space-y-6">
-                    <div>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          act({
-                            type: episode.monitor ? "check-monitor" : "start-monitoring",
-                          })
-                        }
-                        className="px-5 py-3 rounded-sm border border-[color:var(--hairline)] disabled:opacity-40"
-                      >
-                        {episode.monitor ? "Check for changes" : "Watch this for me"}
-                      </button>
-                    </div>
                     <LensFactors
                       activeLens={activeLens}
                       lensData={lensData}
