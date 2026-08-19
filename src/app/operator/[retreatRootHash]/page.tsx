@@ -234,10 +234,13 @@ export default function RetreatDetailPage() {
                 </p>
               )}
               {match.bookedAt && (
-                <p className="text-xs text-[color:var(--accent-ink)] mt-3">
-                  Booked{" "}
-                  {new Date(match.bookedAt).toLocaleDateString()}
-                </p>
+                <Link
+                  href={`/operator/${retreatRootHash}/bookings/${match.episodeId}`}
+                  className="text-xs text-[color:var(--accent-ink)] mt-3 inline-block hover:underline"
+                >
+                  Booked {new Date(match.bookedAt).toLocaleDateString()} →
+                  view preparation context
+                </Link>
               )}
             </div>
           ))}

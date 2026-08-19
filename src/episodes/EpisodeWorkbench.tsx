@@ -312,8 +312,8 @@ useEffect(() => {
       process.env.NEXT_PUBLIC_THINKING_BEAT_ENABLED !== "false";
     const beatMinimumMs = thinkingBeatEnabled
       ? beatCommand === "reject-recommendation"
-        ? 4200
-        : 3400
+        ? 2500
+        : 1500
       : 0;
     const beatStartedAt = Date.now();
     try {
@@ -571,13 +571,28 @@ useEffect(() => {
             prompt={nextDecision.prompt}
             primaryLabel={nextDecision.primaryLabel}
             busy={busy}
-            onPick={(constraints) =>
-              act({
+            onPick={async (constraints) => {
+              const revised = await act({
                 type: "revise-intention",
                 constraints,
                 reason: "Clarified through calibration",
-              })
-            }
+              });
+              if (!revised) return;
+              // Auto-fire recommendation when all constraints are set —
+              // the "Show me" button was a vestigial gate. The thinking
+              // beat plays as the transition.
+              const revisedConstraints =
+                revised.episode.intentions.at(-1)?.constraints;
+              if (
+                revisedConstraints?.energy &&
+                revisedConstraints.budget &&
+                revisedConstraints.social &&
+                revisedConstraints.partySize &&
+                revisedConstraints.travelWindow
+              ) {
+                await act({ type: "recommend" });
+              }
+            }}
           />
         ) : (
           <>
@@ -656,9 +671,14 @@ useEffect(() => {
                 days · ${recommendation.priceUsd.toLocaleString()} · cohort of{" "}
                 {recommendation.capacity}
               </p>
-              <p className="mt-4 leading-relaxed">
-                {recommendation.retreatDescription}
-              </p>
+              <details className="mt-3">
+                <summary className="text-sm text-[color:var(--muted)] cursor-pointer hover:text-foreground transition-colors">
+                  About this retreat
+                </summary>
+                <p className="mt-3 leading-relaxed text-sm">
+                  {recommendation.retreatDescription}
+                </p>
+              </details>
             </div>
 
             {/* Weak-fit caveat — shown only when the score is below 0.75.
@@ -711,9 +731,9 @@ useEffect(() => {
               </>
             ) : (
               <>
-                {/* The primary decision sits directly under the card:
-                    hold this pick, or ask for another. Everything else on
-                    the page is opt-in depth. */}
+                {/* The primary decision: hold this pick. Everything else
+                    collapses into disclosure so the page reads:
+                    letter → identity → Hold → status → disclosure. */}
                 <div className="flex flex-wrap gap-3">
                   <PrimaryButton
                     disabled={busy}
@@ -721,18 +741,6 @@ useEffect(() => {
                   >
                     Hold this for 48 hours
                   </PrimaryButton>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      act({
-                        type: episode.monitor ? "check-monitor" : "start-monitoring",
-                      })
-                    }
-                    className="px-5 py-3 rounded-sm border border-[color:var(--hairline)] disabled:opacity-40"
-                  >
-                    {episode.monitor ? "Check for changes" : "Watch this for me"}
-                  </button>
                 </div>
 
                 {/* "Not this one" — reject the current top pick and
@@ -766,17 +774,29 @@ useEffect(() => {
                   if something fits better, I&apos;ll let you know.
                 </p>
 
-                {/* Secondary tools (lenses, alternatives, counterfactuals)
-                    collapse behind a single disclosure. The decision above
-                    is the point of the page; this is depth for anyone who
-                    wants to interrogate the fit. The weak-fit case is
-                    already signalled by the "what remains uncertain" note,
-                    so this stays opt-in even when the score is a stretch. */}
+                {/* Secondary tools (lenses, alternatives, counterfactuals,
+                    monitoring) collapse behind a single disclosure. The
+                    decision above is the point of the page; this is depth
+                    for anyone who wants to interrogate the fit. */}
                 <details className="border-t border-[color:var(--hairline)] pt-5">
                   <summary className="tag cursor-pointer">
-                    dig deeper — weigh this differently, or see what else fits
+                    dig deeper — watch this, weigh it differently, or see what else fits
                   </summary>
                   <div className="mt-4 space-y-6">
+                    <div>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          act({
+                            type: episode.monitor ? "check-monitor" : "start-monitoring",
+                          })
+                        }
+                        className="px-5 py-3 rounded-sm border border-[color:var(--hairline)] disabled:opacity-40"
+                      >
+                        {episode.monitor ? "Check for changes" : "Watch this for me"}
+                      </button>
+                    </div>
                     <LensFactors
                       activeLens={activeLens}
                       lensData={lensData}
