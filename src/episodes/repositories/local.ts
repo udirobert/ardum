@@ -154,3 +154,19 @@ export async function listContributionEpisodes(): Promise<Episode[]> {
     )
     .map(clone);
 }
+
+export async function listByRetreatRootHash(
+  rootHashes: string[],
+): Promise<Episode[]> {
+  if (rootHashes.length === 0) return [];
+  const set = new Set(rootHashes);
+  return [...episodes.values()]
+    .filter((episode) => {
+      const top = episode.recommendation?.result?.retreatRootHash;
+      if (top && set.has(top)) return true;
+      return episode.recommendation?.alternatives?.some((alt) =>
+        set.has(alt.retreatRootHash),
+      );
+    })
+    .map(clone);
+}

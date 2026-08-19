@@ -35,6 +35,11 @@ export interface EpisodeRepository {
   deleteOwned(actorId: string, episodeId: string): Promise<void>;
   /** Episodes with an active wider-aperture contribution grant — cohort projection only. */
   listContributionEpisodes(): Promise<Episode[]>;
+  /** Episodes whose current recommendation matches any of the given retreat
+   *  root hashes — the operator demand surface query. Returns episodes
+   *  across all actors; callers must project to anonymized shapes before
+   *  exposing to an operator. */
+  listByRetreatRootHash(rootHashes: string[]): Promise<Episode[]>;
 }
 
 // Callers never branch on the provider. Both adapters obey the same aggregate

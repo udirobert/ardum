@@ -217,3 +217,24 @@ export async function listContributionEpisodes(): Promise<Episode[]> {
         !episode.widerApertureContribution.revokedAt,
     );
 }
+
+export async function listByRetreatRootHash(
+  rootHashes: string[],
+): Promise<Episode[]> {
+  if (rootHashes.length === 0) return [];
+  const set = new Set(rootHashes);
+  const { data, error } = await client()
+    .from("episodes")
+    .select("state")
+    .limit(5000);
+  if (error) throw new Error(error.message);
+  return (data ?? [])
+    .map((row) => row.state as Episode)
+    .filter((episode) => {
+      const top = episode.recommendation?.result?.retreatRootHash;
+      if (top && set.has(top)) return true;
+      return episode.recommendation?.alternatives?.some((alt) =>
+        set.has(alt.retreatRootHash),
+      );
+    });
+}
