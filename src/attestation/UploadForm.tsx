@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import WalletButton from "./WalletButton";
 import OperatorWalletButton from "@/booking/OperatorWalletButton";
 import { canonicalAttestationMessage } from "./sign";
@@ -219,12 +220,12 @@ export default function UploadForm() {
           they inquire.
         </p>
         <div className="flex gap-3 flex-wrap">
-          <a
+          <Link
             href="/operator"
             className="px-6 py-3 rounded-sm bg-foreground text-background text-sm"
           >
             Go to your dashboard →
-          </a>
+          </Link>
           <button
             type="button"
             onClick={() => {

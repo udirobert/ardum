@@ -1,6 +1,6 @@
 # Plan: Build the operator value surface
 
-> **Status:** Accepted (2026-08-19)
+> **Status:** Phases 1–5 shipped (2026-08-19)
 > **Premise:** No customers, no interest yet. We can be aggressive.
 > **Competitive research:** [competitive-landscape-research.md](competitive-landscape-research.md)
 
@@ -324,25 +324,22 @@ find people for it. See who's coming and why."
 
 ## Sequencing
 
-| Phase | What | Days | Can demo after? |
-|-------|------|------|-----------------|
-| 1 | Operator identity + retreat list | 1–2 | Yes — "your retreats" |
-| 2 | Demand surface (matched intentions) | 3–4 | Yes — "see who fits" |
-| 3 | Hold visibility + booking status | 1–2 | Yes — "see demand" |
-| 4 | Preparation context | 2–3 | Yes — "know who's coming" |
-| 5 | Simplify practitioner surface | 2–3 | (parallel) |
-| 6 | Demo loop script | 1 | Final demo |
+| Phase | What | Status | Can demo after? |
+|-------|------|--------|-----------------|
+| 1 | Operator identity + retreat list | ✅ Shipped | Yes — "your retreats" |
+| 2 | Demand surface (matched intentions) | ✅ Shipped | Yes — "see who fits" |
+| 3 | Hold visibility + booking status | ✅ Shipped | Yes — "see demand" |
+| 4 | Preparation context | ✅ Shipped | Yes — "know who's coming" |
+| 5 | Simplify practitioner surface | ✅ Shipped | (parallel) |
+| 6 | Demo loop script | Not started | Final demo |
 
-**Phases 1–3 are the critical path.** After Phase 3, you can show a
-real operator: "List your retreat. Mira finds practitioners whose
-intentions match. You see who's holding and who's booked. Nobody else
-does this." That's 5–8 days of work.
+**Phases 1–5 are shipped.** The full loop is live: list → match → hold →
+see demand → book → see who's coming. Phase 6 (demo loop script) remains
+for a scripted end-to-end walkthrough.
 
-Phase 4 (preparation context) deepens the relationship surface but
-isn't required for the first operator demo.
-
-Phase 5 (practitioner simplification) can run in parallel — it doesn't
-block the operator surface.
+The critical path (Phases 1–3) is done — you can show a real operator:
+"List your retreat. Mira finds practitioners whose intentions match. You
+see who's holding and who's booked. Nobody else does this."
 
 ---
 
