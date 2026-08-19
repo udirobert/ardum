@@ -48,6 +48,8 @@ export default async function MemoryPage() {
       await projectActorMemory(actorId, episodes)
     : null;
   const miraPresence = activeEpisodePresence(episodes) ?? STEADY_PRESENCE;
+  const activeEpisode =
+    episodes.find((item) => item.status !== "completed") ?? null;
 
   return (
     <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 py-16">
@@ -74,6 +76,25 @@ export default async function MemoryPage() {
         what you have clarified, and the steps that followed. Nothing here is
         shared with retreats, wallets, or invitees.
       </p>
+
+      {/* If there's an active episode, surface a quiet link back to it
+          so the practitioner doesn't have to go home first. */}
+      {activeEpisode && (
+        <Link
+          href={`/episode/${activeEpisode.id}`}
+          className="block border border-[color:var(--accent-soft)] rounded-sm px-5 py-4 mb-8 hover:border-[color:var(--accent)] transition-colors"
+        >
+          <span className="font-serif text-lg tracking-tight">
+            Continue your intention →
+          </span>
+          <span className="block text-sm text-[color:var(--muted)] mt-1">
+            {activeEpisode.intentions.at(-1)?.statement.slice(0, 80)}
+            {(activeEpisode.intentions.at(-1)?.statement.length ?? 0) > 80
+              ? "…"
+              : ""}
+          </span>
+        </Link>
+      )}
 
       {/* Server-rendered recognition summary card. Lands in initial
           HTML so smoke-ui.mjs's data-testid="memory-summary" check

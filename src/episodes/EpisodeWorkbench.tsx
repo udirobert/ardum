@@ -373,7 +373,27 @@ useEffect(() => {
     if (!message) return;
     const extracted = extractConstraints(message);
     if (hasConstraints(extracted)) {
-      setVoiceResponse(null);
+      // Build a brief confirmation of what Mira heard before re-recommending,
+      // so the user knows their words were understood as constraints.
+      const heard: string[] = [];
+      if (extracted.budget) heard.push("budget matters more");
+      if (extracted.duration) heard.push(
+        extracted.duration <= 4 ? "a shorter trip" : "more time away",
+      );
+      if (extracted.social) heard.push(
+        extracted.social === "solo"
+          ? "going alone"
+          : extracted.social === "small-circle"
+            ? "with someone close"
+            : "open to a group",
+      );
+      if (extracted.dates) heard.push("timing is flexible");
+      if (extracted.energy) heard.push(`${extracted.energy} energy`);
+      setVoiceResponse(
+        heard.length > 0
+          ? `I heard: ${heard.join(", ")}. Let me look again with that in mind.`
+          : "Let me look again with that in mind.",
+      );
       const constraints: IntentionConstraints = {};
       if (extracted.energy) constraints.energy = extracted.energy;
       if (extracted.budget) constraints.budget = extracted.budget;
