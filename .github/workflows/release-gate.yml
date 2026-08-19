@@ -32,10 +32,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114811956e18413155cc0193437194f475a89 # v4.3.1
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea06b1e5ec60032e56475657876a8d876d7 # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
