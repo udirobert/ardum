@@ -1,14 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useOperatorAuth } from "@/booking/OperatorAuth";
 import OperatorWalletButton from "@/booking/OperatorWalletButton";
 import type { AttestationIndex } from "@/attestation/schema";
 
+type DemandCounts = {
+  totalMatches: number;
+  activeHolds: number;
+  bookings: number;
+};
+
+type OperatorRetreat = AttestationIndex & {
+  demand?: DemandCounts;
+};
+
 type State =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "loaded"; retreats: AttestationIndex[] }
+  | { status: "loaded"; retreats: OperatorRetreat[] }
   | { status: "error"; message: string };
 
 export default function OperatorPage() {
@@ -24,7 +35,7 @@ export default function OperatorPage() {
       .then(async (res) => {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "Could not load retreats.");
-        return json.retreats as AttestationIndex[];
+        return json.retreats as OperatorRetreat[];
       })
       .then((data) => {
         if (!cancelled) setState({ status: "loaded", retreats: data });
@@ -64,12 +75,12 @@ export default function OperatorPage() {
           <p className="tag mb-2">operator</p>
           <h1 className="font-serif text-4xl tracking-tight">Your retreats</h1>
         </div>
-        <a
+        <Link
           href="/attest"
           className="px-5 py-2.5 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors text-sm"
         >
           List another →
-        </a>
+        </Link>
       </div>
 
       {state.status === "loading" && (
@@ -93,38 +104,70 @@ export default function OperatorPage() {
             Once you publish a retreat, Mira will match practitioners whose
             intentions fit — and you&apos;ll see them here before they inquire.
           </p>
-          <a
+          <Link
             href="/attest"
             className="inline-block px-6 py-3 rounded-sm bg-foreground text-background text-sm"
           >
             List your first retreat →
-          </a>
+          </Link>
         </div>
       )}
 
       {state.status === "loaded" && state.retreats.length > 0 && (
         <div className="space-y-4">
-          {state.retreats.map((retreat) => (
-            <a
-              key={retreat.rootHash}
-              href={`/operator/${retreat.rootHash}`}
-              className="block border border-[color:var(--hairline)] rounded-sm p-6 hover:border-[color:var(--accent-soft)] transition-colors"
-            >
-              <div className="flex items-baseline justify-between gap-4 mb-2">
-                <h2 className="font-serif text-2xl tracking-tight">
-                  {retreat.title}
-                </h2>
-                <span className="tag flex-shrink-0">
-                  {new Date(retreat.createdAt).toLocaleDateString()}
-                </span>
-              </div>
-              <p className="text-sm text-[color:var(--muted)]">
-                {retreat.claims.location} · {retreat.claims.durationDays} days ·
-                ${retreat.claims.priceUsd.toLocaleString()} · cohort of{" "}
-                {retreat.claims.capacity}
-              </p>
-            </a>
-          ))}
+          {state.retreats.map((retreat) => {
+            const d = retreat.demand;
+            const hasDemand = d && (d.totalMatches > 0 || d.activeHolds > 0 || d.bookings > 0);
+            return (
+              <Link
+                key={retreat.rootHash}
+                href={`/operator/${retreat.rootHash}`}
+                className="block border border-[color:var(--hairline)] rounded-sm p-6 hover:border-[color:var(--accent-soft)] transition-colors"
+              >
+                <div className="flex items-baseline justify-between gap-4 mb-2">
+                  <h2 className="font-serif text-2xl tracking-tight">
+                    {retreat.title}
+                  </h2>
+                  <span className="tag flex-shrink-0">
+                    {new Date(retreat.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <p className="text-sm text-[color:var(--muted)]">
+                  {retreat.claims.location} · {retreat.claims.durationDays} days ·
+                  ${retreat.claims.priceUsd.toLocaleString()} · cohort of{" "}
+                  {retreat.claims.capacity}
+                </p>
+                {hasDemand && (
+                  <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-xs">
+                    {d!.totalMatches > 0 && (
+                      <span className="text-[color:var(--muted)]">
+                        <span className="text-foreground font-medium">
+                          {d!.totalMatches}
+                        </span>{" "}
+                        matched
+                      </span>
+                    )}
+                    {d!.activeHolds > 0 && (
+                      <span className="text-[color:var(--accent-ink)]">
+                        <span className="font-medium">{d!.activeHolds}</span>{" "}
+                        holding
+                      </span>
+                    )}
+                    {d!.bookings > 0 && (
+                      <span className="text-[color:var(--accent-ink)]">
+                        <span className="font-medium">{d!.bookings}</span> booked
+                      </span>
+                    )}
+                  </div>
+                )}
+                {!hasDemand && (
+                  <p className="text-xs text-[color:var(--muted)] mt-3">
+                    Mira is watching for practitioners who fit this retreat.
+                  </p>
+                )}
+              </Link>
+            );
+          })}
         </div>
       )}
 

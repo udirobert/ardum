@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { listAttestations } from "@/lib/og-storage";
+import { episodeRepository } from "@/episodes/repository";
+import { projectDemand } from "@/episodes/operator-projection";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/operator/retreats?attestor=0x...
-// Returns attestations where the attestor wallet matches. The operator
-// identity is the wallet address from the Particle Auth session — there
-// is no server-side operator session, so the client passes the address
-// as a query param. Attestations are public data; this query just
-// filters by attestor.
+// Returns the operator's retreats enriched with demand summary: how many
+// practitioners match, how many are holding, how many have booked. The
+// operator identity is the wallet address from the Particle Auth session.
+// Attestations are public data; this query filters by attestor and
+// cross-references episodes to produce per-retreat demand counts.
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const attestor = url.searchParams.get("attestor");
@@ -24,5 +26,27 @@ export async function GET(req: Request) {
     (a) => a.attestor.toLowerCase() === attestor.toLowerCase(),
   );
 
-  return NextResponse.json({ retreats });
+  if (retreats.length === 0) {
+    return NextResponse.json({ retreats: [] });
+  }
+
+  // Cross-reference episodes to get demand summary per retreat
+  const rootHashes = retreats.map((r) => r.rootHash);
+  const episodes = await episodeRepository.listByRetreatRootHash(rootHashes);
+
+  const enriched = retreats.map((retreat) => {
+    const demand = projectDemand(episodes, retreat.rootHash, {
+      demoMode: true,
+    });
+    return {
+      ...retreat,
+      demand: {
+        totalMatches: demand.totalMatches,
+        activeHolds: demand.activeHolds,
+        bookings: demand.bookings,
+      },
+    };
+  });
+
+  return NextResponse.json({ retreats: enriched });
 }
