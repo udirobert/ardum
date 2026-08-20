@@ -287,19 +287,34 @@ export default function ArrivalScreen({
               <StaggerReveal>
                 {greetingNode}
                 <p className="tag mb-3 t-stagger-line">your active intention</p>
-                <h1
-                  className="font-serif text-3xl sm:text-5xl leading-tight tracking-tight t-stagger-line t-stagger-line--2"
-                  style={DUSK_HEADING}
-                >
-                  {current.statement}
-                </h1>
+                {(() => {
+                  // Short intentions (1-3 words) look sparse at the
+                  // full 5xl scale designed for sentence-length
+                  // statements. Scale the heading down so a single
+                  // word doesn't dominate the screen awkwardly.
+                  const wordCount = current.statement.trim().split(/\s+/).length;
+                  const sizeClass =
+                    wordCount <= 2
+                      ? "text-2xl sm:text-3xl"
+                      : wordCount <= 5
+                        ? "text-3xl sm:text-4xl"
+                        : "text-3xl sm:text-5xl";
+                  return (
+                    <h1
+                      className={`font-serif ${sizeClass} leading-tight tracking-tight t-stagger-line t-stagger-line--2`}
+                      style={DUSK_HEADING}
+                    >
+                      {current.statement}
+                    </h1>
+                  );
+                })()}
                 <p
                   className="mt-4 text-base sm:text-lg leading-relaxed max-w-md mx-auto t-stagger-line t-stagger-line--2"
                   style={DUSK_MUTED}
                 >
                   {preferredName
-                    ? `I kept this alive for you, ${preferredName}. We can continue from the next decision, or change what matters now.`
-                    : "I kept this alive. We can continue from the next decision, or change what matters now."}
+                    ? `I kept this alive for you, ${preferredName}. We can pick up where we left off, or change what matters now.`
+                    : "I kept this alive. We can pick up where we left off, or change what matters now."}
                 </p>
               </StaggerReveal>
             )}
@@ -357,11 +372,11 @@ export default function ArrivalScreen({
 
             {effectivePhase === "returning" && episode && (
               <StaggerReveal>
-                <div className="flex flex-wrap justify-center gap-3 t-stagger-line">
+                <div className="flex flex-col items-center gap-4 t-stagger-line">
                   <button
                     type="button"
                     onClick={() => router.push(`/episode/${episode.id}`)}
-                    className="px-7 py-3 rounded-sm"
+                    className="w-full max-w-sm px-7 py-3 rounded-sm"
                     style={{ background: "#f6efe3", color: "#1a120d" }}
                   >
                     Continue →
@@ -369,13 +384,10 @@ export default function ArrivalScreen({
                   <button
                     type="button"
                     onClick={() => setPhase("intention")}
-                    className="px-7 py-3 rounded-sm border"
-                    style={{
-                      borderColor: "rgba(246,239,227,0.3)",
-                      color: "#f6efe3",
-                    }}
+                    className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
+                    style={{ color: "rgba(246,239,227,0.6)" }}
                   >
-                    Start a different intention
+                    or start a different intention
                   </button>
                 </div>
               </StaggerReveal>

@@ -48,8 +48,29 @@ export default async function Home() {
     const booking = memory.pastBookings[0];
     const last = memory.pastMatches[0];
     const name = preferredName;
+    // The greeting bridges the active intention to past context — it
+    // doesn't lead with a retreat. The intention is what the person is
+    // holding now; the past match is color, not the headline.
+    const intention = activeEpisode?.intentions.at(-1)?.statement;
     if (memory.isReturning || name) {
-      if (booking) {
+      const intentionPhrase = intention
+        ? intention.length <= 60
+          ? intention
+          : `${intention.slice(0, 57)}…`
+        : null;
+      if (intentionPhrase && last) {
+        greeting = name
+          ? `Welcome back, ${name}. You're holding "${intentionPhrase}" — last time you were considering ${last.title} in ${last.location}.`
+          : `Welcome back. You're holding "${intentionPhrase}" — last time you were considering ${last.title} in ${last.location}.`;
+      } else if (intentionPhrase && booking) {
+        greeting = name
+          ? `Welcome back, ${name}. You're holding "${intentionPhrase}" — last time you booked ${booking.title} in ${booking.location}.`
+          : `Welcome back. You're holding "${intentionPhrase}" — last time you booked ${booking.title} in ${booking.location}.`;
+      } else if (intentionPhrase) {
+        greeting = name
+          ? `Welcome back, ${name}. You're holding "${intentionPhrase}".`
+          : `Welcome back. You're holding "${intentionPhrase}".`;
+      } else if (booking) {
         greeting = name
           ? `Welcome back, ${name}. We last saw you booked ${booking.title} in ${booking.location}.`
           : `Welcome back. We last saw you booked ${booking.title} in ${booking.location}.`;

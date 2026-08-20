@@ -85,27 +85,19 @@ export default function RootLayout({
         </main>
         <footer className="relative z-10 bg-[color:var(--background)] px-6 sm:px-10 py-6 rule border-t mt-12">
           <div className="flex flex-wrap items-baseline justify-between gap-4">
-            <div>
-              <p className="font-serif text-lg tracking-tight">
-                Ardum is <span className="italic">mudra</span> reversed.
-              </p>
-              <p className="text-sm text-[color:var(--muted)] mt-1 max-w-md leading-relaxed">
-                A mudra seals your practice. Ardum helps give an intention
-                shape, then carries it quietly toward action.
-              </p>
-            </div>
+            <p className="font-serif text-lg tracking-tight">Ardum</p>
             <nav className="flex gap-5 text-sm">
-              <Link
-                href="/operator"
-                className="text-[color:var(--muted)] hover:text-foreground transition-colors"
-              >
-                operators
-              </Link>
               <Link
                 href="/memory"
                 className="text-[color:var(--muted)] hover:text-foreground transition-colors"
               >
                 your intention &amp; privacy
+              </Link>
+              <Link
+                href="/operator"
+                className="text-[color:var(--muted)] hover:text-foreground transition-colors"
+              >
+                operators
               </Link>
             </nav>
           </div>
