@@ -161,7 +161,9 @@ function CapsuleShell({
     // Ease toward the posture target so state changes glide, never snap.
     const target = morph;
     const c = cur.current;
-    const M = 0.05;
+    // Same responsiveness budget as the 2D field (MiraOrb): posture
+    // changes should read as responses, not slow drift.
+    const M = 0.12;
     c.turbulence = lerp(c.turbulence, target.turbulence, M);
     c.brightness = lerp(c.brightness, target.brightness, M);
     c.blobCount = lerp(c.blobCount, target.blobCount, M);
@@ -402,6 +404,7 @@ function SceneInner({
   return (
     <>
       <Backdrop fill={fill} />
+      {fill && <PointerParallax />}
       <ambientLight intensity={0.4} color="#f6e8dc" />
       <directionalLight position={[-2, 3, 2]} intensity={1.6} color="#ffe8d0" />
       <directionalLight position={[2, -1, -2]} intensity={0.35} color="#6e3925" />
@@ -421,6 +424,30 @@ function SceneInner({
       )}
     </>
   );
+}
+
+/**
+ * The orb is aware of the cursor: the camera drifts with it, so the whole
+ * presence subtly parallaxes toward you. Listens on window — the field sits
+ * behind pointer-events-none content and could never receive events itself.
+ */
+function PointerParallax() {
+  const target = useRef({ x: 0, y: 0 });
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      target.current.x = (e.clientX / window.innerWidth) * 2 - 1;
+      target.current.y = -((e.clientY / window.innerHeight) * 2 - 1);
+    };
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () => window.removeEventListener("pointermove", onMove);
+  }, []);
+  // r3f useFrame intentionally mutates the camera each tick.
+  useFrame((state) => {
+    const c = state.camera;
+    c.position.x = lerp(c.position.x, target.current.x * 0.18, 0.045);
+    c.position.y = lerp(c.position.y, -0.5 + target.current.y * 0.14, 0.045);
+  });
+  return null;
 }
 
 /** Catches Canvas / scene failures and falls back to the static orb. */

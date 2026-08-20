@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useOperatorAuth } from "@/booking/OperatorAuth";
+import MiraOrb from "@/components/MiraOrb";
 import {
   ENERGY_STATES,
   BUDGET_BANDS,
@@ -140,9 +141,12 @@ export default function BookingDetailPage() {
       </Link>
 
       <p className="tag mb-2">booking detail</p>
-      <h1 className="font-serif text-4xl sm:text-5xl tracking-tight mb-4">
-        Someone is coming.
-      </h1>
+      <div className="flex items-center gap-5 mb-4">
+        <MiraOrb size={48} presence={{ posture: "arriving", valence: 0 }} />
+        <h1 className="font-serif text-4xl sm:text-5xl tracking-tight">
+          Someone is coming.
+        </h1>
+      </div>
       <p className="text-lg text-[color:var(--muted)] max-w-prose mb-12 leading-relaxed">
         Booked for {detail.retreat.title} on{" "}
         {new Date(detail.episode.bookedAt).toLocaleDateString()}.

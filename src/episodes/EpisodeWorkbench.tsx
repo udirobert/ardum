@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import MiraOrb, { preloadMiraScene } from "@/components/MiraOrb";
 import { useMiraField } from "@/components/MiraField";
+import { useMiraImpulse, type ImpulseKind } from "@/components/MiraImpulse";
 import ClarifyPanel from "@/episodes/ClarifyPanel";
 import { readAestheticVector } from "@/aesthetics/aesthetic-store";
 import type { MatchResult } from "@/matching/types";
@@ -54,8 +55,41 @@ type CommandInput = EpisodeCommand extends infer Command
     : never
   : never;
 
+// Every decision that routes through act() pulses the orb. The mapping is
+// semantic, not mechanical: strength tracks how much of the person this is.
+// commit (1.0) = they're in. resonate (0.85) = strong pull toward a place.
+// reject (0.55) = a set-aside. lean (0.35) = steering. skip (0.4) = letting go.
+function commandImpulse(command: CommandInput): ImpulseKind | null {
+  switch (command.type) {
+    case "record-commitment":
+      return "commit";
+    case "create-hold":
+      return "resonate";
+    case "reject-recommendation":
+      return "reject";
+    case "feedback":
+      // timing/place feedback is a set-aside — the pick is being pushed away.
+      return command.reason === "timing" || command.reason === "place"
+        ? "reject"
+        : "lean";
+    case "recommend":
+      return "resonate";
+    case "revise-intention":
+    case "create-invite":
+    case "start-monitoring":
+      return "lean";
+    case "release-hold":
+    case "close-coordination":
+      return "skip";
+    default:
+      // check-monitor and aperture grants are background ops — no pulse.
+      return null;
+  }
+}
+
 export default function EpisodeWorkbench({ episodeId }: Props) {
   const router = useRouter();
+  const { fire } = useMiraImpulse();
   const [payload, setPayload] = useState<EpisodePayload | null>(null);
   // Mirror of the latest payload for command dispatch. React state is
   // stale inside an in-flight act() call; chained commands (e.g. voice
@@ -98,14 +132,14 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
 
   // The shell field carries the episode's journey posture; the veil dims the
   // moving orb enough for the workbench's content to stay legible. Kept
-  // light (0.28) so Mira's presence is felt, not just background.
-  // During the thinking beat, reduce further to 0.15 so Mira is
-  // clearly visible when she's "doing something."
+  // light (0.18) so Mira's presence reads between decisions — she is the
+  // differentiator, not wallpaper. During the thinking beat, reduce
+  // further to 0.12 so Mira is clearly visible when she's "doing something."
   useMiraField({
     presence: payload?.miraPresence ?? null,
     activity: busy || !payload ? "processing" : "idle",
     aestheticVector,
-    veil: thinking ? 0.15 : 0.28,
+    veil: thinking ? 0.12 : 0.18,
   });
 
   // One coordinator per derived-view fetcher. Both layers of
@@ -266,6 +300,11 @@ useEffect(() => {
   ): Promise<EpisodePayload | null> {
     const base = payloadRef.current;
     if (!base) return null;
+    // Fire the orb's pulse at the dispatch chokepoint so every surface that
+    // routes through act() (holds, rejects, feedback, commitment panel,
+    // invites, monitoring) makes the presence visibly react.
+    const impulseKind = commandImpulse(command);
+    if (impulseKind) fire(impulseKind);
     setBusy(true);
     setError(null);
     // Start the thinking beat for commands that surface a NEW top pick —
@@ -866,7 +905,10 @@ useEffect(() => {
                 {!commitmentOpen ? (
                   <PrimaryButton
                     disabled={busy}
-                    onClick={() => setCommitmentOpen(true)}
+                    onClick={() => {
+                      fire("lean");
+                      setCommitmentOpen(true);
+                    }}
                   >
                     {nextDecision.primaryLabel}
                   </PrimaryButton>
@@ -875,6 +917,9 @@ useEffect(() => {
                     episode={episode}
                     onClose={() => setCommitmentOpen(false)}
                     onBooked={() => {
+                      // The booking completed through /api/bookings, not
+                      // act() — pulse the orb here so the commitment reads.
+                      fire("commit");
                       setCommitmentOpen(false);
                       void load();
                     }}

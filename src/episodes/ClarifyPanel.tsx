@@ -12,6 +12,7 @@ import {
   type TravelWindow,
 } from "@/calibration/schema";
 import type { NextDecision } from "./model";
+import { useMiraImpulse } from "@/components/MiraImpulse";
 
 type ClarifyKind = Extract<
   NextDecision["kind"],
@@ -43,6 +44,7 @@ export default function ClarifyPanel({
   busy,
   onPick,
 }: Props) {
+  const { fire } = useMiraImpulse();
   const options =
     kind === "clarify-energy"
       ? ENERGY_STATES
@@ -64,7 +66,9 @@ export default function ClarifyPanel({
             type="button"
             disabled={busy}
             role="listitem"
+            onMouseEnter={() => fire("lean")}
             onClick={() => {
+              fire("commit");
               if (kind === "clarify-energy") {
                 onPick({ energy: value as EnergyState });
               } else if (kind === "clarify-budget") {

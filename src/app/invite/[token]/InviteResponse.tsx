@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { preloadMiraScene } from "@/components/MiraOrb";
 import { useMiraField } from "@/components/MiraField";
+import { useMiraImpulse } from "@/components/MiraImpulse";
 import { DUSK_PANEL } from "@/aesthetics/dusk-theme";
 
 // Warm the hero scene chunk as soon as the invite bundle evaluates — the
@@ -20,6 +21,7 @@ export default function InviteResponse({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { fire } = useMiraImpulse();
 
   useEffect(() => {
     fetch(`/api/invites/${encodeURIComponent(token)}`)
@@ -38,6 +40,11 @@ export default function InviteResponse({ token }: { token: string }) {
   });
 
   async function respond(decision: "yes" | "no" | "unsure") {
+    // The orb answers with the person — a yes pulls it bright, a no lets it
+    // settle, an unsure leans in without committing.
+    fire(
+      decision === "yes" ? "resonate" : decision === "unsure" ? "lean" : "skip",
+    );
     setBusy(true);
     setError(null);
     try {

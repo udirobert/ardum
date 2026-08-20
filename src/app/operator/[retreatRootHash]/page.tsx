@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useOperatorAuth } from "@/booking/OperatorAuth";
+import MiraOrb from "@/components/MiraOrb";
+import { operatorPresence } from "@/agent/operator-presence";
 import type { AttestationIndex } from "@/attestation/schema";
 import type { DemandSummary } from "@/episodes/operator-projection";
 import {
@@ -126,9 +128,12 @@ export default function RetreatDetailPage() {
       </Link>
 
       <p className="tag mb-2">retreat detail</p>
-      <h1 className="font-serif text-4xl sm:text-5xl tracking-tight mb-4">
-        {retreat.title}
-      </h1>
+      <div className="flex items-center gap-5 mb-4">
+        <MiraOrb size={48} presence={operatorPresence(demand)} />
+        <h1 className="font-serif text-4xl sm:text-5xl tracking-tight">
+          {retreat.title}
+        </h1>
+      </div>
       <p className="text-[color:var(--muted)] mb-12">
         {retreat.claims.location} · {retreat.claims.durationDays} days ·
         ${retreat.claims.priceUsd.toLocaleString()} · cohort of{" "}
@@ -164,6 +169,11 @@ export default function RetreatDetailPage() {
       {/* Matches list */}
       {demand.totalMatches === 0 ? (
         <div className="border border-[color:var(--hairline)] rounded-sm p-8">
+          <MiraOrb
+            size={48}
+            presence={{ posture: "watching", valence: 0 }}
+            className="mb-4"
+          />
           <p className="text-lg leading-relaxed mb-2">
             Mira is watching for practitioners who fit this retreat.
           </p>

@@ -15,14 +15,12 @@ arrival and episode. Header and footer carry explicit cream backgrounds and
 mask the field; page content floats above it at `z-10`.
 
 Journey surfaces feed the field through `useMiraField({ presence, activity,
-aestheticVector, veil, fieldTier })` — posture comes from operational projections,
-the palette from the aesthetic vector, `veil` darkens the field where copy
-needs quiet, and `fieldTier` chooses render weight (`ambient` = 2D metaball
-only; `hero` = 3D scene). The episode workbench uses `veil: 0.4` and
-`fieldTier: hero` (default). Arrival uses `fieldTier: ambient` and a raised
-veil so Mira speaks without competing with a form card.
-`MiraImpulseProvider` also lives at the shell level, so any surface's
-impulses reach the field.
+aestheticVector, veil })` — posture comes from operational projections,
+the palette from the aesthetic vector, and `veil` darkens the field where copy
+needs quiet. The episode workbench keeps a light veil (`0.18`, dropped to
+`0.12` during the thinking beat) so Mira's impulses and posture shifts stay
+visible between decisions. `MiraImpulseProvider` also lives at the shell
+level, so any surface's impulses reach the field.
 
 Content over the field opts into the **`.dusk` token scope**
 (`globals.css`): it redefines the design tokens (`--muted`, `--hairline`,
@@ -44,21 +42,24 @@ the ask — not wallpaper behind a form. Copy and input obey three bindings:
 |---------|------|
 | **Spatial** | Mira's question lives in the orb's **lower third** (voice lane), not a top-of-page headline stacked above a panel |
 | **Temporal** | Prompt lines appear under `activity: speaking`; the textarea focus maps to `activity: listening`; submit maps to `processing` → `arriving` |
-| **Optical** | `fieldTier: ambient` (2D metaball only) + raised `veil` while typing — the field recedes so language reads first |
+| **Optical** | raised `veil` while typing — the field recedes so language reads first |
 
 No bordered “settings card” on the first intention ask. One serif question,
 one quiet underline input, one primary action. Panel chrome (`DUSK_PANEL`)
 remains for invite (multi-party branch), not for the solo arrival ask.
 
-**Performance tiering:** defer the heavy 3D hero scene until episode /
-commitment climax. Arrival stays on the lightweight 2D field; episode routes
-use `fieldTier: hero` (default) when the recommendation and hold deserve the
-full capsule shell.
+**Performance tiering:** every field surface crossfades — the lightweight
+2D metaball paints from the first frame while the 3D scene chunk streams in,
+then eases over (`MiraOrb fill` handles the handoff internally). Arrival
+warms the scene chunk eagerly (`preloadMiraScene` at module scope) so the
+capsule shell is ready before the intention is; episode routes reuse the
+already-warm scene. The camera answers the cursor with a subtle parallax,
+so the presence reads as aware of the person, not looping behind glass.
 
 Phases:
 
-1. **First paint** — the 2D metaball field is visible from the first frame
-   (`MiraOrb fill` + `fieldTier: ambient`). No 3D chunk load on `/`.
+1. **First paint** — the 2D metaball field is visible from the first
+   frame (`MiraOrb fill` underlay) while the 3D scene streams in behind it.
 2. **Aesthetic calibration** — four image reactions (`AestheticCalibration`)
    build a session vector over the ambient field. Swipe left/right on mobile;
    resonate/skip impulses ripple the orb and each reaction retunes its
@@ -74,9 +75,9 @@ Phases:
    this alive for you, {name}." The name is part of Mira's *letter*, not
    header chrome — it never appears in operator-facing surfaces or
    attestation records.
-   Committing an intention plays a kinetic word-gather beat, then the route
-   changes beneath Mira's persistent field; the episode page upgrades to
-   `fieldTier: hero`.
+   Committing an intention fires the orb's strongest impulse (`commit`)
+   during the arrival beat, then the route changes beneath Mira's persistent
+   field.
 
 ## Episode workbench
 

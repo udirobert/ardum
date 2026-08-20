@@ -18,7 +18,6 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import MiraOrb from "./MiraOrb";
-import MiraFreeRoamOrb from "./MiraFreeRoamOrb";
 import { MiraImpulseProvider } from "./MiraImpulse";
 import {
   STEADY_PRESENCE,
@@ -38,20 +37,6 @@ type FieldConfig = {
    * workbench) stays legible; 0 lets the orb carry the whole screen.
    */
   veil?: number;
-  /**
-   * `ambient` — 2D metaball field only (arrival voice lane).
-   * `hero` — crossfade to 3D scene (episode climax). Default: hero.
-   */
-  fieldTier?: "ambient" | "hero";
-  /**
-   * Free-roaming mode: orb moves independently across viewport instead of
-   * filling the screen. Content coexists via glass transparency.
-   */
-  freeRoam?: boolean;
-  /** Free-roam motion state fed from the active page. */
-  scrollProgress?: number;
-  scrollVelocity?: number;
-  activeTarget?: { x: number; y: number } | null;
 };
 
 // The dusk field the orb glows within — warm terracotta collapsing to near
@@ -86,26 +71,6 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<FieldConfig | null>(null);
   const active = fieldActive(pathname);
 
-  // Free-roam mode: orb moves independently across viewport, rendered at shell level
-  // so it persists across route changes without remounting.
-  if (config?.freeRoam && active) {
-    return (
-      <MiraImpulseProvider>
-        <MiraFieldContext.Provider value={setConfig}>
-          <MiraFreeRoamOrb
-            presence={config.presence ?? STEADY_PRESENCE}
-            activity={config.activity}
-            aestheticVector={config.aestheticVector}
-            scrollProgress={config.scrollProgress ?? 0}
-            scrollVelocity={config.scrollVelocity ?? 0}
-            activeTarget={config.activeTarget}
-          />
-          {children}
-        </MiraFieldContext.Provider>
-      </MiraImpulseProvider>
-    );
-  }
-
   return (
     <MiraImpulseProvider>
       <MiraFieldContext.Provider value={setConfig}>
@@ -120,7 +85,6 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
               <MiraOrb
                 fill
                 size={480}
-                fieldTier={config?.fieldTier ?? "hero"}
                 presence={config?.presence ?? STEADY_PRESENCE}
                 activity={config?.activity}
                 aestheticVector={config?.aestheticVector}
@@ -152,27 +116,12 @@ export function useMiraField({
   activity,
   aestheticVector,
   veil,
-  fieldTier,
-  freeRoam,
-  scrollProgress,
-  scrollVelocity,
-  activeTarget,
 }: FieldConfig) {
   const setConfig = useContext(MiraFieldContext);
 
   useEffect(() => {
-    setConfig({ 
-      presence, 
-      activity, 
-      aestheticVector, 
-      veil, 
-      fieldTier, 
-      freeRoam,
-      scrollProgress,
-      scrollVelocity,
-      activeTarget,
-    });
-  }, [setConfig, presence, activity, aestheticVector, veil, fieldTier, freeRoam, scrollProgress, scrollVelocity, activeTarget]);
+    setConfig({ presence, activity, aestheticVector, veil });
+  }, [setConfig, presence, activity, aestheticVector, veil]);
 
   useEffect(() => () => setConfig(null), [setConfig]);
 }

@@ -4,6 +4,8 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useMiraField } from "./MiraField";
+import { useMiraImpulse } from "./MiraImpulse";
+import { preloadMiraScene } from "./MiraOrb";
 import { type MiraActivity, type MiraPresence } from "@/agent/mira-presence";
 import {
   hasCompletedAestheticCalibration,
@@ -20,6 +22,10 @@ const AestheticCalibration = dynamic(
   () => import("@/aesthetics/AestheticCalibration"),
   { ssr: false },
 );
+
+// Warm the hero scene chunk as soon as the arrival bundle evaluates — the
+// shell field is this page's atmosphere.
+preloadMiraScene();
 
 type Phase = "loading" | "aesthetic" | "returning" | "intention";
 
@@ -72,6 +78,7 @@ export default function ArrivalScreen({
   const [consent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const { fire } = useMiraImpulse();
   const [error, setError] = useState<string | null>(null);
   const [inputFocused, setInputFocused] = useState(false);
   const [activePresence, setActivePresence] = useState<MiraPresence | null>(
@@ -160,6 +167,9 @@ export default function ArrivalScreen({
       if (!response.ok || !data.episode) {
         throw new Error(data.error ?? "Could not save this intention.");
       }
+      // The intention now exists — the orb answers with its strongest pulse
+      // while the arrival animation holds.
+      fire("commit");
       if (!reduced) {
         setCommitting(true);
         await new Promise((resolve) => setTimeout(resolve, 1150));
@@ -201,7 +211,6 @@ export default function ArrivalScreen({
     activity: fieldActivity,
     aestheticVector,
     veil: fieldVeil,
-    fieldTier: "ambient",
   });
 
   const greetingNode = greeting ? (
@@ -375,7 +384,10 @@ export default function ArrivalScreen({
                 <div className="flex flex-col items-center gap-4 t-stagger-line">
                   <button
                     type="button"
-                    onClick={() => router.push(`/episode/${episode.id}`)}
+                    onClick={() => {
+                      fire("lean");
+                      router.push(`/episode/${episode.id}`);
+                    }}
                     className="w-full max-w-sm px-7 py-3 rounded-sm"
                     style={{ background: "#f6efe3", color: "#1a120d" }}
                   >

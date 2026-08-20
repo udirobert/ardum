@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useOperatorAuth } from "@/booking/OperatorAuth";
 import OperatorWalletButton from "@/booking/OperatorWalletButton";
+import MiraOrb from "@/components/MiraOrb";
+import { useMiraImpulse } from "@/components/MiraImpulse";
+import { operatorPresence } from "@/agent/operator-presence";
+import { STEADY_PRESENCE } from "@/agent/mira-presence";
 import type { AttestationIndex } from "@/attestation/schema";
 
 type DemandCounts = {
@@ -22,39 +26,95 @@ type State =
   | { status: "loaded"; retreats: OperatorRetreat[] }
   | { status: "error"; message: string };
 
+// The page IS the notification (operator plan, Phase 3): poll, don't push.
+const POLL_MS = 30_000;
+
 export default function OperatorPage() {
   const { address } = useOperatorAuth();
+  const { fire } = useMiraImpulse();
   const [state, setState] = useState<State>(
     () => (address ? { status: "loading" } : { status: "idle" }),
+  );
+  // Demand signature per retreat for poll-diffing — only events the
+  // operator can already individually see (holds, bookings) pulse the
+  // orb; match-count changes stay silent so impulse timing can never
+  // leak an individual below the density gate.
+  const demandSignature = useRef<Map<string, DemandCounts>>(new Map());
+
+  const applyRetreats = useCallback(
+    (retreats: OperatorRetreat[]) => {
+      // Demand signature per retreat for poll-diffing — only events the
+      // operator can already individually see (holds, bookings) pulse the
+      // orb; match-count changes stay silent so impulse timing can never
+      // leak an individual below the density gate.
+      const prev = demandSignature.current;
+      const next = new Map(
+        retreats.map((r) => [r.rootHash, r.demand ?? {
+          totalMatches: 0,
+          activeHolds: 0,
+          bookings: 0,
+        }]),
+      );
+      for (const [hash, demand] of next) {
+        const before = prev.get(hash);
+        if (!before) continue;
+        if (demand.bookings > before.bookings) fire("commit");
+        else if (demand.activeHolds > before.activeHolds) fire("resonate");
+      }
+      demandSignature.current = next;
+      setState({ status: "loaded", retreats });
+    },
+    [fire],
   );
 
   useEffect(() => {
     if (!address) return;
     let cancelled = false;
-    fetch(`/api/operator/retreats?attestor=${encodeURIComponent(address)}`)
-      .then(async (res) => {
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error ?? "Could not load retreats.");
-        return json.retreats as OperatorRetreat[];
-      })
-      .then((data) => {
-        if (!cancelled) setState({ status: "loaded", retreats: data });
-      })
-      .catch((err) => {
-        if (!cancelled)
-          setState({
-            status: "error",
-            message: err instanceof Error ? err.message : "Could not load retreats.",
-          });
-      });
+    const load = () => {
+      fetch(`/api/operator/retreats?attestor=${encodeURIComponent(address)}`)
+        .then(async (res) => {
+          const json = await res.json();
+          if (!res.ok) throw new Error(json.error ?? "Could not load retreats.");
+          return json.retreats as OperatorRetreat[];
+        })
+        .then((retreats) => {
+          if (!cancelled) applyRetreats(retreats);
+        })
+        .catch((err) => {
+          if (!cancelled)
+            setState({
+              status: "error",
+              message:
+                err instanceof Error ? err.message : "Could not load retreats.",
+            });
+        });
+    };
+    load();
+    const interval = window.setInterval(load, POLL_MS);
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
     };
-  }, [address]);
+  }, [address, applyRetreats]);
+
+  // Aggregate demand across all retreats drives Mira's posture here.
+  const presence = useMemo(() => {
+    if (state.status !== "loaded") return STEADY_PRESENCE;
+    const totals = state.retreats.reduce(
+      (acc, r) => ({
+        totalMatches: acc.totalMatches + (r.demand?.totalMatches ?? 0),
+        activeHolds: acc.activeHolds + (r.demand?.activeHolds ?? 0),
+        bookings: acc.bookings + (r.demand?.bookings ?? 0),
+      }),
+      { totalMatches: 0, activeHolds: 0, bookings: 0 },
+    );
+    return operatorPresence(totals);
+  }, [state]);
 
   if (!address) {
     return (
       <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 pb-24">
+        <MiraOrb size={48} presence={STEADY_PRESENCE} className="mb-6" />
         <p className="tag mb-4">operator</p>
         <h1 className="font-serif text-4xl sm:text-5xl tracking-tight mb-6">
           Your retreats.
@@ -71,9 +131,12 @@ export default function OperatorPage() {
   return (
     <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
       <div className="flex items-baseline justify-between mb-8">
-        <div>
-          <p className="tag mb-2">operator</p>
-          <h1 className="font-serif text-4xl tracking-tight">Your retreats</h1>
+        <div className="flex items-center gap-5">
+          <MiraOrb size={48} presence={presence} />
+          <div>
+            <p className="tag mb-2">operator</p>
+            <h1 className="font-serif text-4xl tracking-tight">Your retreats</h1>
+          </div>
         </div>
         <Link
           href="/attest"
@@ -97,6 +160,7 @@ export default function OperatorPage() {
 
       {state.status === "loaded" && state.retreats.length === 0 && (
         <div className="border border-[color:var(--hairline)] rounded-sm p-8">
+          <MiraOrb size={48} presence={STEADY_PRESENCE} className="mb-4" />
           <p className="text-lg leading-relaxed mb-2">
             You haven&apos;t listed any retreats yet.
           </p>

@@ -62,8 +62,6 @@ type MiraOrbProps = {
    * orbs are inline signatures.
    */
   fill?: boolean;
-  /** When `fill`, `ambient` keeps the lightweight 2D field (arrival voice lane). */
-  fieldTier?: "ambient" | "hero";
 };
 
 // Ardum base palette (sRGB 0–1).
@@ -271,7 +269,6 @@ export default function MiraOrb({
   className,
   aestheticVector,
   fill = false,
-  fieldTier = "hero",
 }: MiraOrbProps) {
   const orbRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -287,14 +284,13 @@ export default function MiraOrb({
   const tier = fill ? "hero" : renderTier(size);
   const effectivePresence = mergePresence(presence, activity);
   const ring = ringStyle(effectivePresence.posture);
-  const ambientFill = fill && fieldTier === "ambient";
-  const useScene = (fill && !ambientFill) || size >= SCENE_MIN_PX;
-  // Fill tier: the 2D field paints at first frame while the scene chunk
-  // loads, then crossfades to the instanced-capsule scene. Ambient stays 2D.
+  const useScene = fill || size >= SCENE_MIN_PX;
+  // Fill mode: the 2D field paints at first frame while the scene chunk
+  // loads, then crossfades to the instanced-capsule scene.
   const [sceneReady, setSceneReady] = useState(false);
   const [underlayGone, setUnderlayGone] = useState(false);
   const handleSceneReady = useCallback(() => setSceneReady(true), []);
-  const drawsUnderlay = fill && (ambientFill || !underlayGone);
+  const drawsUnderlay = fill && !underlayGone;
   const [storedVector] = useState(() =>
     typeof window !== "undefined" ? readAestheticVector() : null,
   );
@@ -456,7 +452,9 @@ export default function MiraOrb({
 
     const draw = (now: number) => {
       const target = targetMorph();
-      const M = 0.04;
+      // Posture shifts must read as a response to the person's decision:
+      // 0.12 reaches ~95% in ~0.4s instead of drifting for over a second.
+      const M = 0.12;
       cur.speed = lerp(cur.speed, target.speed, M);
       cur.turbulence = lerp(cur.turbulence, target.turbulence, M);
       cur.brightness = lerp(cur.brightness, target.brightness, M);
@@ -546,34 +544,32 @@ export default function MiraOrb({
             aria-hidden
             className="absolute inset-0 h-full w-full"
             style={{
-              opacity: ambientFill || !sceneReady ? 1 : 0,
+              opacity: sceneReady ? 0 : 1,
               // Ease-out crossfade: the scene fades in gently rather than
               // snapping over the 2D field, so the handoff never spikes
               // in luminance.
-              transition: ambientFill ? undefined : `opacity ${SCENE_FADE_MS}ms cubic-bezier(0.16,1,0.3,1)`,
+              transition: `opacity ${SCENE_FADE_MS}ms cubic-bezier(0.16,1,0.3,1)`,
             }}
           />
         )}
-        {!ambientFill && (
-          <div
-            aria-hidden
-            className="absolute inset-0"
-            style={{
-              opacity: sceneReady ? 1 : 0,
-              transition: `opacity ${SCENE_FADE_MS}ms cubic-bezier(0.16,1,0.3,1)`,
-            }}
-          >
-            <MiraScene
-              fill
-              size={size}
-              morph={morph}
-              palette={palette}
-              reactionPulse={reactionPulse}
-              impulse={impulse}
-              onReady={handleSceneReady}
-            />
-          </div>
-        )}
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            opacity: sceneReady ? 1 : 0,
+            transition: `opacity ${SCENE_FADE_MS}ms cubic-bezier(0.16,1,0.3,1)`,
+          }}
+        >
+          <MiraScene
+            fill
+            size={size}
+            morph={morph}
+            palette={palette}
+            reactionPulse={reactionPulse}
+            impulse={impulse}
+            onReady={handleSceneReady}
+          />
+        </div>
         <span aria-live="polite" aria-atomic="true" className="sr-only">
           {presenceAnnouncement(effectivePresence)}
         </span>
