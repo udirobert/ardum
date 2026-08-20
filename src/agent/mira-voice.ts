@@ -277,6 +277,27 @@ export function preparationPlan(
   };
 }
 
+// ── Anticipation voice ─────────────────────────────────────────────
+// Narrates the wait after booking (docs/plans/anticipation-layer.md).
+// Anticipation research (Nawijn 2010; Kumar/Gilovich 2014) finds the
+// booking-to-departure window carries much of the joy of an experience;
+// Mira paces it with one line per arc phase — calm, never pushing.
+// `days` is whole days since booking against the 5-day preparation arc.
+
+export function anticipationLine(days: number): string {
+  if (days <= 0)
+    return "You're booked. Let it sink in — the retreat starts working on you now.";
+  if (days === 1)
+    return "One day in. Nothing to do yet — just carry the place with you.";
+  if (days === 2)
+    return "Two days in. Today's practice is small on purpose.";
+  if (days === 3)
+    return "Halfway. This is usually when the looking-forward peaks. Let it.";
+  if (days === 4)
+    return "Nearly there. Finish the plan gently — arrival is close.";
+  return "The plan is complete. Travel lightly.";
+}
+
 // ── Aesthetic calibration voice ─────────────────────────────────────
 // Per-swipe voice lines that make the calibration feel like a
 // conversation with Mira, not a calibration widget. The orb is the

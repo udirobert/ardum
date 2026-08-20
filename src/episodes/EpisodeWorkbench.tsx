@@ -25,7 +25,9 @@ import type {
 } from "./model";
 import type { EpisodeDetailPayload } from "./detail-payload";
 import { createAbortableRunner } from "@/lib/abortableFetch";
-import { matchLetter, bookingDialogue, preparationPlan, reasoningBeat } from "@/agent/mira-voice";
+import { anticipationLine, matchLetter, bookingDialogue, preparationPlan, reasoningBeat } from "@/agent/mira-voice";
+import { daysSinceBooking, preparationPresence } from "@/agent/preparation-presence";
+import type { AestheticVector } from "@/aesthetics/image-pool";
 import { extractConstraints, hasConstraints } from "@/agent/conversation-extractor";
 import type { MemoryContext } from "@/memory/semantic-memory";
 import type { MiraPresence } from "@/agent/mira-presence";
@@ -35,6 +37,11 @@ type Props = { episodeId: string };
 
 const CommitmentPanel = dynamic(
   () => import("@/booking/CommitmentPanel"),
+  { ssr: false },
+);
+
+const RetreatVisionFrame = dynamic(
+  () => import("@/aesthetics/RetreatVisionFrame"),
   { ssr: false },
 );
 
@@ -579,7 +586,37 @@ useEffect(() => {
         className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 sm:p-8 surface-card"
         aria-live="polite"
       >
-        {nextDecision.kind === "preparation" && recommendation ? (
+        {nextDecision.kind === "completed" ? (
+          <div className="space-y-6" data-testid="completed-landing">
+            <div className="flex items-start gap-4">
+              <MiraOrb
+                size={48}
+                presence={{ posture: "steady", valence: 0 }}
+                className="flex-shrink-0 mt-1"
+              />
+              <div className="space-y-3 flex-1">
+                <p className="text-lg leading-relaxed mira-line mira-line-1">
+                  You&apos;re back.
+                </p>
+                <p className="text-lg leading-relaxed mira-line mira-line-2">
+                  {recommendation
+                    ? `${recommendation.retreatTitle} is behind you now. What stays with you is yours.`
+                    : "This journey is complete."}
+                </p>
+                <p className="text-sm text-[color:var(--muted)] leading-relaxed max-w-prose">
+                  When the next space calls, I&apos;ll be here. The
+                  looking-forward is where most of it lives.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/"
+              className="inline-block text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
+            >
+              Begin a new intention →
+            </Link>
+          </div>
+        ) : nextDecision.kind === "preparation" && recommendation ? (
           <BookedLanding
             recommendation={recommendation}
             depositUsd={recommendation.priceUsd}
@@ -592,6 +629,9 @@ useEffect(() => {
             miraPresence={miraPresence}
             commitment={episode.commitment}
             contribution={episode.widerApertureContribution}
+            aestheticVector={aestheticVector}
+            intentionStatement={intention.statement}
+            onComplete={() => act({ type: "complete" })}
             isAuthenticated={payload?.isAuthenticated ?? false}
             busy={busy}
             onGrantContribution={() =>
@@ -1046,10 +1086,13 @@ function BookedLanding({
   miraPresence,
   commitment,
   contribution,
+  aestheticVector,
+  intentionStatement,
   isAuthenticated,
   busy,
   onGrantContribution,
   onRevokeContribution,
+  onComplete,
 }: {
   recommendation: MatchResult;
   depositUsd: number;
@@ -1058,53 +1101,108 @@ function BookedLanding({
   miraPresence: EpisodeDetailPayload["miraPresence"];
   commitment: Episode["commitment"];
   contribution: Episode["widerApertureContribution"];
+  aestheticVector: AestheticVector | null;
+  intentionStatement?: string;
   isAuthenticated: boolean;
   busy: boolean;
   onGrantContribution: () => void;
   onRevokeContribution: () => void;
+  onComplete: () => void;
 }) {
   const dialogue = bookingDialogue(depositUsd, recommendation.retreatTitle);
   const plan = preparationPlan(recommendation, signals, memory);
+  // Anticipation layer (docs/plans/anticipation-layer.md): the wait is
+  // paced, not pushed. Days since booking drive the orb posture, the
+  // voice line, and which plan day is current — one beat per return
+  // visit, savoring-style. The page is the notification.
+  const bookedAt = commitment?.bookedAt;
+  const waitPresence = bookedAt ? preparationPresence(bookedAt) : miraPresence;
+  const days = bookedAt ? daysSinceBooking(bookedAt) : 0;
+  // Day numbers are 1-based; days-since-booking is 0-based. On booking
+  // day the practitioner is on plan day 1.
+  const currentDay = Math.min(days + 1, plan.days.length);
+  const arcComplete = days >= plan.days.length;
 
   return (
     <div className="space-y-8" data-testid="booked-landing">
       <div className="flex items-start gap-4">
-        <MiraOrb size={48} presence={miraPresence} className="flex-shrink-0 mt-1" />
+        <MiraOrb size={48} presence={waitPresence ?? miraPresence} className="flex-shrink-0 mt-1" />
         <div className="space-y-3 flex-1">
-          {dialogue.done.map((line, i) => (
-            <p
-              key={i}
-              className={`text-lg leading-relaxed mira-line mira-line-${Math.min(i + 1, 5)}`}
-            >
-              {line}
-            </p>
-          ))}
+          {days <= 0
+            ? dialogue.done.map((line, i) => (
+                <p
+                  key={i}
+                  className={`text-lg leading-relaxed mira-line mira-line-${Math.min(i + 1, 5)}`}
+                >
+                  {line}
+                </p>
+              ))
+            : (
+              <p className="text-lg leading-relaxed mira-line mira-line-1">
+                {anticipationLine(days)}
+              </p>
+            )}
         </div>
       </div>
+
+      {/* Prospection feed: the imagery of the place they're going to,
+          in the palette they chose. Quiet — no CTA, just held. */}
+      <RetreatVisionFrame
+        vector={aestheticVector}
+        intention={intentionStatement}
+      />
 
       <div>
         <p className="font-serif text-2xl tracking-tight mb-1">{plan.title}</p>
         <p className="text-sm text-[color:var(--muted)] mb-6">
-          Five minutes a day. Start tonight.
+          {arcComplete
+            ? "The plan is complete. Travel lightly."
+            : `Five minutes a day. Today is day ${currentDay}.`}
         </p>
         <ol className="space-y-5">
-          {plan.days.map((day) => (
-            <li key={day.day} className="flex gap-4">
-              <span className="font-serif text-3xl text-[color:var(--accent-soft)] leading-none w-10 flex-shrink-0">
-                {day.day}
-              </span>
-              <div className="flex-1">
-                <div className="flex items-baseline justify-between gap-3 mb-1">
-                  <p className="font-serif text-lg tracking-tight">{day.title}</p>
-                  <span className="tag opacity-60 flex-shrink-0">{day.duration}</span>
+          {plan.days.map((day) => {
+            // Progressive reveal: past days collapse to their titles,
+            // the current day expands, future days stay closed. One beat
+            // per return visit — the plan unfolds with the wait.
+            if (day.day > currentDay) return null;
+            const isCurrent = day.day === currentDay && !arcComplete;
+            if (!isCurrent) {
+              return (
+                <li key={day.day} className="flex gap-4 opacity-60">
+                  <span className="font-serif text-3xl text-[color:var(--accent-soft)] leading-none w-10 flex-shrink-0">
+                    {day.day}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-serif text-lg tracking-tight truncate">
+                      {day.title}
+                    </p>
+                  </div>
+                </li>
+              );
+            }
+            return (
+              <li key={day.day} className="flex gap-4">
+                <span className="font-serif text-3xl text-[color:var(--accent-soft)] leading-none w-10 flex-shrink-0">
+                  {day.day}
+                </span>
+                <div className="flex-1">
+                  <div className="flex items-baseline justify-between gap-3 mb-1">
+                    <p className="font-serif text-lg tracking-tight">{day.title}</p>
+                    <span className="tag opacity-60 flex-shrink-0">{day.duration}</span>
+                  </div>
+                  <p className="text-sm text-[color:var(--muted)] leading-relaxed">
+                    {day.description}
+                  </p>
                 </div>
-                <p className="text-sm text-[color:var(--muted)] leading-relaxed">
-                  {day.description}
-                </p>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ol>
+        {!arcComplete && (
+          <p className="text-xs text-[color:var(--muted)] mt-5">
+            The rest arrives as its day comes. Mira will bring it when it&apos;s time.
+          </p>
+        )}
       </div>
 
       <div className="border-l-2 border-[color:var(--accent-soft)] pl-5">
@@ -1118,6 +1216,22 @@ function BookedLanding({
           </p>
         ))}
       </div>
+
+      {/* Peak-end close: a quiet affordance to mark the journey
+          complete once they're back. Never urgent, never suggested
+          before the arc has run. */}
+      {arcComplete && (
+        <div className="border-t border-[color:var(--hairline)] pt-5">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onComplete}
+            className="text-sm text-[color:var(--muted)] hover:text-foreground disabled:opacity-40 transition-colors"
+          >
+            I&apos;m back — close this journey
+          </button>
+        </div>
+      )}
 
       {commitment && (
         <details className="opacity-70">

@@ -160,7 +160,8 @@ export type NextDecision = {
     | "review-hold"
     | "await-responses"
     | "ready-to-book"
-    | "preparation";
+    | "preparation"
+    | "completed";
   prompt: string;
   primaryLabel: string;
 };
@@ -267,6 +268,15 @@ export function nextDecision(episode: Episode): NextDecision {
       kind: "review-recommendation",
       prompt: "I have enough to choose one next step.",
       primaryLabel: "Show me",
+    };
+  }
+  // Anticipation layer §4 (docs/plans/anticipation-layer.md): a completed
+  // journey gets a marked close, not a silent fall-through to holds.
+  if (episode.status === "completed") {
+    return {
+      kind: "completed",
+      prompt: "You're back. This journey is complete.",
+      primaryLabel: "Begin a new intention",
     };
   }
   if (episode.status === "booked" || episode.commitment?.status === "booked") {

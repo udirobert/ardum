@@ -222,9 +222,36 @@ Mira stays fixed; the decision surface slides.
 
 ## Mira impulse
 
-`MiraImpulseProvider` wraps arrival and episode workbench. Kinds:
-`lean`, `commit`, `reject`, `resonate`, `skip`. Decaying 0–1 scalar drives
-shader uniforms on hero `MiraScene`.
+`MiraImpulseProvider` lives at the shell level (`MiraFieldProvider` in
+`app/layout.tsx`), so every journey surface — arrival, workbench, invite,
+operator — reaches the orb. Kinds: `lean`, `commit`, `reject`, `resonate`,
+`skip`. Decaying 0–1 scalar drives shader uniforms on hero `MiraScene`.
+
+## Anticipation layer (booked → departure)
+
+The booking-to-departure window is where travel-happiness research finds
+most of the joy (Nawijn 2010; Kumar/Gilovich 2014) — see
+[plans/anticipation-layer.md](../plans/anticipation-layer.md). The booked
+landing paces the wait; it never pushes:
+
+- **Wait presence** — `preparationPresence` (`agent/preparation-presence.ts`)
+  projects days-since-booking into the orb's posture across the 5-day arc:
+  `arriving` (day 0) → `holding` → `gathering` (the anticipation peak) →
+  `resolving`. Same ring grammar as matching.
+- **Savoring beats** — the preparation plan reveals one day at a time,
+  keyed to days since booking. Past days collapse to titles; the current
+  day expands; future days stay closed ("Mira will bring it when it's
+  time"). One beat per return visit; the page is the notification.
+- **Prospection feed** — `RetreatVisionFrame` holds the curated vision
+  frame (aesthetic-vector-matched, cached) on the booked landing: the
+  imagery of the place, in the palette they chose. No CTA — just held.
+- **Peak-end close** — once the arc completes, a quiet "I'm back — close
+  this journey" affordance fires `complete`; the completed landing marks
+  the return and bridges to a new intention (the next anticipation
+  cycle). Never suggested before the arc has run.
+
+No push notifications, no streaks, no manufactured urgency — the hold
+system provides real deadlines when they exist.
 
 ## Transitions
 
