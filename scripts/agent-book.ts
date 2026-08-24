@@ -38,6 +38,7 @@ import {
 import { readFileSync } from "fs";
 import { randomBytes as nodeRandomBytes } from "node:crypto";
 import { join } from "path";
+import { locationToIata } from "../src/atlas/iata-mapping";
 
 // ── Load .env.local ──────────────────────────────────────────────────────
 const envLocal = readFileSync(join(process.cwd(), ".env.local"), "utf-8");
@@ -220,9 +221,71 @@ async function main() {
   const retreatRootHash = topMatch.retreatRootHash;
   const operatorAddress = topMatch.operatorAddress;
 
-  // ── 2. Execute the booking — on-chain deposit ─────────────────────────
+  // ── 2. Agent searches flights to the retreat destination (Atlas API) ─
   console.log();
-  console.log("── 2. Agent executes booking (on-chain deposit) ─────────────");
+  console.log("── 2. Agent searches flights via Atlas API ──────────────────");
+  console.log("    The agent discovered a retreat; now it finds flights");
+  console.log("    to get the practitioner there.");
+  console.log();
+
+  // Resolve the retreat destination to a nearby IATA airport code via the
+  // shared mapping (src/atlas/iata-mapping). Unknown locations skip the
+  // flight search gracefully — the agent still completes the booking.
+  const retreatLocation = (topMatch.location ?? "").toString();
+  const destIata = retreatLocation ? locationToIata(retreatLocation) : null;
+  let flightInfo: string | null = null;
+
+  if (!destIata) {
+    console.log(`  ⚠ No airport mapping for "${retreatLocation || "unknown"}" — skipping flight search.`);
+  } else {
+    // Depart ~30 days from now (configurable). The demo intention says
+    // "before October," so pick a date in that window.
+    const departDate = new Date(Date.now() + 30 * 86400_000)
+      .toISOString()
+      .slice(0, 10);
+    const returnDate = new Date(Date.now() + 37 * 86400_000)
+      .toISOString()
+      .slice(0, 10);
+
+    console.log(`    Origin:      KUL (assumed — agent's location)`);
+    console.log(`    Destination: ${destIata} (from retreat location: ${retreatLocation || destIata})`);
+    console.log(`    Depart:      ${departDate}`);
+    console.log(`    Return:      ${returnDate}`);
+    console.log();
+
+    const flightsRes = await api("POST", "/api/agent/flights", {
+      origin: "KUL",
+      destination: destIata,
+      departDate,
+      adults: 1,
+      returnDate,
+      currency: "USD",
+    });
+
+    if (flightsRes.status === 200 && flightsRes.body?.offers?.length > 0) {
+      const topFlight = flightsRes.body.offers[0];
+      console.log(`  ✓ Found ${flightsRes.body.offers.length} flight offer(s)`);
+      console.log(`    Best:   ${topFlight.airline} ${topFlight.flight_number}`);
+      console.log(`    Route:  ${topFlight.origin} → ${topFlight.destination}`);
+      console.log(`    Depart: ${topFlight.depart_time}`);
+      console.log(`    Price:  ${topFlight.currency} ${topFlight.total_price}`);
+      console.log(`    Stops:  ${topFlight.stops}`);
+      flightInfo = `${topFlight.airline} ${topFlight.flight_number} (${topFlight.origin}→${topFlight.destination}, ${topFlight.total_price} ${topFlight.currency})`;
+    } else if (flightsRes.status === 401) {
+      console.log("  ⚠ Atlas authorization required — skipping flight search.");
+      console.log("    The agent will proceed with the deposit without flights.");
+      console.log("    To enable: set ATLAS_CLIENT_ID/ATLAS_CLIENT_SECRET (or ATLAS_ACCESS_KEY/ATLAS_SECRET_KEY).");
+    } else {
+      console.log(`  ⚠ Flight search returned ${flightsRes.status} — proceeding.`);
+      if (flightsRes.body?.error) {
+        console.log(`    ${flightsRes.body.error}`);
+      }
+    }
+  }
+
+  // ── 3. Execute the booking — on-chain deposit ─────────────────────────
+  console.log();
+  console.log("── 3. Agent executes booking (on-chain deposit) ─────────────");
   console.log("    This is the autonomous commitment — the agent executes");
   console.log("    an on-chain USDC deposit to escrow without human signing.");
   console.log();
@@ -324,9 +387,9 @@ async function main() {
     depositTxHash = tx.hash;
   }
 
-  // ── 3. Agent signs the booking authorization and submits to /api/agent/book
+  // ── 4. Agent signs the booking authorization and submits to /api/agent/book
   console.log();
-  console.log("── 3. Agent signs booking authorization ─────────────────────");
+  console.log("── 4. Agent signs booking authorization ─────────────────────");
   const bookNonce = makeNonce();
   const bookTimestamp = nowSeconds();
   const bookAuthMessage = canonicalAgentBookingMessage({
@@ -352,7 +415,7 @@ async function main() {
   console.log(`    ✓ Signature verified: ${recovered.slice(0, 10)}…${recovered.slice(-8)}`);
 
   console.log();
-  console.log("── 4. Agent submits booking to /api/agent/book ──────────────");
+  console.log("── 5. Agent submits booking to /api/agent/book ──────────────");
   const bookRes = await api("POST", "/api/agent/book", {
     episodeId,
     retreatRootHash,
@@ -380,9 +443,12 @@ async function main() {
   console.log();
   console.log("  What happened:");
   console.log("    1. Agent signed + called /api/agent/match → episode + retreat match");
-  console.log("    2. Agent executed an on-chain USDC deposit to escrow");
-  console.log("    3. Agent signed the booking authorization (nonce + timestamp)");
-  console.log("    4. Server verified the deposit on-chain + recorded the booking");
+  console.log(flightInfo
+    ? `    2. Agent searched Atlas flights → ${flightInfo}`
+    : "    2. Flight search skipped (no airport mapping or no auth)");
+  console.log("    3. Agent executed an on-chain USDC deposit to escrow");
+  console.log("    4. Agent signed the booking authorization (nonce + timestamp)");
+  console.log("    5. Server verified the deposit on-chain + recorded the booking");
   console.log();
   console.log("  The user never touched a wallet, saw a chain name, or paid gas.");
   console.log("  The agent executed the full commitment autonomously.");

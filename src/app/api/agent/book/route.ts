@@ -111,7 +111,7 @@ export async function POST(req: Request) {
   if (!tsCheck.ok) {
     return NextResponse.json({ error: tsCheck.reason }, { status: 400 });
   }
-  const nonceCheck = consumeNonce(agentAddress, nonce);
+  const nonceCheck = await consumeNonceAsync(agentAddress, nonce);
   if (!nonceCheck.ok) {
     return NextResponse.json({ error: nonceCheck.reason }, { status: 400 });
   }

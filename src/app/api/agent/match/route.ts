@@ -6,7 +6,7 @@ import {
   canonicalAgentMatchMessage,
   type AgentMatchAuthorization,
 } from "@/booking/canonical";
-import { verifyTimestamp, consumeNonce } from "@/booking/agent-replay";
+import { verifyTimestamp, consumeNonceAsync } from "@/booking/agent-replay";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
   if (!tsCheck.ok) {
     return NextResponse.json({ error: tsCheck.reason }, { status: 400 });
   }
-  const nonceCheck = consumeNonce(agentAddress, nonce);
+  const nonceCheck = await consumeNonceAsync(agentAddress, nonce);
   if (!nonceCheck.ok) {
     return NextResponse.json({ error: nonceCheck.reason }, { status: 400 });
   }
@@ -200,6 +200,7 @@ export async function POST(req: Request) {
         retreatRootHash: match.retreatRootHash,
         operatorAddress: match.attestor,
         priceUsd: match.priceUsd,
+        location: match.retreatLocation,
         score: match.score,
         headline: match.headline,
       },
