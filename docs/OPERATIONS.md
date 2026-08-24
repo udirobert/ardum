@@ -162,7 +162,8 @@ What it does, in order:
    retreatRootHash + operatorAddress + depositTxHash + depositUsd +
    agentAddress + nonce + timestamp) and POSTs it to `/api/agent/book`.
    The server verifies the signature, checks `episode.actorId ===
-   agentAddress`, fetches the deposit tx from the settle RPC, and only
+   agentAddress`, fetches the deposit tx from the settle RPC (failing over
+   to `SETTLE_RPC_FALLBACK` if the primary is down), and only
    then writes the booking attestation to 0G and marks the episode booked.
 
 ### Prerequisites
@@ -172,6 +173,9 @@ What it does, in order:
 - `AGENT_BOOKER_PRIVATE_KEY` — funded EOA private key
 - `NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS` — deployed escrow address
 - `NEXT_PUBLIC_USDC_ADDRESS` — USDC token address on the target chain
+- `NEXT_PUBLIC_SETTLE_RPC_FALLBACK` — optional secondary settle RPC for
+  deposit-verification failover (defaults to `arbitrum-one.publicnode.com`
+  on mainnet / `arbitrum-sepolia.publicnode.com` on testnet)
 - `NEXT_PUBLIC_PARTICLE_*` — Particle Auth config (for UA path on mainnet)
 
 ### What "good" looks like

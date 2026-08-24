@@ -286,9 +286,12 @@ a cluttered practitioner surface undermines the "calm guide" pitch.
    lands (travel window), fire `recommend` automatically. The thinking
    beat plays as the transition.
 
-3. **Shorten the thinking beat.** Change default from 3400ms to 1500ms.
-   The beat's value is the transition gesture, not the duration. One
-   line ("Let me sit with what you've told me") + card.
+3. **Shorten the thinking beat** — *superseded by the two-phase beat.* The
+   beat is now a two-phase, in-flow expandable trace: a working phase (orb +
+   progressive reasoning lines, card hidden) that settles to a collapsible
+   "thought for Ns" trace above the card. The old "one line + card" toggle
+   is gone; tune the working-phase duration rather than a blanket 3400→1500ms
+   swap. (`src/episodes/workbench/ThinkingBeat.tsx`.)
 
 4. **One primary action on the recommendation.** Hold is the only
    primary CTA. "Watch this for me" moves into disclosure. "Not this

@@ -139,6 +139,11 @@ writes without re-signing each one.
 - The on-chain deposit is verified server-side before any booking
   attestation is written. A bare `depositTxHash` string can no longer mint
   a "deposit-confirmed" attestation.
+- Deposit verification fails over to a secondary settle RPC
+  (`SETTLE_RPC_FALLBACK`) if the primary is down or rate-limited, so a
+  single RPC outage does not block agent bookings. A booking is still
+  rejected when both endpoints are unavailable — verification never trusts
+  a deposit it could not confirm.
 - Replay protection (nonce + timestamp) means a captured agent signature
   is only valid within a 5-minute window and only once per agent.
 - The operator flow is now usable by non-crypto users. The crypto

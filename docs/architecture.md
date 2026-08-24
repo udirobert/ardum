@@ -173,6 +173,14 @@ is not directly inspectable via simple RPC. The response surfaces
 `depositVerification: "full" | "sender"` so consumers know which check
 passed.
 
+The deposit fetch is resilient to RPC outage: the server tries the
+primary settle RPC, then `SETTLE_RPC_FALLBACK` (env-overridable via
+`NEXT_PUBLIC_SETTLE_RPC_FALLBACK`, defaulting to `arbitrum-one.publicnode.com`
+on mainnet / `arbitrum-sepolia.publicnode.com` on testnet) for provider
+creation, transaction fetch, and receipt fetch. A booking is recorded only
+when some endpoint confirms the deposit — a total RPC outage rejects rather
+than trusts.
+
 ## Persistence
 
 The local repository and Supabase repository implement the same contract.
