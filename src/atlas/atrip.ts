@@ -50,10 +50,12 @@ export type AtripSegment = {
   flightNumber: string;
   depAirport: string;
   arrAirport: string;
-  depTime: string;
-  arrTime: string;
+  depTime: string; // "YYYYMMDDHHMM"
+  arrTime: string; // "YYYYMMDDHHMM"
   stopCities: string | null;
-  cabin: string;
+  cabin: string; // letter code (e.g. "H")
+  fareFamily?: string; // "Economy", "Premium Economy", ...
+  duration?: number; // minutes
   aircraftCode?: string;
 };
 
@@ -111,6 +113,13 @@ function atlasClientSecret(): string | undefined {
 
 function atripBase(): string {
   return process.env.ATLAS_API_BASE ?? SANDBOX_BASE;
+}
+
+/** "202609231900" → "2026-09-23 19:00" (passes through if already formatted). */
+function formatAtripTime(raw: string): string {
+  return /^\d{12}$/.test(raw)
+    ? `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)} ${raw.slice(8, 10)}:${raw.slice(10, 12)}`
+    : raw;
 }
 
 /**
@@ -198,6 +207,17 @@ export async function searchFlightsViaAtrip(params: {
     const lastSeg = r.fromSegments?.[r.fromSegments.length - 1];
     const totalPrice = r.adultPrice + r.adultTax + (r.transactionFee ?? 0);
     const stops = Math.max(0, (r.fromSegments?.length ?? 1) - 1);
+    const durationMinutes =
+      seg && lastSeg
+        ? Math.max(
+            0,
+            Math.round(
+              (Date.parse(formatAtripTime(lastSeg.arrTime)) -
+                Date.parse(formatAtripTime(seg.depTime))) /
+                60_000,
+            ),
+          )
+        : 0;
     return {
       offer_id: r.routingIdentifier,
       search_id: searchId,
@@ -205,23 +225,23 @@ export async function searchFlightsViaAtrip(params: {
       flight_number: seg?.flightNumber ?? "",
       origin: seg?.depAirport ?? params.origin,
       destination: lastSeg?.arrAirport ?? params.destination,
-      depart_time: seg?.depTime ?? "",
-      arrive_time: lastSeg?.arrTime ?? "",
-      duration_minutes: 0, // ATRIP doesn't return duration directly; compute from times if needed
+      depart_time: seg ? formatAtripTime(seg.depTime) : "",
+      arrive_time: lastSeg ? formatAtripTime(lastSeg.arrTime) : "",
+      duration_minutes: durationMinutes,
       stops,
       total_price: Math.round(totalPrice * 100) / 100,
       currency: r.currency,
       price_status: "current",
       bookable: true,
-      cabin: seg?.cabin ?? "Economy",
+      cabin: seg?.fareFamily ?? seg?.cabin ?? "Economy",
       segments: r.fromSegments?.map((s, si) => ({
         segment_id: `${r.routingIdentifier}-seg${si}`,
         airline: s.carrier,
         flight_number: s.flightNumber,
         origin: s.depAirport,
         destination: s.arrAirport,
-        depart_time: s.depTime,
-        arrive_time: s.arrTime,
+        depart_time: formatAtripTime(s.depTime),
+        arrive_time: formatAtripTime(s.arrTime),
         aircraft: s.aircraftCode,
       })),
     };
