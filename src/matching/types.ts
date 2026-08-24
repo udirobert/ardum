@@ -43,6 +43,11 @@ export type MatchResult = {
   attestor?: string;
   // When the first attestation was written.
   attestedAt?: string;
+  // Presentation-only: hero image URL for the retreat card. Not part of
+  // the attestation schema — joined from the image lookup at scoring time.
+  heroImage?: string;
+  // Presentation-only: color palette for ambient theming.
+  palette?: { primary: string; secondary: string; accent: string };
 };
 
 export type MatchRun = {

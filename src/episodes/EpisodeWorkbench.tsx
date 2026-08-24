@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import dynamic from "next/dynamic";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import MiraOrb, { preloadMiraScene } from "@/components/MiraOrb";
 import { useMiraField } from "@/components/MiraField";
 import { useMiraImpulse, type ImpulseKind } from "@/components/MiraImpulse";
@@ -12,7 +10,6 @@ import ClarifyPanel from "@/episodes/ClarifyPanel";
 import { readAestheticVector } from "@/aesthetics/aesthetic-store";
 import type { MatchResult } from "@/matching/types";
 import type { BudgetBand, EnergyState } from "@/calibration/schema";
-import { BUDGET_BANDS, ENERGY_STATES } from "@/calibration/schema";
 import type { CounterfactualResult } from "@/episodes/counterfactual";
 import type {
   PerspectiveName,
@@ -25,36 +22,26 @@ import type {
 } from "./model";
 import type { EpisodeDetailPayload } from "./detail-payload";
 import { createAbortableRunner } from "@/lib/abortableFetch";
-import { anticipationLine, matchLetter, bookingDialogue, preparationPlan, reasoningBeat } from "@/agent/mira-voice";
-import { daysSinceBooking, preparationPresence } from "@/agent/preparation-presence";
+import { matchLetter } from "@/agent/mira-voice";
 import type { AestheticVector } from "@/aesthetics/image-pool";
 import { extractConstraints, hasConstraints } from "@/agent/conversation-extractor";
-import type { MemoryContext } from "@/memory/semantic-memory";
 import type { MiraPresence } from "@/agent/mira-presence";
-import { DUSK_HEADING } from "@/aesthetics/dusk-theme";
-
-type Props = { episodeId: string };
-
-const CommitmentPanel = dynamic(
-  () => import("@/booking/CommitmentPanel"),
-  { ssr: false },
-);
-
-const RetreatVisionFrame = dynamic(
-  () => import("@/aesthetics/RetreatVisionFrame"),
-  { ssr: false },
-);
+import Link from "next/link";
+import {
+  ThinkingBeat,
+  BookedLanding,
+  RecommendationSurface,
+  PrimaryButton,
+  type WorkbenchPayload,
+  type WorkbenchActions,
+  type DerivedViews,
+} from "./workbench";
 
 // Warm the hero scene chunk as soon as the episode bundle evaluates — the
 // shell field is this page's atmosphere.
 preloadMiraScene();
 
-type EpisodePayload = EpisodeDetailPayload & {
-  shareToken?: string;
-  error?: string;
-};
-
-type PerspectivesPayload = Record<PerspectiveName, MatchResult | null>;
+type Props = { episodeId: string };
 
 type CommandInput = EpisodeCommand extends infer Command
   ? Command extends EpisodeCommand
@@ -64,8 +51,6 @@ type CommandInput = EpisodeCommand extends infer Command
 
 // Every decision that routes through act() pulses the orb. The mapping is
 // semantic, not mechanical: strength tracks how much of the person this is.
-// commit (1.0) = they're in. resonate (0.85) = strong pull toward a place.
-// reject (0.55) = a set-aside. lean (0.35) = steering. skip (0.4) = letting go.
 function commandImpulse(command: CommandInput): ImpulseKind | null {
   switch (command.type) {
     case "record-commitment":
@@ -75,7 +60,6 @@ function commandImpulse(command: CommandInput): ImpulseKind | null {
     case "reject-recommendation":
       return "reject";
     case "feedback":
-      // timing/place feedback is a set-aside — the pick is being pushed away.
       return command.reason === "timing" || command.reason === "place"
         ? "reject"
         : "lean";
@@ -89,7 +73,6 @@ function commandImpulse(command: CommandInput): ImpulseKind | null {
     case "close-coordination":
       return "skip";
     default:
-      // check-monitor and aperture grants are background ops — no pulse.
       return null;
   }
 }
@@ -97,12 +80,8 @@ function commandImpulse(command: CommandInput): ImpulseKind | null {
 export default function EpisodeWorkbench({ episodeId }: Props) {
   const router = useRouter();
   const { fire } = useMiraImpulse();
-  const [payload, setPayload] = useState<EpisodePayload | null>(null);
-  // Mirror of the latest payload for command dispatch. React state is
-  // stale inside an in-flight act() call; chained commands (e.g. voice
-  // feedback → revise → recommend) must read the revision the PREVIOUS
-  // command returned or the second call 409s on a stale revision.
-  const payloadRef = useRef<EpisodePayload | null>(null);
+  const [payload, setPayload] = useState<WorkbenchPayload | null>(null);
+  const payloadRef = useRef<WorkbenchPayload | null>(null);
   useEffect(() => {
     payloadRef.current = payload;
   }, [payload]);
@@ -113,17 +92,7 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
   const [voiceInput, setVoiceInput] = useState("");
   const [voiceResponse, setVoiceResponse] = useState<string | null>(null);
   const [commitmentOpen, setCommitmentOpen] = useState(false);
-  // Thinking beat: when the user triggers a new top pick (recommend,
-  // reject-recommendation, or timing/place feedback), we show Mira's
-  // reasoning step by step before the card appears. The beat starts
-  // when `thinking` is set and clears after both the command resolves
-  // AND the beat's minimum play time has elapsed — otherwise fast local
-  // responses skip the whole beat.
   const [thinking, setThinking] = useState(false);
-  // Snapshot of the episode facts the beat narrates. Captured at command
-  // dispatch — the payload swaps mid-beat once the command resolves, and
-  // the beat must keep narrating what was true when the user acted
-  // (e.g. the rejected title, the about-to-be-promoted alternative).
   const [thinkingSnapshot, setThinkingSnapshot] = useState<{
     constraints: IntentionConstraints;
     poolSize?: number;
@@ -131,17 +100,22 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
     rejectedTitle?: string;
   } | null>(null);
   const [activeLens, setActiveLens] = useState<PerspectiveName>("balanced");
-  const [lensData, setLensData] = useState<PerspectivesPayload | null>(null);
+  const [lensData, setLensData] = useState<
+    Record<PerspectiveName, MatchResult | null> | null
+  >(null);
   const [lensLoading, setLensLoading] = useState(false);
   const [aestheticVector] = useState(() =>
     typeof window !== "undefined" ? readAestheticVector() : null,
   );
 
-  // The shell field carries the episode's journey posture; the veil dims the
-  // moving orb enough for the workbench's content to stay legible. Kept
-  // light (0.18) so Mira's presence reads between decisions — she is the
-  // differentiator, not wallpaper. During the thinking beat, reduce
-  // further to 0.12 so Mira is clearly visible when she's "doing something."
+  // Derived views: budget and energy counterfactuals.
+  const [activeBand, setActiveBand] = useState<BudgetBand | null>(null);
+  const [bandData, setBandData] = useState<CounterfactualResult | null>(null);
+  const [bandLoading, setBandLoading] = useState(false);
+  const [activeEnergy, setActiveEnergy] = useState<EnergyState | null>(null);
+  const [energyData, setEnergyData] = useState<CounterfactualResult | null>(null);
+  const [energyLoading, setEnergyLoading] = useState(false);
+
   useMiraField({
     presence: payload?.miraPresence ?? null,
     activity: busy || !payload ? "processing" : "idle",
@@ -149,15 +123,6 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
     veil: thinking ? 0.12 : 0.18,
   });
 
-  // One coordinator per derived-view fetcher. Both layers of
-  // defense (AbortController + monotonic epoch) live inside
-  // createAbortableRunner so a slow earlier fetch can never let a
-  // stale body stomp a newer setState. Memoized so every render
-  // sees the same instance — otherwise the abort chain would reset
-  // on every re-render and the defense would be a no-op in
-  // practice. The dispose effect is the setState-after-unmount
-  // guard for the same reason: re-creating the runner on every
-  // render would leak in-flight fetches.
   const lensRunner = useMemo(() => createAbortableRunner(), []);
   const bandRunner = useMemo(() => createAbortableRunner(), []);
   const energyRunner = useMemo(() => createAbortableRunner(), []);
@@ -173,7 +138,7 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
     const response = await fetch(`/api/episodes/${episodeId}`, {
       cache: "no-store",
     });
-    const data = (await response.json()) as EpisodePayload;
+    const data = (await response.json()) as WorkbenchPayload;
     if (!response.ok) throw new Error(data.error ?? "Episode not found.");
     setPayload(data);
   }, [episodeId]);
@@ -189,7 +154,7 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
         `/api/episodes/${episodeId}/perspectives`,
         async (response) => {
           const json = (await response.json()) as {
-            perspectives?: PerspectivesPayload;
+            perspectives?: Record<PerspectiveName, MatchResult | null>;
             error?: string;
           };
           if (!response.ok || !json.perspectives) {
@@ -203,16 +168,10 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
       } else if ("error" in result) {
         setError(result.error.message);
       }
-      // result.aborted / result.stale: a newer run() supersedes this
-      // one — no setState is the correct outcome.
     } finally {
       setLensLoading(false);
     }
   }
-
-  const [activeBand, setActiveBand] = useState<BudgetBand | null>(null);
-  const [bandData, setBandData] = useState<CounterfactualResult | null>(null);
-  const [bandLoading, setBandLoading] = useState(false);
 
   async function runCounterfactualBudget(
     band: BudgetBand | null,
@@ -244,15 +203,10 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
       } else if ("error" in result) {
         setError(result.error.message);
       }
-      // result.aborted / result.stale: no-op; a newer run supersedes.
     } finally {
       setBandLoading(false);
     }
   }
-
-  const [activeEnergy, setActiveEnergy] = useState<EnergyState | null>(null);
-  const [energyData, setEnergyData] = useState<CounterfactualResult | null>(null);
-  const [energyLoading, setEnergyLoading] = useState(false);
 
   async function runCounterfactualEnergy(
     energy: EnergyState | null,
@@ -284,16 +238,15 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
       } else if ("error" in result) {
         setError(result.error.message);
       }
-      // result.aborted / result.stale: no-op; a newer run supersedes.
     } finally {
       setEnergyLoading(false);
     }
   }
 
-useEffect(() => {
+  useEffect(() => {
     fetch(`/api/episodes/${episodeId}`, { cache: "no-store" })
       .then(async (response) => {
-        const data = (await response.json()) as EpisodePayload;
+        const data = (await response.json()) as WorkbenchPayload;
         if (!response.ok) throw new Error(data.error ?? "Episode not found.");
         setPayload(data);
       })
@@ -304,23 +257,13 @@ useEffect(() => {
 
   async function act(
     command: CommandInput,
-  ): Promise<EpisodePayload | null> {
+  ): Promise<WorkbenchPayload | null> {
     const base = payloadRef.current;
     if (!base) return null;
-    // Fire the orb's pulse at the dispatch chokepoint so every surface that
-    // routes through act() (holds, rejects, feedback, commitment panel,
-    // invites, monitoring) makes the presence visibly react.
     const impulseKind = commandImpulse(command);
-    if (impulseKind) fire(impulseKind);
     setBusy(true);
     setError(null);
-    // Start the thinking beat for commands that surface a NEW top pick —
-    // we show Mira's reasoning before the card appears. Three semantic
-    // triggers:
-    //   - "recommend": the first pick (constraints + pool size only)
-    //   - "reject-recommendation": the first alternative is promoted
-    //   - "feedback" with timing/place intent: same as a set-aside,
-    //     the first alternative is promoted (see service.ts)
+
     const isSetAsideFeedback =
       command.type === "feedback" &&
       (command.reason === "timing" || command.reason === "place");
@@ -348,12 +291,6 @@ useEffect(() => {
       });
       setThinking(true);
     }
-    // The beat's lines are scheduled over ~2.5-4.5s; hold the overlay for
-    // at least that long or the whole beat is skipped by fast responses.
-    // The delay is artificial and can hurt time-to-confidence — gate it
-    // behind NEXT_PUBLIC_THINKING_BEAT_ENABLED so it can be measured
-    // rather than asserted. When disabled, the beat still renders its
-    // lines as they arrive but does not artificially hold the overlay.
     const thinkingBeatEnabled =
       process.env.NEXT_PUBLIC_THINKING_BEAT_ENABLED !== "false";
     const beatMinimumMs = thinkingBeatEnabled
@@ -372,9 +309,9 @@ useEffect(() => {
           idempotencyKey: crypto.randomUUID(),
         }),
       });
-      const data = (await response.json()) as EpisodePayload & { error?: string };
+      const data = (await response.json()) as WorkbenchPayload & { error?: string };
       if (!response.ok) throw new Error(data.error ?? "Could not update.");
-      const next: EpisodePayload = {
+      const next: WorkbenchPayload = {
         ...base,
         episode: data.episode,
         nextDecision: data.nextDecision,
@@ -405,22 +342,11 @@ useEffect(() => {
     }
   }
 
-  // Conversational feedback — the user types what feels off in their own
-  // words. We extract constraints from the text, apply them via
-  // revise-intention, then re-recommend in the same gesture: the promise
-  // of the voice lane is "tell Mira → Mira adjusts and shows you," not
-  // "tell Mira → click Show me again." (docs/plans/arrival-redesign.md §4)
-  //
-  // The extractor's vocabulary is wider than the constraint model:
-  // `dates` maps to the free-text horizon; `duration` maps to the
-  // travelWindow band (weekend/one-week/extended) via a day-count bucket.
   async function submitVoiceFeedback(): Promise<void> {
     const message = voiceInput.trim();
     if (!message) return;
     const extracted = extractConstraints(message);
     if (hasConstraints(extracted)) {
-      // Build a brief confirmation of what Mira heard before re-recommending,
-      // so the user knows their words were understood as constraints.
       const heard: string[] = [];
       if (extracted.budget) heard.push("budget matters more");
       if (extracted.duration) heard.push(
@@ -458,12 +384,8 @@ useEffect(() => {
         constraints,
         reason: message.slice(0, 160),
       });
-      if (!revised) return; // error surface handled inside act()
+      if (!revised) return;
       setVoiceInput("");
-      // Chain the re-recommend while the constraint set is complete.
-      // revise-intention merges (never clears) constraints, so a voice
-      // revision leaves them complete — the check is defensive against
-      // a future extractor change.
       const revisedConstraints =
         revised.episode.intentions.at(-1)?.constraints;
       if (
@@ -476,14 +398,13 @@ useEffect(() => {
         await act({ type: "recommend" });
       }
     } else {
-      // No constraints extracted — Mira responds with a nudge rather
-      // than silently resetting to clarification.
       setVoiceResponse(
         "Tell me more about what feels off — the place, the timing, the cost? That helps me adjust.",
       );
     }
   }
 
+  // ── Loading state ──
   if (!payload) {
     return (
       <section className="dusk mx-auto max-w-2xl px-6 sm:px-10 min-h-[calc(100svh-56px)] flex items-center justify-center text-center">
@@ -497,29 +418,7 @@ useEffect(() => {
   const { episode, nextDecision, memory, miraPresence } = payload;
   const intention = episode.intentions.at(-1)!;
   const recommendation = episode.recommendation?.result;
-  const latestObservation = episode.monitor?.observations.at(-1);
 
-  // Derived once per render so the recommendation block has stable
-  // inputs. matchLetter() is pure; memoizing around it would only
-  // add complexity for no win. The letter has two parts:
-  //   - recognition lines (indices 0..recognitionLineCount-1): shown
-  //     only for returning users ("Welcome back. Last time I recommended
-  //     X in Y…")
-  //   - main letter lines (indices recognitionLineCount..end): Mira's
-  //     explanation of why this retreat fits ("I found a retreat that
-  //     fits where you are right now. I'm recommending this because…")
-  //
-  // Both parts are rendered — recognition as the "note from Mira" aside,
-  // main lines as the primary voice above the retreat card. New users
-  // (recognitionLineCount === 0) see the main letter for the first time.
-  const practitionerSignals = {
-    energy: intention.constraints.energy,
-    budget: intention.constraints.budget,
-    social: intention.constraints.social,
-  };
-  const letter = recommendation
-    ? matchLetter(recommendation, practitionerSignals, memory)
-    : null;
   const isClarifyStep =
     nextDecision.kind === "clarify-energy" ||
     nextDecision.kind === "clarify-budget" ||
@@ -527,26 +426,36 @@ useEffect(() => {
     nextDecision.kind === "clarify-party-size" ||
     nextDecision.kind === "clarify-horizon";
 
-  const holdDecision =
-    nextDecision.kind === "await-responses" ||
-    nextDecision.kind === "review-hold" ||
-    nextDecision.kind === "ready-to-book";
+  // Derived views passed to the recommendation surface.
+  const derived: DerivedViews = {
+    activeLens,
+    lensData,
+    lensLoading,
+    activeBand,
+    bandData,
+    bandLoading,
+    activeEnergy,
+    energyData,
+    energyLoading,
+  };
 
-  // Secondary tools (lenses, counterfactuals, alternatives): only expand when
-  // the fit is genuinely weak or the person is actively questioning it.
-  // A fresh recommendation should feel calm and focused, not overwhelming.
-  // The uncertainty array now carries only the actionable weak-fit signal
-  // (partySize and travelWindow are collected in clarify and ranked as real
-  // axes), so keying off the fit score is the signal that says "this one is
-  // shaky."
-  const fitScore = episode.recommendation?.result.score ?? 1;
-  const highUncertainty = fitScore < 0.75;
-  const expandSecondaryTools = highUncertainty;
+  const actions: WorkbenchActions = {
+    act,
+    load,
+    setVoiceInput,
+    setVoiceResponse,
+    setCommitmentOpen,
+    setParticipant,
+    recomputeWithPerspective,
+    runCounterfactualBudget,
+    runCounterfactualEnergy,
+    submitVoiceFeedback,
+    fire,
+  };
 
+  // ── Main render: a clean state switch ──
   return (
     <section className="dusk mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24 min-h-[calc(100svh-56px)]">
-      {/* AnimatePresence fades the thinking beat out when it completes,
-          so Mira's presence doesn't vanish mid-frame. */}
       <AnimatePresence>
         {thinking && thinkingSnapshot && (
           <ThinkingBeat
@@ -554,17 +463,12 @@ useEffect(() => {
             constraints={thinkingSnapshot.constraints}
             poolSize={thinkingSnapshot.poolSize}
             presence={miraPresence}
-            // For a set-aside (reject-recommendation or timing/place
-            // feedback), the first alternative is about to become the top
-            // pick. Surface its reasoning so the user sees why it's being
-            // promoted. For recommend, we don't have the new top pick yet —
-            // the beat shows constraints + pool only. All values come from
-            // the dispatch-time snapshot so they don't mutate mid-beat.
             upcomingPick={thinkingSnapshot.upcomingPick}
             rejectedTitle={thinkingSnapshot.rejectedTitle}
           />
         )}
       </AnimatePresence>
+
       <div className="mb-10">
         <button
           type="button"
@@ -586,7 +490,8 @@ useEffect(() => {
         className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 sm:p-8 surface-card"
         aria-live="polite"
       >
-        {nextDecision.kind === "completed" ? (
+        {/* ── State: completed ── */}
+        {nextDecision.kind === "completed" && (
           <div className="space-y-6" data-testid="completed-landing">
             <div className="flex items-start gap-4">
               <MiraOrb
@@ -616,7 +521,10 @@ useEffect(() => {
               Begin a new intention →
             </Link>
           </div>
-        ) : nextDecision.kind === "preparation" && recommendation ? (
+        )}
+
+        {/* ── State: preparation (booked landing) ── */}
+        {nextDecision.kind === "preparation" && recommendation && (
           <BookedLanding
             recommendation={recommendation}
             depositUsd={recommendation.priceUsd}
@@ -632,7 +540,7 @@ useEffect(() => {
             aestheticVector={aestheticVector}
             intentionStatement={intention.statement}
             onComplete={() => act({ type: "complete" })}
-            isAuthenticated={payload?.isAuthenticated ?? false}
+            isAuthenticated={payload.isAuthenticated ?? false}
             busy={busy}
             onGrantContribution={() =>
               act({ type: "grant-wider-aperture-contribution" })
@@ -641,7 +549,10 @@ useEffect(() => {
               act({ type: "revoke-wider-aperture-contribution" })
             }
           />
-        ) : nextDecision.kind === "describe-intention" ? (
+        )}
+
+        {/* ── State: describe-intention ── */}
+        {nextDecision.kind === "describe-intention" && (
           <>
             <h2 className="font-serif text-3xl tracking-tight mb-6">
               {nextDecision.prompt}
@@ -657,7 +568,10 @@ useEffect(() => {
               {nextDecision.primaryLabel}
             </button>
           </>
-        ) : isClarifyStep ? (
+        )}
+
+        {/* ── State: clarification steps ── */}
+        {isClarifyStep && (
           <ClarifyPanel
             kind={
               nextDecision.kind as
@@ -677,9 +591,6 @@ useEffect(() => {
                 reason: "Clarified through calibration",
               });
               if (!revised) return;
-              // Auto-fire recommendation when all constraints are set —
-              // the "Show me" button was a vestigial gate. The thinking
-              // beat plays as the transition.
               const revisedConstraints =
                 revised.episode.intentions.at(-1)?.constraints;
               if (
@@ -693,400 +604,55 @@ useEffect(() => {
               }
             }}
           />
-        ) : (
-          <>
-        {/* The header carries the decision prompt, but not in the
-            review-recommendation state — there the Mira voice block + card
-            below already announce the pick, and a third "here's the pick"
-            line reads as redundancy. Hold / await / booked states keep
-            their status prompt. */}
-        {!(recommendation && nextDecision.kind === "review-recommendation") && (
-          <h2 className="font-serif text-3xl tracking-tight mb-6">
-            {nextDecision.prompt}
-          </h2>
         )}
 
-        {nextDecision.kind === "review-recommendation" && !recommendation && (
-          <>
-            <p className="why mb-3">
-              Mira scores your intention against the verified pool. Nothing
-              is shared or stored yet.
-            </p>
-            <PrimaryButton
-              disabled={busy}
-              onClick={() => act({ type: "recommend" })}
-            >
-              {busy ? "Sitting with what you've told me…" : nextDecision.primaryLabel}
-            </PrimaryButton>
-          </>
-        )}
+        {/* ── State: recommendation (review, hold, ready-to-book) ── */}
+        {!isClarifyStep &&
+          nextDecision.kind !== "completed" &&
+          nextDecision.kind !== "preparation" &&
+          nextDecision.kind !== "describe-intention" && (
+            <>
+              {!(recommendation && nextDecision.kind === "review-recommendation") && (
+                <h2 className="font-serif text-3xl tracking-tight mb-6">
+                  {nextDecision.prompt}
+                </h2>
+              )}
 
-        {recommendation && (
-          <div className="space-y-6">
-            {/* Mira's voice — one orb, one block. Recognition lines (if the
-                practitioner is returning) sit above the why; both are Mira
-                speaking, so they share a single presence instead of each
-                carrying their own orb + live region. The letter carries the
-                "why" only; the "what" (title, location, price, cohort) is
-                on the card directly below. */}
-            {letter && letter.lines.length > 0 && (
-              <div className="flex items-start gap-3">
-                <MiraOrb size={40} presence={miraPresence} className="flex-shrink-0 mt-1" />
-                <div className="space-y-2 leading-relaxed flex-1">
-                  {letter.recognitionLineCount > 0 && (
-                    <div className="space-y-2">
-                      {letter.lines
-                        .slice(0, letter.recognitionLineCount)
-                        .map((line, index) => (
-                          <p
-                            key={`recognition-${index}`}
-                            className="italic text-[color:var(--accent-ink)]"
-                          >
-                            {line}
-                          </p>
-                        ))}
-                    </div>
-                  )}
-                  {letter.lines
-                    .slice(letter.recognitionLineCount)
-                    .map((line, index) => (
-                      <p
-                        key={`letter-${index}`}
-                        className="text-lg leading-relaxed text-[color:var(--foreground)]"
-                      >
-                        {line}
-                      </p>
-                    ))}
-                </div>
-              </div>
-            )}
-            <div>
-              <p className="tag mb-2">one current recommendation</p>
-              <h3 className="font-serif text-3xl tracking-tight">
-                {recommendation.retreatTitle}
-              </h3>
-              <p className="text-[color:var(--muted)] mt-2">
-                {recommendation.retreatLocation} · {recommendation.durationDays}{" "}
-                days · ${recommendation.priceUsd.toLocaleString()} · cohort of{" "}
-                {recommendation.capacity}
-              </p>
-              <details className="mt-3">
-                <summary className="text-sm text-[color:var(--muted)] cursor-pointer hover:text-foreground transition-colors">
-                  About this retreat
-                </summary>
-                <p className="mt-3 leading-relaxed text-sm">
-                  {recommendation.retreatDescription}
-                </p>
-              </details>
-            </div>
-
-            {/* Weak-fit caveat — shown only when the score is below 0.75.
-                Rendered as a visible muted line (not a disclosure) so the
-                user sees the flag without an extra click. */}
-            {episode.recommendation!.uncertainties.length > 0 && (
-              <p className="text-sm italic text-[color:var(--muted)]">
-                {episode.recommendation!.uncertainties.join(" ")}
-              </p>
-            )}
-
-            {holdDecision && episode.hold?.status === "active" ? (
-              <>
-                {/* Mira's voice during hold — she's watching, not silent. */}
-                <div className="flex items-start gap-3">
-                  <MiraOrb size={32} presence={miraPresence} className="flex-shrink-0 mt-1" />
-                  <p className="text-sm leading-relaxed italic text-[color:var(--accent-ink)]">
-                    I&apos;m watching this for you. I&apos;ll let you know if
-                    anything changes.
+              {nextDecision.kind === "review-recommendation" && !recommendation && (
+                <>
+                  <p className="why mb-3">
+                    Mira scores your intention against the verified pool. Nothing
+                    is shared or stored yet.
                   </p>
-                </div>
-                <HoldPanel
-                nextDecision={nextDecision}
-                episode={episode}
-                participant={participant}
-                setParticipant={setParticipant}
-                shareUrl={shareUrl}
-                busy={busy}
-                onInvite={() =>
-                  act({
-                    type: "create-invite",
-                    participantName: participant,
-                    sharingConsent: true,
-                  })
-                }
-                onRelease={() => act({ type: "release-hold" })}
-                onCloseCoordination={() => act({ type: "close-coordination" })}
-                onRefresh={load}
-                recommendation={recommendation}
-                activeBand={activeBand}
-                bandData={bandData}
-                bandLoading={bandLoading}
-                onPickBand={runCounterfactualBudget}
-                activeEnergy={activeEnergy}
-                energyData={energyData}
-                energyLoading={energyLoading}
-                onPickEnergy={runCounterfactualEnergy}
-                expandSecondaryTools={expandSecondaryTools}
-              />
-              </>
-            ) : (
-              <>
-                {/* The primary decision: hold this pick. Everything else
-                    collapses into disclosure so the page reads:
-                    letter → identity → Hold → status → disclosure.
-
-                    Uncertainty gate (ADR 0008 §4): when the fit is strong
-                    (fitScore ≥ 0.75), only the primary Hold action and a
-                    single "not this one" link stay visible. "Not this one"
-                    stays inline because it directly serves the one primary
-                    decision — "is this the right place?" — without
-                    expanding the full secondary-tooling surface. Watch,
-                    lenses, counterfactuals, and alternatives collapse into
-                    disclosure. When uncertainty is high, they expand so the
-                    person can interrogate the fit before deciding. */}
-                <div className="flex flex-col gap-2">
                   <PrimaryButton
                     disabled={busy}
-                    onClick={() => act({ type: "create-hold" })}
+                    onClick={() => act({ type: "recommend" })}
                   >
-                    Hold this for 48 hours
+                    {busy ? "Sitting with what you've told me…" : nextDecision.primaryLabel}
                   </PrimaryButton>
+                </>
+              )}
 
-                  {/* "Not this one" — reject the current top pick and
-                      re-recommend with it excluded. Distinct from "this
-                      doesn't feel right" (categorical feedback that resets
-                      to clarification). This is a specific retreat
-                      rejection that produces a different top pick. Stays
-                      inline because it is the natural counterpart to the
-                      Hold decision, not a secondary inspection tool. */}
-                  {episode.recommendation!.alternatives.length > 0 && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        act({
-                          type: "reject-recommendation",
-                          retreatRootHash: recommendation!.retreatRootHash,
-                        })
-                      }
-                      className="text-sm text-[color:var(--muted)] hover:text-foreground underline"
-                    >
-                      Not this one — show me another
-                    </button>
-                  )}
-
-                  {/* Watch — a quiet subordinate action, not a sibling button.
-                      Starts monitoring so Mira checks for changes over time.
-                      Collapsed into disclosure when the fit is strong, so the
-                      page reads as one calm decision. */}
-                  {expandSecondaryTools && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        act({
-                          type: episode.monitor ? "check-monitor" : "start-monitoring",
-                        })
-                      }
-                      className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
-                    >
-                      {episode.monitor ? "Check for changes" : "or I can watch this for you →"}
-                    </button>
-                  )}
-                </div>
-
-                {/* Forward-looking note — the recommendation is the start
-                    of an ongoing relationship, not a terminal decision.
-                    No orb here: Mira already speaks from the single voice
-                    block above, so this reads as a caption, not a second
-                    Mira. */}
-                <p className="text-sm leading-relaxed italic text-[color:var(--muted)]">
-                  This is my strongest current fit. I&apos;ll keep watching —
-                  if something fits better, I&apos;ll let you know.
-                </p>
-
-                {/* Secondary tools (lenses, alternatives, counterfactuals,
-                    and — when the fit is strong — the watch action)
-                    collapse behind a single disclosure. The decision above
-                    is the point of the page; this is depth for anyone who
-                    wants to interrogate the fit. When uncertainty is high
-                    the disclosure expands so the person can explore before
-                    deciding (ADR 0008 §8). */}
-                <details className="border-t border-[color:var(--hairline)] pt-5" open={expandSecondaryTools || undefined}>
-                  <summary className="tag cursor-pointer">
-                    weigh it differently, or see what else fits
-                  </summary>
-                  <div className="mt-4 space-y-6">
-                    {!expandSecondaryTools && (
-                      <div className="flex flex-col gap-2">
-                        {/* Watch action moves here when the fit is strong
-                            so the primary surface stays one decision. */}
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() =>
-                            act({
-                              type: episode.monitor ? "check-monitor" : "start-monitoring",
-                            })
-                          }
-                          className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
-                        >
-                          {episode.monitor ? "Check for changes" : "or I can watch this for you →"}
-                        </button>
-                      </div>
-                    )}
-                    <LensFactors
-                      activeLens={activeLens}
-                      lensData={lensData}
-                      lensLoading={lensLoading}
-                      busy={busy}
-                      onPickLens={recomputeWithPerspective}
-                      recommendation={recommendation}
-                    />
-                    <ExploreOtherFits
-                      alternatives={episode.recommendation!.alternatives}
-                      recommendation={recommendation}
-                      busy={busy}
-                      activeBand={activeBand}
-                      bandData={bandData}
-                      bandLoading={bandLoading}
-                      onPickBand={runCounterfactualBudget}
-                      activeEnergy={activeEnergy}
-                      energyData={energyData}
-                      energyLoading={energyLoading}
-                      onPickEnergy={runCounterfactualEnergy}
-                      holdActive={false}
-                      expanded={expandSecondaryTools}
-                    />
-                  </div>
-                </details>
-              </>
-            )}
-
-            {latestObservation && (
-              <div className="flex items-start gap-3">
-                <MiraOrb size={28} presence={miraPresence} className="flex-shrink-0 mt-0.5" />
-                <p className="text-sm leading-relaxed text-[color:var(--muted)]">
-                  Last checked {new Date(latestObservation.observedAt).toLocaleString()}:
-                  {" "}
-                  {latestObservation.summary}
-                </p>
-              </div>
-            )}
-
-            {nextDecision.kind === "ready-to-book" && (
-              <div className="border-t border-[color:var(--hairline)] pt-6">
-                <p className="why mb-3">
-                  Confirm amount and bounds. Mira handles the rest. You can
-                  change your mind before that line.
-                </p>
-                {!commitmentOpen ? (
-                  <PrimaryButton
-                    disabled={busy}
-                    onClick={() => {
-                      fire("lean");
-                      setCommitmentOpen(true);
-                    }}
-                  >
-                    {nextDecision.primaryLabel}
-                  </PrimaryButton>
-                ) : (
-                  <CommitmentPanel
-                    episode={episode}
-                    onClose={() => setCommitmentOpen(false)}
-                    onBooked={() => {
-                      // The booking completed through /api/bookings, not
-                      // act() — pulse the orb here so the commitment reads.
-                      fire("commit");
-                      setCommitmentOpen(false);
-                      void load();
-                    }}
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Feedback — collapsed by default so it doesn't compete
-                with the primary Hold decision. The voice lane is the
-                primary path inside; categorical buttons are a fallback. */}
-            <details className="pt-2">
-              <summary className="tag cursor-pointer">
-                this doesn&apos;t feel right
-              </summary>
-              <fieldset className="border-t border-[color:var(--hairline)] pt-5 mt-3">
-                <legend className="tag mb-3">tell Mira what feels off</legend>
-                <div className="space-y-3">
-                  <textarea
-                    value={voiceInput}
-                    onChange={(e) => setVoiceInput(e.target.value)}
-                    placeholder="I don't want somewhere remote…"
-                    rows={2}
-                    className="w-full px-4 py-3 rounded-sm border border-[color:var(--hairline)] bg-transparent text-sm resize-none focus:outline-none focus:border-[color:var(--accent)]"
-                    disabled={busy}
-                  />
-                  {voiceResponse && (
-                    <p className="text-sm italic text-[color:var(--accent-ink)]">
-                      {voiceResponse}
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    disabled={busy || !voiceInput.trim()}
-                    onClick={submitVoiceFeedback}
-                    className="text-sm text-[color:var(--muted)] hover:text-foreground disabled:opacity-40"
-                  >
-                    {busy ? "Sitting with that…" : "Tell Mira →"}
-                  </button>
-                </div>
-                {/* Categorical fallback — collapsed behind a toggle. The
-                    voice textarea is the primary path; buttons are a
-                    secondary affordance for users who prefer picking. */}
-                <details className="mt-5 pt-4 border-t border-[color:var(--hairline)]">
-                  <summary className="text-xs text-[color:var(--muted)] cursor-pointer">
-                    or pick a category
-                  </summary>
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {(["timing", "budget", "group", "place", "intention"] as const).map(
-                      (reason) => (
-                        <button
-                          key={reason}
-                          type="button"
-                          disabled={busy}
-                          onClick={() => act({ type: "feedback", reason })}
-                          className="px-3 py-2 rounded-sm border border-[color:var(--hairline)] text-sm capitalize"
-                        >
-                          {reason}
-                        </button>
-                      ),
-                    )}
-                  </div>
-                </details>
-              </fieldset>
-            </details>
-
-            {/* Reasoning disclosure: the data Mira saw for each axis.
-                Weight numbers are removed — they mean nothing to a user
-                and the thinking beat already delivered the conclusions.
-                The "considered and set aside" comparison lives in the
-                alternatives list under "dig deeper" instead. */}
-            <details className="pt-2">
-              <summary className="tag cursor-pointer">how Mira chose this</summary>
-              <div className="mt-4 space-y-4">
-                {recommendation.reasoning.map((step) => (
-                  <div key={step.axis} className="text-sm border-l-2 border-[color:var(--hairline)] pl-3">
-                    <p className="font-medium mb-1">{step.axis}</p>
-                    <p className="text-[color:var(--muted)] text-xs mb-1">
-                      {step.given}
-                    </p>
-                    <p className="text-[color:var(--foreground)]">{step.then}</p>
-                  </div>
-                ))}
-              </div>
-            </details>
-          </div>
-        )}
-
-          </>
-        )}
+              {recommendation && (
+                <RecommendationSurface
+                  episode={episode}
+                  nextDecision={nextDecision}
+                  memory={memory}
+                  miraPresence={miraPresence}
+                  recommendation={recommendation}
+                  derived={derived}
+                  busy={busy}
+                  shareUrl={shareUrl}
+                  participant={participant}
+                  voiceInput={voiceInput}
+                  voiceResponse={voiceResponse}
+                  commitmentOpen={commitmentOpen}
+                  aestheticVector={aestheticVector}
+                  actions={actions}
+                />
+              )}
+            </>
+          )}
 
         {error && (
           <p className="mt-5 text-sm text-[color:var(--accent-ink)]" role="alert">
@@ -1112,962 +678,5 @@ useEffect(() => {
         </ol>
       </details>
     </section>
-  );
-}
-
-function BookedLanding({
-  recommendation,
-  depositUsd,
-  signals,
-  memory,
-  miraPresence,
-  commitment,
-  contribution,
-  aestheticVector,
-  intentionStatement,
-  isAuthenticated,
-  busy,
-  onGrantContribution,
-  onRevokeContribution,
-  onComplete,
-}: {
-  recommendation: MatchResult;
-  depositUsd: number;
-  signals: { energy?: string; budget?: string; social?: string };
-  memory: MemoryContext | undefined;
-  miraPresence: EpisodeDetailPayload["miraPresence"];
-  commitment: Episode["commitment"];
-  contribution: Episode["widerApertureContribution"];
-  aestheticVector: AestheticVector | null;
-  intentionStatement?: string;
-  isAuthenticated: boolean;
-  busy: boolean;
-  onGrantContribution: () => void;
-  onRevokeContribution: () => void;
-  onComplete: () => void;
-}) {
-  const dialogue = bookingDialogue(depositUsd, recommendation.retreatTitle);
-  const plan = preparationPlan(recommendation, signals, memory);
-  // Anticipation layer (docs/plans/anticipation-layer.md): the wait is
-  // paced, not pushed. Days since booking drive the orb posture, the
-  // voice line, and which plan day is current — one beat per return
-  // visit, savoring-style. The page is the notification.
-  const bookedAt = commitment?.bookedAt;
-  const waitPresence = bookedAt ? preparationPresence(bookedAt) : miraPresence;
-  const days = bookedAt ? daysSinceBooking(bookedAt) : 0;
-  // Day numbers are 1-based; days-since-booking is 0-based. On booking
-  // day the practitioner is on plan day 1.
-  const currentDay = Math.min(days + 1, plan.days.length);
-  const arcComplete = days >= plan.days.length;
-
-  return (
-    <div className="space-y-8" data-testid="booked-landing">
-      <div className="flex items-start gap-4">
-        <MiraOrb size={48} presence={waitPresence ?? miraPresence} className="flex-shrink-0 mt-1" />
-        <div className="space-y-3 flex-1">
-          {days <= 0
-            ? dialogue.done.map((line, i) => (
-                <p
-                  key={i}
-                  className={`text-lg leading-relaxed mira-line mira-line-${Math.min(i + 1, 5)}`}
-                >
-                  {line}
-                </p>
-              ))
-            : (
-              <p className="text-lg leading-relaxed mira-line mira-line-1">
-                {anticipationLine(days)}
-              </p>
-            )}
-        </div>
-      </div>
-
-      {/* Prospection feed: the imagery of the place they're going to,
-          in the palette they chose. Quiet — no CTA, just held. */}
-      <RetreatVisionFrame
-        vector={aestheticVector}
-        intention={intentionStatement}
-      />
-
-      <div>
-        <p className="font-serif text-2xl tracking-tight mb-1">{plan.title}</p>
-        <p className="text-sm text-[color:var(--muted)] mb-6">
-          {arcComplete
-            ? "The plan is complete. Travel lightly."
-            : `Five minutes a day. Today is day ${currentDay}.`}
-        </p>
-        <ol className="space-y-5">
-          {plan.days.map((day) => {
-            // Progressive reveal: past days collapse to their titles,
-            // the current day expands, future days stay closed. One beat
-            // per return visit — the plan unfolds with the wait.
-            if (day.day > currentDay) return null;
-            const isCurrent = day.day === currentDay && !arcComplete;
-            if (!isCurrent) {
-              return (
-                <li key={day.day} className="flex gap-4 opacity-60">
-                  <span className="font-serif text-3xl text-[color:var(--accent-soft)] leading-none w-10 flex-shrink-0">
-                    {day.day}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-serif text-lg tracking-tight truncate">
-                      {day.title}
-                    </p>
-                  </div>
-                </li>
-              );
-            }
-            return (
-              <li key={day.day} className="flex gap-4">
-                <span className="font-serif text-3xl text-[color:var(--accent-soft)] leading-none w-10 flex-shrink-0">
-                  {day.day}
-                </span>
-                <div className="flex-1">
-                  <div className="flex items-baseline justify-between gap-3 mb-1">
-                    <p className="font-serif text-lg tracking-tight">{day.title}</p>
-                    <span className="tag opacity-60 flex-shrink-0">{day.duration}</span>
-                  </div>
-                  <p className="text-sm text-[color:var(--muted)] leading-relaxed">
-                    {day.description}
-                  </p>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-        {!arcComplete && (
-          <p className="text-xs text-[color:var(--muted)] mt-5">
-            The rest arrives as its day comes. Mira will bring it when it&apos;s time.
-          </p>
-        )}
-      </div>
-
-      <div className="border-l-2 border-[color:var(--accent-soft)] pl-5">
-        <p className="tag mb-2">what Mira will watch next</p>
-        {dialogue.watchNext.map((line, i) => (
-          <p
-            key={i}
-            className="text-sm leading-relaxed text-[color:var(--muted)] max-w-prose"
-          >
-            {line}
-          </p>
-        ))}
-      </div>
-
-      {/* Peak-end close: a quiet affordance to mark the journey
-          complete once they're back. Never urgent, never suggested
-          before the arc has run. */}
-      {arcComplete && (
-        <div className="border-t border-[color:var(--hairline)] pt-5">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onComplete}
-            className="text-sm text-[color:var(--muted)] hover:text-foreground disabled:opacity-40 transition-colors"
-          >
-            I&apos;m back — close this journey
-          </button>
-        </div>
-      )}
-
-      {commitment && (
-        <details className="opacity-70">
-          <summary className="tag cursor-pointer">How this is secured</summary>
-          <p className="tag mt-3 break-all leading-relaxed">
-            Deposit held in escrow until you arrive
-            {commitment.depositTxId
-              ? ` · ref ${commitment.depositTxId.slice(0, 18)}…`
-              : ""}
-            {commitment.bookingRootHash
-              ? ` · record ${commitment.bookingRootHash.slice(0, 22)}…`
-              : ""}
-          </p>
-        </details>
-      )}
-
-      {/* Optional extras — collapsed so the landing stays focused on the
-          preparation plan, the actual payoff. */}
-      <details className="border-t border-[color:var(--hairline)] pt-5">
-        <summary className="tag cursor-pointer">optional — help Mira learn, or keep this across devices</summary>
-        <div className="mt-4 space-y-6">
-          <div>
-            <p className="tag mb-2">help Mira learn — optional</p>
-            {contribution?.grantedAt && !contribution.revokedAt ? (
-              <div className="space-y-3">
-                <p className="text-sm text-[color:var(--muted)] leading-relaxed max-w-prose">
-                  Anonymized patterns from this journey may help others with similar
-                  intentions. You can withdraw anytime.
-                </p>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={onRevokeContribution}
-                  className="text-sm text-[color:var(--muted)] hover:text-foreground disabled:opacity-40"
-                >
-                  Withdraw contribution
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-sm text-[color:var(--muted)] leading-relaxed max-w-prose">
-                  Share anonymized patterns from this journey so Mira can normalize
-                  what tends to work for people with intentions like yours. Nothing
-                  identifiable is shared.
-                </p>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={onGrantContribution}
-                  className="text-sm text-[color:var(--accent-ink)] hover:text-foreground disabled:opacity-40"
-                >
-                  Contribute anonymized patterns
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* ADR 0011 §5: quiet cross-device continuity CTA. Only shown when
-              the actor is not yet authenticated. */}
-          {!isAuthenticated && (
-            <div>
-              <p className="tag mb-2">keep this across devices — optional</p>
-              <p className="text-sm text-[color:var(--muted)] leading-relaxed max-w-prose mb-3">
-                If you want this booking and your intentions to follow you on
-                other devices, sign in from the memory page. Optional — everything
-                stays on this device either way.
-              </p>
-              <Link
-                href="/memory"
-                className="text-sm text-[color:var(--accent-ink)] hover:text-foreground"
-              >
-                Set up cross-device continuity →
-              </Link>
-            </div>
-          )}
-        </div>
-      </details>
-    </div>
-  );
-}
-
-// The thinking beat — Mira's reasoning surfaces step by step before
-// the recommendation card appears. The orb is prominent (inquiry
-// posture) and the reasoning lines fade in on a timed schedule from
-// reasoningBeat(). This makes the recommendation feel earned, not
-// instant. See docs/plans/arrival-redesign.md §2.
-//
-// For `reject-recommendation`, we have the upcoming top pick (the first
-// alternative) and can surface its actual reasoning. For `recommend`,
-// we don't have the new top pick yet — the beat shows constraints +
-// pool size only, and the full reasoning appears in the card's "how
-// Mira chose this" disclosure.
-function ThinkingBeat({
-  constraints,
-  poolSize,
-  presence,
-  upcomingPick,
-  rejectedTitle,
-}: {
-  constraints: IntentionConstraints;
-  poolSize?: number;
-  presence: MiraPresence | null;
-  upcomingPick?: MatchResult;
-  rejectedTitle?: string;
-}) {
-  const steps = useMemo(() => {
-    // For reject-recommendation: surface the upcoming pick's reasoning
-    // + what was rejected. This is the rich path — we have real data.
-    if (upcomingPick) {
-      const beat = reasoningBeat(
-        upcomingPick,
-        undefined, // no alternative data for the upcoming pick
-        {
-          energy: constraints.energy,
-          budget: constraints.budget,
-          social: constraints.social,
-          partySize: constraints.partySize,
-          travelWindow: constraints.travelWindow,
-        },
-        poolSize,
-      );
-      // Prepend a line about what was rejected.
-      if (rejectedTitle) {
-        return [
-          { text: `Not ${rejectedTitle}. Let me look again.`, delayMs: 0 },
-          ...beat.slice(1), // skip the default opening line
-        ];
-      }
-      return beat;
-    }
-    // For recommend: constraints + pool only. The full reasoning
-    // arrives with the card.
-    return reasoningBeat(
-      undefined,
-      undefined,
-      {
-        energy: constraints.energy,
-        budget: constraints.budget,
-        social: constraints.social,
-        partySize: constraints.partySize,
-        travelWindow: constraints.travelWindow,
-      },
-      poolSize,
-    );
-  }, [constraints.energy, constraints.budget, constraints.social, constraints.partySize, constraints.travelWindow, poolSize, upcomingPick, rejectedTitle]);
-
-  const [visibleCount, setVisibleCount] = useState(0);
-
-  useEffect(() => {
-    // Reveal each step on its scheduled delay. The timers are cleaned
-    // up on unmount so a fast response doesn't leave dangling timers.
-    const timers: number[] = [];
-    for (let i = 0; i < steps.length; i++) {
-      timers.push(
-        window.setTimeout(() => setVisibleCount(i + 1), steps[i].delayMs),
-      );
-    }
-    return () => {
-      for (const t of timers) window.clearTimeout(t);
-    };
-  }, [steps]);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0, transition: { duration: 0.5, ease: "easeOut" } }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-      className="fixed inset-0 z-40 flex items-center justify-center bg-[#0c0806]/95 backdrop-blur-sm"
-      aria-live="polite"
-      aria-label="Mira is thinking"
-    >
-      <div className="flex flex-col items-center gap-6 max-w-md px-6 text-center">
-        <MiraOrb
-          size={120}
-          presence={presence ?? undefined}
-          activity="processing"
-          className="flex-shrink-0"
-        />
-        <div className="space-y-3 min-h-[6rem]">
-          {steps.slice(0, visibleCount).map((step, index) => (
-            <p
-              key={`reasoning-${index}`}
-              className="font-serif text-lg tracking-tight leading-relaxed fade-in-up"
-              style={DUSK_HEADING}
-            >
-              {step.text}
-            </p>
-          ))}
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-// Prominent lens factors — "What if we weighted this differently?"
-// Surfaces the three ranking lenses (balanced/restorative/movement) in
-// the main flow so the user can shape how Mira weighs what fits, not
-// just accept or reject her result. See docs/plans/arrival-redesign.md §3.
-function LensFactors({
-  activeLens,
-  lensData,
-  lensLoading,
-  busy,
-  onPickLens,
-  recommendation,
-}: {
-  activeLens: PerspectiveName;
-  lensData: PerspectivesPayload | null;
-  lensLoading: boolean;
-  busy: boolean;
-  onPickLens: (lens: PerspectiveName) => void;
-  recommendation: MatchResult | undefined;
-}) {
-  return (
-    <div>
-      <p className="tag mb-2">What if we weighted this differently?</p>
-      <p className="text-sm text-[color:var(--muted)] mb-3 italic">
-        These change how I weigh what fits. They don&apos;t change what you asked for.
-      </p>
-      <div
-        role="group"
-        aria-label="Recompute the fit under a different lens"
-        className="flex flex-wrap gap-2"
-      >
-        {(["balanced", "restorative", "movement"] as const).map((lens) => (
-          <button
-            key={lens}
-            type="button"
-            disabled={busy || lensLoading}
-            onClick={() => onPickLens(lens)}
-            className={`px-3 py-2 rounded-sm border text-sm capitalize transition-colors disabled:opacity-40 ${
-              activeLens === lens
-                ? "border-[color:var(--accent)] text-[color:var(--accent-ink)]"
-                : "border-[color:var(--hairline)] hover:border-[color:var(--accent)]"
-            }`}
-            aria-pressed={activeLens === lens}
-          >
-            {lens}
-          </button>
-        ))}
-      </div>
-      {lensLoading && (
-        <p className="text-sm text-[color:var(--muted)] mt-3 italic">
-          Re-ranking…
-        </p>
-      )}
-      {!lensLoading &&
-        activeLens !== "balanced" &&
-        lensData &&
-        lensData[activeLens] && (
-          <LensOutcome
-            lens={activeLens}
-            pick={lensData[activeLens]!}
-            sameAsMain={
-              lensData[activeLens]!.retreatRootHash ===
-              recommendation?.retreatRootHash
-            }
-          />
-        )}
-    </div>
-  );
-}
-
-function PrimaryButton({
-  children,
-  disabled,
-  onClick,
-}: {
-  children: React.ReactNode;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className="px-6 py-3 rounded-sm bg-foreground text-background disabled:opacity-40"
-    >
-      {children}
-    </button>
-  );
-}
-
-// A small panel that shows which retreat a non-balanced lens picked.
-// Used under the lens toggle. The `sameAsMain` flag turns this into a
-// statement (the alternative lens agrees) rather than a recommendation
-// replacement — agency without confusion.
-function LensOutcome({
-  lens,
-  pick,
-  sameAsMain,
-}: {
-  lens: PerspectiveName;
-  pick: MatchResult;
-  sameAsMain: boolean;
-}) {
-  return (
-    <div className="mt-4 border-l-2 border-[color:var(--accent-soft)] pl-4">
-      <p className="tag mb-2">
-        with {lens} lens{sameAsMain ? " (same retreat)" : ""}
-      </p>
-      <p className="font-serif text-xl tracking-tight mb-1">
-        {pick.retreatTitle}
-      </p>
-      <p className="text-sm text-[color:var(--muted)]">
-        {pick.retreatLocation} · {pick.durationDays} days · $
-        {pick.priceUsd.toLocaleString()}
-      </p>
-    </div>
-  );
-}
-
-// A small panel that shows which retreat a hypothetical budget band
-// picks. Mirrors LensOutcome so the two peer sections read the same.
-// Used under the counterfactual budget toggle. The sameAsMain flag
-// turns this into a statement (the override agrees with the surfaced
-// recommendation) rather than a recommendation replacement — agency
-// without confusion.
-function BudgetCounterfactualOutcome({
-  band,
-  topRanked,
-  recommendation,
-}: {
-  band: BudgetBand;
-  topRanked: MatchResult | null;
-  recommendation: MatchResult | undefined;
-}) {
-  const bandLabel =
-    BUDGET_BANDS.find((b) => b.value === band)?.label ?? band;
-  const sameAsMain =
-    topRanked !== null &&
-    recommendation !== undefined &&
-    topRanked.retreatRootHash === recommendation.retreatRootHash;
-  if (!topRanked) {
-    return (
-      <div className="mt-4 border-l-2 border-[color:var(--accent-soft)] pl-4">
-        <p className="tag mb-2">if budget were {bandLabel}</p>
-        <p className="text-sm text-[color:var(--muted)]">
-          Nothing in the verified pool satisfies that limit — and that
-          is information too.
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div className="mt-4 border-l-2 border-[color:var(--accent-soft)] pl-4">
-      <p className="tag mb-2">
-        if budget were {bandLabel}
-        {sameAsMain ? " (same retreat)" : ""}
-      </p>
-      <p className="font-serif text-xl tracking-tight mb-1">
-        {topRanked.retreatTitle}
-      </p>
-      <p className="text-sm text-[color:var(--muted)]">
-        {topRanked.retreatLocation} · {topRanked.durationDays} days · $
-        {topRanked.priceUsd.toLocaleString()}
-      </p>
-    </div>
-  );
-}
-
-// A small panel that shows which retreat a hypothetical energy state
-// picks. Mirrors the budget counterpart's structure (peer of
-// BudgetCounterfactualOutcome inside ExploreOtherFits body). The
-// sameAsMain flag turns this into a statement (the override agrees
-// with the surfaced recommendation) rather than a recommendation
-// replacement — agency without confusion.
-function EnergyCounterfactualOutcome({
-  energy,
-  topRanked,
-  recommendation,
-}: {
-  energy: EnergyState;
-  topRanked: MatchResult | null;
-  recommendation: MatchResult | undefined;
-}) {
-  const energyLabel =
-    ENERGY_STATES.find((e) => e.value === energy)?.label ?? energy;
-  const sameAsMain =
-    topRanked !== null &&
-    recommendation !== undefined &&
-    topRanked.retreatRootHash === recommendation.retreatRootHash;
-  if (!topRanked) {
-    return (
-      <div className="mt-4 border-l-2 border-[color:var(--accent-soft)] pl-4">
-        <p className="tag mb-2">if energy were {energyLabel}</p>
-        <p className="text-sm text-[color:var(--muted)]">
-          Nothing in the verified pool fits that register — and that
-          is information too.
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div className="mt-4 border-l-2 border-[color:var(--accent-soft)] pl-4">
-      <p className="tag mb-2">
-        if energy were {energyLabel}
-        {sameAsMain ? " (same retreat)" : ""}
-      </p>
-      <p className="font-serif text-xl tracking-tight mb-1">
-        {topRanked.retreatTitle}
-      </p>
-      <p className="text-sm text-[color:var(--muted)]">
-        {topRanked.retreatLocation} · {topRanked.durationDays} days · $
-        {topRanked.priceUsd.toLocaleString()}
-      </p>
-    </div>
-  );
-}
-
-// Surfaces the alternatives + budget/energy counterfactuals as a single
-// component. Expanded when uncertainty is high, feedback is open, or no
-// hold yet; collapsed under a calm active hold (confidence check only —
-// never mutates the hold). Lens factors are in the prominent
-// LensFactors component above. See docs/design/experience-layer.md.
-function ExploreOtherFits({
-  alternatives,
-  recommendation,
-  busy,
-  activeBand,
-  bandData,
-  bandLoading,
-  onPickBand,
-  activeEnergy,
-  energyData,
-  energyLoading,
-  onPickEnergy,
-  holdActive,
-  expanded,
-}: {
-  alternatives: MatchResult[];
-  recommendation: MatchResult | undefined;
-  busy: boolean;
-  activeBand: BudgetBand | null;
-  bandData: CounterfactualResult | null;
-  bandLoading: boolean;
-  onPickBand: (band: BudgetBand | null) => void;
-  activeEnergy: EnergyState | null;
-  energyData: CounterfactualResult | null;
-  energyLoading: boolean;
-  onPickEnergy: (energy: EnergyState | null) => void;
-  holdActive: boolean;
-  expanded: boolean;
-}) {
-  const body = (
-    <div className="space-y-5">
-      {alternatives.length > 0 && (
-        <div>
-          <p className="tag mb-2">
-            {holdActive
-              ? "and one more that also qualified"
-              : "other possibilities I'm weighing"}
-          </p>
-          <ul className="space-y-4">
-            {alternatives.map((alt, index) => (
-              <li
-                key={alt.retreatRootHash}
-                className="border-l-2 border-[color:var(--hairline)] pl-4"
-              >
-                <p className="text-xs text-[color:var(--muted)] mb-1">
-                  {index === 0 ? "next in line" : `option ${index + 1}`}
-                </p>
-                <p className="font-serif text-lg tracking-tight">
-                  {alt.retreatTitle}
-                </p>
-                <p className="text-sm text-[color:var(--muted)] mt-0.5">
-                  {alt.retreatLocation} · {alt.durationDays} days · $
-                  {alt.priceUsd.toLocaleString()}
-                </p>
-                {alt.reasoning.length > 0 && (
-                  <p className="text-sm mt-2 italic text-[color:var(--accent-ink)]">
-                    {alt.reasoning[0].then}
-                  </p>
-                )}
-                {/* Score delta for the next-in-line — the "why not that
-                    one" comparison, folded in here instead of a separate
-                    "considered and set aside" block. */}
-                {index === 0 && recommendation && (
-                  <p className="text-xs text-[color:var(--muted)] mt-1">
-                    Scored {Math.round(alt.score * 100)} vs{" "}
-                    {Math.round(recommendation.score * 100)} for{" "}
-                    {recommendation.retreatTitle}.
-                  </p>
-                )}
-              </li>
-            ))}
-            {!holdActive && (
-              <li className="text-sm text-[color:var(--muted)] pt-1">
-                Use &ldquo;Not this one&rdquo; to move to the next in line.
-              </li>
-            )}
-          </ul>
-        </div>
-      )}
-      <div>
-        <p className="tag mb-2">what if your budget were tighter?</p>
-          <div
-            role="group"
-            aria-label="Re-rank the fit under a hypothetical budget"
-            className="flex flex-wrap gap-2"
-          >
-            {BUDGET_BANDS.map(({ value, label }) => {
-              const isActive = activeBand === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  disabled={busy || bandLoading}
-                  onClick={() => onPickBand(isActive ? null : value)}
-                  className={`px-3 py-2 rounded-sm border text-sm transition-colors disabled:opacity-40 ${
-                    isActive
-                      ? "border-[color:var(--accent)] text-[color:var(--accent-ink)]"
-                      : "border-[color:var(--hairline)] hover:border-[color:var(--accent)]"
-                  }`}
-                  aria-pressed={isActive}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          {bandLoading && (
-            <p className="text-sm text-[color:var(--muted)] mt-3 italic">
-              Re-ranking under a different limit…
-            </p>
-          )}
-          {!bandLoading && activeBand && bandData && (
-            <BudgetCounterfactualOutcome
-              band={activeBand}
-              topRanked={bandData.topRanked}
-              recommendation={recommendation}
-            />
-          )}
-        </div>
-        <div>
-          <p className="tag mb-2">what if your energy were different?</p>
-          <div
-            role="group"
-            aria-label="Re-rank the fit under a hypothetical energy"
-            className="flex flex-wrap gap-2"
-          >
-            {ENERGY_STATES.map(({ value, label }) => {
-              const isActive = activeEnergy === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  disabled={busy || energyLoading}
-                  onClick={() => onPickEnergy(isActive ? null : value)}
-                  className={`px-3 py-2 rounded-sm border text-sm transition-colors disabled:opacity-40 ${
-                    isActive
-                      ? "border-[color:var(--accent)] text-[color:var(--accent-ink)]"
-                      : "border-[color:var(--hairline)] hover:border-[color:var(--accent)]"
-                  }`}
-                  aria-pressed={isActive}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          {energyLoading && (
-            <p className="text-sm text-[color:var(--muted)] mt-3 italic">
-              Re-ranking under a different energy…
-            </p>
-          )}
-          {!energyLoading && activeEnergy && energyData && (
-            <EnergyCounterfactualOutcome
-              energy={activeEnergy}
-              topRanked={energyData.topRanked}
-              recommendation={recommendation}
-            />
-          )}
-        </div>
-      </div>
-    );
-
-  if (!expanded) {
-    return (
-      <details className="mt-5 border-t border-[color:var(--hairline)] pt-5">
-        <summary className="tag cursor-pointer">
-          {holdActive
-            ? "still curious what else fitted?"
-            : "See other possibilities I'm weighing"}
-        </summary>
-        <div className="mt-4">{body}</div>
-      </details>
-    );
-  }
-
-  return (
-    <div className="mt-6 border-t border-[color:var(--hairline)] pt-5">
-      {body}
-    </div>
-  );
-}
-
-function HoldPanel({
-  nextDecision,
-  episode,
-  participant,
-  setParticipant,
-  shareUrl,
-  busy,
-  onInvite,
-  onRelease,
-  onCloseCoordination,
-  onRefresh,
-  recommendation,
-  activeBand,
-  bandData,
-  bandLoading,
-  onPickBand,
-  activeEnergy,
-  energyData,
-  energyLoading,
-  onPickEnergy,
-  expandSecondaryTools,
-}: {
-  nextDecision: NextDecision;
-  episode: Episode;
-  participant: string;
-  setParticipant: (value: string) => void;
-  shareUrl: string | null;
-  busy: boolean;
-  onInvite: () => void;
-  onRelease: () => void;
-  onCloseCoordination: () => void;
-  onRefresh: () => Promise<void>;
-  recommendation: MatchResult | undefined;
-  activeBand: BudgetBand | null;
-  bandData: CounterfactualResult | null;
-  bandLoading: boolean;
-  onPickBand: (band: BudgetBand | null) => void;
-  activeEnergy: EnergyState | null;
-  energyData: CounterfactualResult | null;
-  energyLoading: boolean;
-  onPickEnergy: (energy: EnergyState | null) => void;
-  expandSecondaryTools: boolean;
-}) {
-  const hold = episode.hold!;
-  const inviteOpen = Boolean(episode.coordination?.inviteExpiresAt);
-  const hasResponses = Boolean(episode.coordination?.responses.length);
-  const reviewHold = nextDecision.kind === "review-hold";
-  const awaitResponses = nextDecision.kind === "await-responses";
-
-  return (
-    <div className="border border-[color:var(--accent-soft)] rounded-sm p-5">
-      <p className="tag mb-2">non-binding planning hold</p>
-      <p className="mb-1">
-        Held until {new Date(hold.expiresAt).toLocaleString()}.
-      </p>
-      <p className="text-sm text-[color:var(--muted)] mb-5">
-        Nothing has been booked or charged.
-      </p>
-
-      {reviewHold && (
-        <div className="mb-5 border-l-2 border-[color:var(--accent-soft)] pl-4">
-          <p className="text-sm leading-relaxed mb-3">{nextDecision.prompt}</p>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onCloseCoordination}
-              className="px-5 py-2.5 rounded-sm bg-foreground text-background text-sm disabled:opacity-40"
-            >
-              Continue solo — secure my place
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onRelease}
-              className="px-5 py-2.5 rounded-sm border border-[color:var(--hairline)] text-sm disabled:opacity-40"
-            >
-              Release the hold
-            </button>
-          </div>
-        </div>
-      )}
-
-      {hasResponses ? (
-        <div className="mb-5">
-          {episode.coordination!.responses.map((response) => (
-            <p key={response.participantId} className="text-sm">
-              {episode.coordination?.participantName} responded{" "}
-              <strong>{response.decision}</strong>.
-            </p>
-          ))}
-        </div>
-      ) : shareUrl ? (
-        <div className="mb-5">
-          <p className="text-sm mb-2">Private invitation link</p>
-          <p className="why mb-3">
-            For {episode.coordination?.participantName ?? "the person"} — this
-            link confirms a shared hold and never includes your intention or
-            constraints.
-          </p>
-          <div className="flex gap-2">
-            <input
-              readOnly
-              value={shareUrl}
-              className="min-w-0 flex-1 border border-[color:var(--hairline)] bg-background px-3 py-2 text-xs"
-            />
-            <button
-              type="button"
-              onClick={() => navigator.clipboard?.writeText(shareUrl)}
-              className="px-3 py-2 border border-[color:var(--hairline)] text-sm"
-            >
-              Copy
-            </button>
-          </div>
-          <p className="text-xs text-[color:var(--muted)] mt-2">
-            Mira can&apos;t recover this link if you close the tab — copy it now.
-          </p>
-        </div>
-      ) : inviteOpen ? (
-        <p className="text-sm text-[color:var(--muted)] mb-5">
-          The invitation is active. For privacy, its token is shown only when
-          created. Ask Mira to check for a response.
-        </p>
-      ) : (
-        <details className="mb-5">
-          <summary className="text-sm text-[color:var(--muted)] cursor-pointer hover:text-foreground">
-            Someone else needs to agree?
-          </summary>
-          <div className="mt-4">
-            <label className="block text-sm mb-2" htmlFor="participant-name">
-              Invite them to this decision
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="participant-name"
-                value={participant}
-                onChange={(event) => setParticipant(event.target.value)}
-                placeholder="Their first name"
-                maxLength={80}
-                className="min-w-0 flex-1 border border-[color:var(--hairline)] bg-background px-3 py-2"
-              />
-              <button
-                type="button"
-                disabled={!participant.trim() || busy}
-                onClick={onInvite}
-                className="px-4 py-2 bg-foreground text-background disabled:opacity-40"
-              >
-                Create invite
-              </button>
-            </div>
-            <p className="text-xs text-[color:var(--muted)] mt-2">
-              The link shares only that an invitation exists—never your private
-              intention or constraints. Solo paths do not require an invite.
-            </p>
-          </div>
-        </details>
-      )}
-
-      <div className="flex flex-wrap gap-3">
-        {awaitResponses && inviteOpen && (
-          <PrimaryButton disabled={busy} onClick={() => void onRefresh()}>
-            {nextDecision.primaryLabel}
-          </PrimaryButton>
-        )}
-        {!reviewHold && inviteOpen && !awaitResponses && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void onRefresh()}
-            className="text-sm text-[color:var(--accent)]"
-          >
-            Check for a response
-          </button>
-        )}
-        {!reviewHold && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onRelease}
-            className="text-sm text-[color:var(--muted)]"
-          >
-            Release the hold
-          </button>
-        )}
-      </div>
-      <ExploreOtherFits
-        alternatives={episode.recommendation?.alternatives ?? []}
-        recommendation={recommendation}
-        busy={busy}
-        activeBand={activeBand}
-        bandData={bandData}
-        bandLoading={bandLoading}
-        onPickBand={onPickBand}
-        activeEnergy={activeEnergy}
-        energyData={energyData}
-        energyLoading={energyLoading}
-        onPickEnergy={onPickEnergy}
-        holdActive={true}
-        expanded={expandSecondaryTools}
-      />
-    </div>
   );
 }

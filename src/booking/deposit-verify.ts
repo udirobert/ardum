@@ -18,6 +18,7 @@ import "server-only";
 import { JsonRpcProvider, id } from "ethers";
 import {
   SETTLE_RPC,
+  SETTLE_RPC_FALLBACK,
   SETTLE_CHAIN_ID,
   USDC_ADDRESS,
   USDC_DECIMALS,
@@ -44,21 +45,53 @@ export async function verifyDepositTx(params: {
     return { verified: "failed", reason: "Invalid tx hash format." };
   }
 
+  // Whether a fallback RPC is configured and distinct from the primary.
+  const hasFallback =
+    Boolean(SETTLE_RPC_FALLBACK) && SETTLE_RPC_FALLBACK !== SETTLE_RPC;
+
   let provider: JsonRpcProvider;
   try {
     provider = new JsonRpcProvider(SETTLE_RPC);
   } catch {
-    return { verified: "failed", reason: "RPC unavailable." };
+    if (!hasFallback) return { verified: "failed", reason: "RPC unavailable." };
+    try {
+      provider = new JsonRpcProvider(SETTLE_RPC_FALLBACK);
+    } catch {
+      return { verified: "failed", reason: "RPC unavailable (all endpoints)." };
+    }
   }
 
   let tx: Awaited<ReturnType<JsonRpcProvider["getTransaction"]>>;
   try {
     tx = await provider.getTransaction(depositTxHash);
   } catch (err) {
-    return {
-      verified: "failed",
-      reason: `RPC fetch failed: ${err instanceof Error ? err.message : "unknown"}`,
-    };
+    const primaryErr = err instanceof Error ? err.message : "unknown";
+    if (!hasFallback) {
+      return {
+        verified: "failed",
+        reason: `RPC fetch failed: ${primaryErr}`,
+      };
+    }
+    try {
+      const fallback = new JsonRpcProvider(SETTLE_RPC_FALLBACK);
+      tx = await fallback.getTransaction(depositTxHash);
+      // Subsequent calls run against the endpoint that answered — its receipt
+      // is likely fresher than the lagging primary's.
+      if (tx && tx.blockNumber) provider = fallback;
+    } catch {
+      return {
+        verified: "failed",
+        reason: `RPC fetch failed (all endpoints): ${primaryErr}`,
+      };
+    }
+  }
+  if (!tx && hasFallback) {
+    try {
+      const fallback = new JsonRpcProvider(SETTLE_RPC_FALLBACK);
+      tx = await fallback.getTransaction(depositTxHash);
+    } catch {
+      // both RPCs failed — tx stays null, falls through below
+    }
   }
   if (!tx) {
     return { verified: "failed", reason: "Transaction not found on settle chain." };
@@ -71,7 +104,16 @@ export async function verifyDepositTx(params: {
   try {
     receipt = await provider.getTransactionReceipt(depositTxHash);
   } catch {
-    return { verified: "failed", reason: "Receipt fetch failed." };
+    receipt = null;
+    // try fallback below
+  }
+  if (!receipt && hasFallback) {
+    try {
+      const fallback = new JsonRpcProvider(SETTLE_RPC_FALLBACK);
+      receipt = await fallback.getTransactionReceipt(depositTxHash);
+    } catch {
+      // both failed
+    }
   }
   if (!receipt) {
     return { verified: "failed", reason: "Receipt not found." };

@@ -35,6 +35,17 @@ export const SETTLE_RPC =
     ? ARBITRUM_SEPOLIA_RPC
     : ARBITRUM_RPC;
 
+// Fallback settle RPC. The agent booking API's availability is coupled to
+// settle-chain RPC availability (deposit verification rejects rather than
+// trusts when RPC fails). A second public endpoint keeps one outage from
+// blocking bookings. Deployments can supply their own via env (e.g. an
+// Alchemy/Infura/Tenderly key-bearing URL).
+export const SETTLE_RPC_FALLBACK =
+  process.env.NEXT_PUBLIC_SETTLE_RPC_FALLBACK ??
+  (process.env.NEXT_PUBLIC_USE_TESTNET === "true"
+    ? "https://arbitrum-sepolia.publicnode.com"
+    : "https://arbitrum-one.publicnode.com");
+
 export const USDC_ADDRESS = USDC_ADDRESSES[SETTLE_CHAIN_ID] ?? USDC_ADDRESSES[ARBITRUM_ONE_CHAIN_ID];
 
 // Escrow contract address — set after deployment

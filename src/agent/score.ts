@@ -24,6 +24,7 @@ import type {
   PoseBaseline,
   PractitionerProfile,
 } from "@/calibration/schema";
+import { getRetreatImage } from "@/inventory/retreat-images";
 
 export type ScoredAttestation = {
   result: MatchResult;
@@ -556,6 +557,7 @@ export function scoreRetreat(
     attestationCount: 1,
     attestor: a.attestor,
     attestedAt: a.createdAt,
+    ...getRetreatImage(a.rootHash),
   };
 
   return { result, steps };
