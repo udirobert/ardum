@@ -8,7 +8,7 @@ import {
   canonicalAgentBookingMessage,
   type AgentBookingAuthorization,
 } from "@/booking/canonical";
-import { verifyTimestamp, consumeNonce } from "@/booking/agent-replay";
+import { verifyTimestamp, consumeNonceAsync } from "@/booking/agent-replay";
 import { verifyDepositTx } from "@/booking/deposit-verify";
 import { SETTLE_CHAIN_ID } from "@/booking/constants";
 

@@ -832,7 +832,17 @@ useEffect(() => {
               <>
                 {/* The primary decision: hold this pick. Everything else
                     collapses into disclosure so the page reads:
-                    letter → identity → Hold → status → disclosure. */}
+                    letter → identity → Hold → status → disclosure.
+
+                    Uncertainty gate (ADR 0008 §4): when the fit is strong
+                    (fitScore ≥ 0.75), only the primary Hold action and a
+                    single "not this one" link stay visible. "Not this one"
+                    stays inline because it directly serves the one primary
+                    decision — "is this the right place?" — without
+                    expanding the full secondary-tooling surface. Watch,
+                    lenses, counterfactuals, and alternatives collapse into
+                    disclosure. When uncertainty is high, they expand so the
+                    person can interrogate the fit before deciding. */}
                 <div className="flex flex-col gap-2">
                   <PrimaryButton
                     disabled={busy}
@@ -845,7 +855,9 @@ useEffect(() => {
                       re-recommend with it excluded. Distinct from "this
                       doesn't feel right" (categorical feedback that resets
                       to clarification). This is a specific retreat
-                      rejection that produces a different top pick. */}
+                      rejection that produces a different top pick. Stays
+                      inline because it is the natural counterpart to the
+                      Hold decision, not a secondary inspection tool. */}
                   {episode.recommendation!.alternatives.length > 0 && (
                     <button
                       type="button"
@@ -863,19 +875,23 @@ useEffect(() => {
                   )}
 
                   {/* Watch — a quiet subordinate action, not a sibling button.
-                      Starts monitoring so Mira checks for changes over time. */}
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      act({
-                        type: episode.monitor ? "check-monitor" : "start-monitoring",
-                      })
-                    }
-                    className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
-                  >
-                    {episode.monitor ? "Check for changes" : "or I can watch this for you →"}
-                  </button>
+                      Starts monitoring so Mira checks for changes over time.
+                      Collapsed into disclosure when the fit is strong, so the
+                      page reads as one calm decision. */}
+                  {expandSecondaryTools && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        act({
+                          type: episode.monitor ? "check-monitor" : "start-monitoring",
+                        })
+                      }
+                      className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
+                    >
+                      {episode.monitor ? "Check for changes" : "or I can watch this for you →"}
+                    </button>
+                  )}
                 </div>
 
                 {/* Forward-looking note — the recommendation is the start
@@ -888,15 +904,36 @@ useEffect(() => {
                   if something fits better, I&apos;ll let you know.
                 </p>
 
-                {/* Secondary tools (lenses, alternatives, counterfactuals)
+                {/* Secondary tools (lenses, alternatives, counterfactuals,
+                    and — when the fit is strong — the watch action)
                     collapse behind a single disclosure. The decision above
                     is the point of the page; this is depth for anyone who
-                    wants to interrogate the fit. */}
-                <details className="border-t border-[color:var(--hairline)] pt-5">
+                    wants to interrogate the fit. When uncertainty is high
+                    the disclosure expands so the person can explore before
+                    deciding (ADR 0008 §8). */}
+                <details className="border-t border-[color:var(--hairline)] pt-5" open={expandSecondaryTools || undefined}>
                   <summary className="tag cursor-pointer">
                     weigh it differently, or see what else fits
                   </summary>
                   <div className="mt-4 space-y-6">
+                    {!expandSecondaryTools && (
+                      <div className="flex flex-col gap-2">
+                        {/* Watch action moves here when the fit is strong
+                            so the primary surface stays one decision. */}
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            act({
+                              type: episode.monitor ? "check-monitor" : "start-monitoring",
+                            })
+                          }
+                          className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
+                        >
+                          {episode.monitor ? "Check for changes" : "or I can watch this for you →"}
+                        </button>
+                      </div>
+                    )}
                     <LensFactors
                       activeLens={activeLens}
                       lensData={lensData}
@@ -918,7 +955,7 @@ useEffect(() => {
                       energyLoading={energyLoading}
                       onPickEnergy={runCounterfactualEnergy}
                       holdActive={false}
-                      expanded
+                      expanded={expandSecondaryTools}
                     />
                   </div>
                 </details>

@@ -2,6 +2,7 @@ import "server-only";
 
 import { episodeRepository } from "@/episodes/repository";
 import { applyEpisodeCommand } from "@/episodes/service";
+import { log } from "@/lib/observability";
 
 export async function runDueAutomation(now = new Date()): Promise<{
   checked: number;
@@ -19,9 +20,15 @@ export async function runDueAutomation(now = new Date()): Promise<{
         { clock: { now: () => now } },
       );
       checked += 1;
-    } catch {
+    } catch (error) {
       failed += 1;
+      log.warn("automation.tick_failed", {
+        episodeId: episode.id,
+        revision: episode.revision,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
+  log.info("automation.tick_complete", { checked, failed, total: due.length });
   return { checked, failed };
 }
