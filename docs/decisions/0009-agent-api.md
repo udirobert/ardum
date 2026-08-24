@@ -40,6 +40,7 @@ bookings is the on-chain escrow deposit, not an x402 call.
 |---|---|
 | `POST /api/agent/match` | Takes intention + constraints, creates an episode, runs the real recommendation pipeline, returns matched retreat(s) + episodeId |
 | `POST /api/agent/attest` | Validates + structures retreat details from natural language (agent conversation), returns a pre-fill URL for the operator to sign and publish |
+| `POST /api/agent/flights` | Takes origin + destination IATA codes + dates, returns live flight offers from the ATRIP API. Read-only price search; no signature required. |
 | `POST /api/agent/book` | Takes episodeId + depositTxHash + agent signature, verifies the signature, records the booking attestation to 0G, marks episode as booked |
 
 Each endpoint also has a `GET` service-discovery response documenting its

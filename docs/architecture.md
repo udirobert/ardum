@@ -299,11 +299,39 @@ cookie, or human wallet interaction. See
 |---|---|
 | `POST /api/agent/match` | Intention + constraints → matched retreat(s) + episodeId |
 | `POST /api/agent/attest` | Natural-language retreat details → validated attestation + pre-fill URL |
+| `POST /api/agent/flights` | Origin + destination IATA → live flight offers (ATRIP direct API) |
 | `POST /api/agent/book` | Signed booking intent → attestation on 0G + episode booked |
 
 Each endpoint has a `GET` service-discovery response. Agent calls use
 signature-based identity (EIP-191), not cookies. The agent booking script
 (`scripts/agent-book.ts`) demonstrates the full flow end-to-end.
+
+### Flight search (Atlas / ATRIP)
+
+`/api/agent/flights` is an agent-callable flight search endpoint backed by
+the Atlas Flight Booking API (ATRIP). It resolves retreat destinations to
+IATA codes and searches live flights via the ATRIP sandbox.
+
+Two integration paths, tried in order:
+
+1. **Direct ATRIP API** (primary) — `src/atlas/atrip.ts` talks to the
+   ATRIP `search.do` endpoint using server-side credentials. No CLI, no
+   browser OAuth. Works on serverless / headless. Configured via
+   `ATLAS_ACCESS_KEY` / `ATLAS_SECRET_KEY` (or `ATLAS_CLIENT_ID` /
+   `ATLAS_CLIENT_SECRET`).
+2. **atlas-flight CLI** (fallback) — `src/atlas/cli.ts` shells out to the
+   `atlas-flight` Python CLI with browser-based OAuth. Useful for local
+   development; dead on serverless.
+
+Location → IATA resolution lives in `src/atlas/iata-mapping.ts`. Unknown
+locations return `null`; the caller skips flight search rather than
+guessing a wrong destination. The mapping covers the seed catalog's
+retreat locations (Bali, Tulum, Sedona, Sintra, etc.).
+
+The flights endpoint is open (no EIP-191 signature required) — it is a
+read-only price search. This is documented in its GET service-discovery
+response. For production, it should be rate-limited (ATRIP sandbox allows
+~10 QPS).
 
 ### Operator identity (Particle Auth + ZeroDev)
 
