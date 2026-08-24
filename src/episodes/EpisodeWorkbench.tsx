@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence } from "framer-motion";
 import MiraOrb, { preloadMiraScene } from "@/components/MiraOrb";
 import { useMiraField } from "@/components/MiraField";
 import { useMiraImpulse, type ImpulseKind } from "@/components/MiraImpulse";
@@ -93,6 +92,7 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
   const [voiceResponse, setVoiceResponse] = useState<string | null>(null);
   const [commitmentOpen, setCommitmentOpen] = useState(false);
   const [thinking, setThinking] = useState(false);
+  const [thinkingBeatKey, setThinkingBeatKey] = useState(0);
   const [thinkingSnapshot, setThinkingSnapshot] = useState<{
     constraints: IntentionConstraints;
     poolSize?: number;
@@ -289,6 +289,7 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
             ? currentRec?.result.retreatTitle
             : undefined,
       });
+      setThinkingBeatKey((k) => k + 1);
       setThinking(true);
     }
     const thinkingBeatEnabled =
@@ -338,7 +339,9 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
       }
       setBusy(false);
       setThinking(false);
-      setThinkingSnapshot(null);
+      // Keep thinkingSnapshot so the settled trace stays visible above
+      // the card. It's cleared when a new beat starts or when the state
+      // moves away from the recommendation surface.
     }
   }
 
@@ -404,6 +407,26 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
     }
   }
 
+  // ── Recommendation-surface state ──
+  // Whether the current decision lives on the recommendation surface
+  // (review/hold/ready-to-book). The settled thinking trace only belongs
+  // there, so its render is gated on this below (derived, not a state
+  // mutation). Derives from payload?.nextDecision so it is computed before
+  // the loading early-return (React Rules of Hooks).
+  const nextKind = payload?.nextDecision.kind;
+  const isClarifyStep =
+    nextKind === "clarify-energy" ||
+    nextKind === "clarify-budget" ||
+    nextKind === "clarify-social" ||
+    nextKind === "clarify-party-size" ||
+    nextKind === "clarify-horizon";
+  const isRecommendationState =
+    !!nextKind &&
+    !isClarifyStep &&
+    nextKind !== "completed" &&
+    nextKind !== "preparation" &&
+    nextKind !== "describe-intention";
+
   // ── Loading state ──
   if (!payload) {
     return (
@@ -418,13 +441,6 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
   const { episode, nextDecision, memory, miraPresence } = payload;
   const intention = episode.intentions.at(-1)!;
   const recommendation = episode.recommendation?.result;
-
-  const isClarifyStep =
-    nextDecision.kind === "clarify-energy" ||
-    nextDecision.kind === "clarify-budget" ||
-    nextDecision.kind === "clarify-social" ||
-    nextDecision.kind === "clarify-party-size" ||
-    nextDecision.kind === "clarify-horizon";
 
   // Derived views passed to the recommendation surface.
   const derived: DerivedViews = {
@@ -456,19 +472,6 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
   // ── Main render: a clean state switch ──
   return (
     <section className="dusk mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24 min-h-[calc(100svh-56px)]">
-      <AnimatePresence>
-        {thinking && thinkingSnapshot && (
-          <ThinkingBeat
-            key="thinking-beat"
-            constraints={thinkingSnapshot.constraints}
-            poolSize={thinkingSnapshot.poolSize}
-            presence={miraPresence}
-            upcomingPick={thinkingSnapshot.upcomingPick}
-            rejectedTitle={thinkingSnapshot.rejectedTitle}
-          />
-        )}
-      </AnimatePresence>
-
       <div className="mb-10">
         <button
           type="button"
@@ -490,6 +493,26 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
         className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 sm:p-8 surface-card"
         aria-live="polite"
       >
+        {/* Thinking beat — non-blocking trace at the top of the card.
+            Two phases: working (orb + progressive reasoning lines) and
+            settled (collapses to "thought for Ns", expandable on demand).
+            The recommendation card is hidden during the working phase so
+            the beat reads as the breath between intention and arrival;
+            it appears below the collapsed trace when settled. */}
+        {isRecommendationState && thinkingSnapshot && (
+          <div className="mb-6 pb-6 border-b border-[color:var(--hairline)]">
+            <ThinkingBeat
+              key={`thinking-beat-${thinkingBeatKey}`}
+              thinking={thinking}
+              constraints={thinkingSnapshot.constraints}
+              poolSize={thinkingSnapshot.poolSize}
+              presence={miraPresence}
+              upcomingPick={thinkingSnapshot.upcomingPick}
+              rejectedTitle={thinkingSnapshot.rejectedTitle}
+            />
+          </div>
+        )}
+
         {/* ── State: completed ── */}
         {nextDecision.kind === "completed" && (
           <div className="space-y-6" data-testid="completed-landing">
@@ -607,7 +630,11 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
         )}
 
         {/* ── State: recommendation (review, hold, ready-to-book) ── */}
+        {/* During the thinking beat's working phase the card is hidden —
+            the beat is the breath between intention and arrival. The
+            settled trace appears above, then the card renders below. */}
         {!isClarifyStep &&
+          !thinking &&
           nextDecision.kind !== "completed" &&
           nextDecision.kind !== "preparation" &&
           nextDecision.kind !== "describe-intention" && (
