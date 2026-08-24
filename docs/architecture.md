@@ -312,16 +312,11 @@ signature-based identity (EIP-191), not cookies. The agent booking script
 the Atlas Flight Booking API (ATRIP). It resolves retreat destinations to
 IATA codes and searches live flights via the ATRIP sandbox.
 
-Two integration paths, tried in order:
-
-1. **Direct ATRIP API** (primary) — `src/atlas/atrip.ts` talks to the
-   ATRIP `search.do` endpoint using server-side credentials. No CLI, no
-   browser OAuth. Works on serverless / headless. Configured via
-   `ATLAS_ACCESS_KEY` / `ATLAS_SECRET_KEY` (or `ATLAS_CLIENT_ID` /
-   `ATLAS_CLIENT_SECRET`).
-2. **atlas-flight CLI** (fallback) — `src/atlas/cli.ts` shells out to the
-   `atlas-flight` Python CLI with browser-based OAuth. Useful for local
-   development; dead on serverless.
+The endpoint uses the direct ATRIP API — `src/atlas/atrip.ts` talks to the
+ATRIP `search.do` endpoint using server-side credentials. No CLI, no
+browser OAuth. Works on serverless / headless. Configured via
+`ATLAS_ACCESS_KEY` / `ATLAS_SECRET_KEY` (or `ATLAS_CLIENT_ID` /
+`ATLAS_CLIENT_SECRET`).
 
 Location → IATA resolution lives in `src/atlas/iata-mapping.ts`. Unknown
 locations return `null`; the caller skips flight search rather than

@@ -1,21 +1,16 @@
 import { NextResponse } from "next/server";
-import { isCliAvailable, getAuthStatus, searchFlights } from "@/atlas/cli";
 import { isAtripConfigured, searchFlightsViaAtrip } from "@/atlas/atrip";
 
 export const dynamic = "force-dynamic";
 
-// Agent-callable flight search endpoint (Atlas Flight Booking Skill).
+// Agent-callable flight search endpoint backed by the ATRIP direct API.
 //
-// Two integration paths (per the hackathon brief):
-//   Path 01 — Direct ATRIP API (x-atlas-client-id / x-atlas-client-secret)
-//   Path 02 — atlas-flight CLI (browser-based OAuth)
+// Uses server-side credentials (ATLAS_ACCESS_KEY / ATLAS_SECRET_KEY, or
+// ATLAS_CLIENT_ID / ATLAS_CLIENT_SECRET) to search live flights via the
+// ATRIP search.do endpoint. No CLI dependency, no browser OAuth — works
+// on serverless and headless deployments.
 //
-// When ATLAS_CLIENT_ID + ATLAS_CLIENT_SECRET are set, the direct ATRIP API
-// is used — no Python CLI dependency, no browser OAuth. This is the
-// primary path for serverless / agent deployments.
-//
-// When the env vars are absent, the route falls back to the CLI adapter,
-// which manages its own authorization via browser-based ATRIP OAuth.
+// API contract: https://resources.atriptech.com/api-document/readme-1/making-requests.md
 //
 // Request:
 //   {
@@ -31,14 +26,12 @@ export const dynamic = "force-dynamic";
 //   {
 //     "search_id": "...",
 //     "offers": [{ offer_id, airline, flight_number, ... }],
-//     "auth": { authenticated, ticketing_available }
+//     "provider": "atrip"
 //   }
 //
-// Response (401 — authorization required):
+// Response (503 — not configured):
 //   {
-//     "auth": { authenticated: false },
-//     "authorization_url": "https://www.atriptech.com/...",
-//     "message": "Atlas authorization required. Visit the URL, then retry."
+//     "error": "ATRIP credentials not configured. Set ATLAS_ACCESS_KEY + ATLAS_SECRET_KEY."
 //   }
 
 type FlightsRequest = {
@@ -99,71 +92,18 @@ export async function POST(req: Request) {
     );
   }
 
-  // ── Primary: direct ATRIP API (server-side credentials, no CLI) ────
-  if (isAtripConfigured()) {
-    try {
-      const result = await searchFlightsViaAtrip({
-        origin: origin!,
-        destination: destination!,
-        departDate: departDate!,
-        adults,
-        returnDate: body.returnDate,
-        currency: body.currency,
-      });
-
-      return NextResponse.json({
-        search_id: result.search_id,
-        offers: result.offers,
-        origin: result.origin,
-        destination: result.destination,
-        depart_date: result.depart_date,
-        return_date: result.return_date,
-        adults: result.adults,
-        provider: "atrip",
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Flight search failed.";
-      return NextResponse.json({ error: message, provider: "atrip" }, { status: 502 });
-    }
-  }
-
-  // ── Fallback: atlas-flight CLI (browser-based ATRIP OAuth) ────────
-  const cliReady = await isCliAvailable();
-  if (!cliReady) {
+  if (!isAtripConfigured()) {
     return NextResponse.json(
       {
         error:
-          "Neither direct ATRIP credentials nor the atlas-flight CLI are available. Set ATLAS_CLIENT_ID + ATLAS_CLIENT_SECRET, or run: uv tool install --force --python 3.12 atlas-flight-booking==0.3.12 && atlas-flight auth login",
+          "ATRIP credentials not configured. Set ATLAS_ACCESS_KEY + ATLAS_SECRET_KEY (or ATLAS_CLIENT_ID + ATLAS_CLIENT_SECRET).",
       },
       { status: 503 },
     );
   }
 
-  // Check auth status — pass search params through even if ticketing is
-  // unavailable (comparison-only offers still have value).
-  const auth = await getAuthStatus().catch(() => ({
-    authenticated: false,
-    ticketing_available: false,
-  }));
-
-  if (!auth.authenticated) {
-    // Return the auth status with the search not attempted. The caller can
-    // start the login flow and retry. We don't auto-start login because the
-    // caller may want to handle the redirect differently (agent vs browser).
-    return NextResponse.json(
-      {
-        auth: { authenticated: false },
-        message:
-          "Atlas authorization required. Run atlas-flight auth login to get the URL.",
-        hint: "GET /api/agent/flights for service discovery and auth instructions.",
-      },
-      { status: 401 },
-    );
-  }
-
-  // Search
   try {
-    const result = await searchFlights({
+    const result = await searchFlightsViaAtrip({
       origin: origin!,
       destination: destination!,
       departDate: departDate!,
@@ -180,17 +120,11 @@ export async function POST(req: Request) {
       depart_date: result.depart_date,
       return_date: result.return_date,
       adults: result.adults,
-      auth: {
-        authenticated: true,
-        ticketing_available: auth.ticketing_available ?? false,
-      },
+      provider: "atrip",
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Flight search failed.";
-    return NextResponse.json(
-      { error: message, auth: { authenticated: true } },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: message, provider: "atrip" }, { status: 502 });
   }
 }
 
@@ -199,7 +133,7 @@ export async function GET() {
   return NextResponse.json({
     service: "ardum-agent-flights",
     description:
-      "Search live flights via the Atlas Flight Booking CLI. Agent-callable endpoint for integrating flight discovery into the retreat-booking flow.",
+      "Search live flights via the ATRIP direct API. Agent-callable endpoint for integrating flight discovery into the retreat-booking flow.",
     type: "free",
     endpoint: "POST /api/agent/flights",
     requestSchema: {
@@ -211,12 +145,12 @@ export async function GET() {
       currency: "string (optional) — e.g. USD, MYR",
     },
     responseSchema: {
-      search_id: "string — Atlas opaque search ID",
+      search_id: "string — ATRIP opaque search ID",
       offers: "array — normalized flight offers with offer_id, price, airline, etc.",
-      auth: "object — { authenticated, ticketing_available }",
+      provider: "string — always 'atrip'",
     },
-    auth: "No signature required. The atlas-flight CLI manages its own ATRIP authorization (browser-based). If not authorized, POST returns 401 with instructions.",
-    prerequisite: "atlas-flight CLI must be installed and authorized on the server.",
+    auth: "No signature required. Read-only price search backed by server-side ATRIP credentials.",
+    prerequisite: "ATLAS_ACCESS_KEY + ATLAS_SECRET_KEY (or ATLAS_CLIENT_ID + ATLAS_CLIENT_SECRET) must be set.",
     flow: "1. Agent calls /api/agent/match → retreat matched. 2. Agent calls /api/agent/flights → flights to retreat destination. 3. Agent calls /api/agent/book → on-chain deposit + attestation.",
   });
 }
