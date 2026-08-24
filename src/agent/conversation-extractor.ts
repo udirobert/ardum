@@ -41,14 +41,32 @@ export function extractConstraints(message: string): ExtractedConstraints {
   const constraints: ExtractedConstraints = {};
 
   // Budget extraction
-  if (matchesAny(lower, ["expensive", "cheap", "affordable", "budget", "cost", "price", "money"])) {
-    if (matchesAny(lower, ["too expensive", "cheaper", "less", "lower", "more affordable", "under 1000", "under $1000"])) {
+  if (
+    matchesAny(lower, [
+      "expensive", "cheap", "affordable", "budget", "cost", "price", "money",
+      "1000", "1,000", "1k",
+      "2000", "2,000", "2k",
+      "3000", "3,000", "3k",
+      "thousand",
+    ])
+  ) {
+    if (
+      matchesAny(lower, [
+        "too expensive", "cheaper", "less", "lower", "more affordable",
+        "under 1000", "under $1000", "under 1,000", "under $1,000",
+        "under 1k", "under $1k",
+      ])
+    ) {
       constraints.budget = "under-1k";
-    } else if (matchesAny(lower, ["1000", "1k", "thousand"])) {
+    } else if (matchesAny(lower, ["1000", "1,000", "$1000", "$1,000", "1k", "$1k"])) {
       constraints.budget = "1k-2k";
-    } else if (matchesAny(lower, ["2000", "2k", "two thousand"])) {
+    } else if (matchesAny(lower, ["2000", "2,000", "2k", "two thousand"])) {
       constraints.budget = "2k-3k";
-    } else if (matchesAny(lower, ["3000", "3k", "three thousand", "premium", "luxury", "splurge"])) {
+    } else if (
+      matchesAny(lower, [
+        "3000", "3,000", "3k", "three thousand", "premium", "luxury", "splurge",
+      ])
+    ) {
       constraints.budget = "3k-plus";
     }
   }
