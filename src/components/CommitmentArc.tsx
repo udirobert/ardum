@@ -54,11 +54,24 @@ export default function CommitmentArc({
   const [val, setVal] = useState(0);
   const [committed, setCommitted] = useState(false);
   const thresholdFired = useRef(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   const handleInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (disabled || committed) return;
       const v = Number(e.target.value);
+
+      // Direct DOM update for sub-frame visual latency — bypasses React
+      // render cycle so the thumb feels physically attached to the finger.
+      const el = wrapperRef.current;
+      if (el) {
+        el.style.setProperty("--val", String(v));
+        if (!reduced) {
+          el.style.setProperty("--arc", `calc(sin(3.14159 * ${v} / 100))`);
+        }
+      }
+
+      // React state for logic (threshold, commit, spring-back).
       setVal(v);
 
       // Threshold feedback at 80%
@@ -76,7 +89,7 @@ export default function CommitmentArc({
         onCommit();
       }
     },
-    [disabled, committed, onCommit, onThreshold],
+    [disabled, committed, onCommit, onThreshold, reduced],
   );
 
   // If the user releases before 100%, spring back to 0 with a smooth tween.
@@ -96,14 +109,23 @@ export default function CommitmentArc({
         // Cubic ease-out: 1 - (1-t)^3
         const eased = 1 - Math.pow(1 - t, 3);
         const current = Math.round(startVal * (1 - eased));
-        setVal(current);
+        // Direct DOM for visual, React state for logic sync at end.
+        const el = wrapperRef.current;
+        if (el) {
+          el.style.setProperty("--val", String(current));
+          if (!reduced) {
+            el.style.setProperty("--arc", `calc(sin(3.14159 * ${current} / 100))`);
+          }
+        }
         if (t < 1) {
           springRef.current = requestAnimationFrame(tick);
+        } else {
+          setVal(0);
         }
       };
       springRef.current = requestAnimationFrame(tick);
     }
-  }, [val, committed, disabled]);
+  }, [val, committed, disabled, reduced]);
 
   const cssVars = {
     "--val": val,
@@ -111,7 +133,7 @@ export default function CommitmentArc({
   } as CSSProperties;
 
   return (
-    <div className={`commitment-arc ${className}`} style={cssVars}>
+    <div ref={wrapperRef} className={`commitment-arc ${className}`} style={cssVars}>
       <div className="commitment-arc__labels">
         <span className="commitment-arc__label commitment-arc__label--start">
           {labelStart}

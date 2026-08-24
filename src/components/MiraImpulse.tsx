@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { haptic, type HapticPattern } from "@/lib/haptics";
 
 export type ImpulseKind =
   | "lean"
@@ -23,6 +24,15 @@ const STRENGTH: Record<ImpulseKind, number> = {
   reject: 0.55,
   resonate: 0.85,
   skip: 0.4,
+};
+
+// Each impulse carries a tactile signature.
+const HAPTIC_MAP: Record<ImpulseKind, HapticPattern> = {
+  lean: "tap",
+  commit: "settle",
+  reject: "release",
+  resonate: "heartbeat",
+  skip: "release",
 };
 
 type MiraImpulseContextValue = {
@@ -52,6 +62,7 @@ export function MiraImpulseProvider({ children }: { children: ReactNode }) {
   });
 
   const fire = useCallback((kind: ImpulseKind) => {
+    haptic(HAPTIC_MAP[kind]);
     setImpulse((v) => Math.min(1, Math.max(v, STRENGTH[kind])));
     if (!decaying.current) {
       decaying.current = true;

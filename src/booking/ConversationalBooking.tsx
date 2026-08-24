@@ -11,6 +11,7 @@ import { useCallback, useRef, useState } from "react";
 import MiraOrb from "@/components/MiraOrb";
 import CommitmentArc from "@/components/CommitmentArc";
 import { useFluidPour } from "@/components/FluidParticlePour";
+import { haptic } from "@/lib/haptics";
 import { presenceFromActivity } from "@/agent/mira-presence";
 import { useMagicAuth } from "./MagicAuth";
 import { useUniversalAccount } from "./UniversalAccount";
@@ -369,9 +370,8 @@ export default function ConversationalBooking({
             amount={amountLabel}
             disabled={false}
             onThreshold={() => {
-              // Fire the lean impulse at the threshold — Mira reacts.
-              // Haptic feedback if available.
-              if (navigator.vibrate) navigator.vibrate(12);
+              // Fire the weight haptic at the threshold — Mira reacts.
+              haptic("weight");
             }}
             onCommit={() => void runCommitment()}
             className="mt-2"

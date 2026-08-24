@@ -81,13 +81,37 @@ export default function RecommendationSurface({
   const fitScore = episode.recommendation?.result.score ?? 1;
   const expandSecondaryTools = fitScore < 0.75;
 
+  // Adaptive density: the interface itself breathes differently depending
+  // on confidence. High confidence = spacious (this is it). Low = denser
+  // (look more carefully). Urgency = subtle warmth/tempo shift.
+  const density = fitScore > 0.85 ? "spacious" : fitScore < 0.65 ? "dense" : "normal";
+  // Hold urgency: compare expiry against a server-supplied timestamp.
+  // The episode's hold has an expiresAt ISO string; we compare it to
+  // the episode's own latest event timestamp as a stable "now" proxy.
+  const latestEventAt = episode.events.at(-1)?.createdAt;
+  const nowProxy = latestEventAt ? new Date(latestEventAt).getTime() : 0;
+  const holdExpiry = episode.hold?.expiresAt && nowProxy
+    ? new Date(episode.hold.expiresAt).getTime() - nowProxy
+    : null;
+  const holdUrgent = holdExpiry !== null && holdExpiry < 12 * 60 * 60 * 1000;
+
   const holdDecision =
     nextDecision.kind === "await-responses" ||
     nextDecision.kind === "review-hold" ||
     nextDecision.kind === "ready-to-book";
 
   return (
-    <div className="space-y-6">
+    <div
+      className={[
+        "space-y-6",
+        density === "spacious" ? "space-y-8" : "",
+        density === "dense" ? "space-y-4" : "",
+        holdUrgent ? "commitment-urgent" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      data-density={density}
+    >
       {/* Mira's voice — one orb, one block. Recognition lines (if the
           practitioner is returning) sit above the why; both are Mira
           speaking, so they share a single presence. */}

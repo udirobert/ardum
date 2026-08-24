@@ -27,6 +27,8 @@ import {
 } from "@/agent/mira-presence";
 
 import { useMiraImpulse } from "@/components/MiraImpulse";
+import { useAttentionSignals, breathMultiplier } from "@/hooks/useAttentionSignals";
+import { haptic } from "@/lib/haptics";
 
 const MiraScene = dynamic(() => import("./MiraScene"), { ssr: false });
 
@@ -297,11 +299,27 @@ export default function MiraOrb({
   const resolvedVector = aestheticVector ?? storedVector;
   const [reactionPulse, setReactionPulse] = useState(0);
   const { impulse } = useMiraImpulse();
-  const morph = morphParamsForTier(effectivePresence, tier);
+  const attention = useAttentionSignals();
+  const baseMorph = morphParamsForTier(effectivePresence, tier);
+  // Modulate speed with attention — the whole scene breathes differently
+  // based on whether the person is idle, focused, or returning.
+  const morph: MorphParams = {
+    ...baseMorph,
+    speed: baseMorph.speed * breathMultiplier(attention),
+  };
   const palette = vectorToPalette(resolvedVector);
   // Derive holdTension from posture — when Mira is "holding", the capsule
   // shell should exhibit surface-tension drip behavior.
   const holdTension = effectivePresence.posture === "holding" ? 0.7 : 0;
+
+  // Gentle nudge when tab regains focus — Mira noticed you came back.
+  const prevAttention = useRef(attention);
+  useEffect(() => {
+    if (attention === "returning" && prevAttention.current !== "returning") {
+      haptic("nudge");
+    }
+    prevAttention.current = attention;
+  }, [attention]);
 
   useEffect(() => {
     presenceRef.current = mergePresence(presence, activity);
@@ -322,8 +340,11 @@ export default function MiraOrb({
     if (useScene) return;
     const orb = orbRef.current;
     if (!orb) return;
-    orb.style.animationDuration = breathDuration(effectivePresence.posture);
-  }, [effectivePresence.posture, useScene]);
+    // Modulate breath duration with attention signals — idle slows, focus quickens.
+    const baseDuration = parseFloat(breathDuration(effectivePresence.posture));
+    const modulated = baseDuration * breathMultiplier(attention);
+    orb.style.animationDuration = `${modulated}s`;
+  }, [effectivePresence.posture, useScene, attention]);
 
   useEffect(() => {
     if (!fill || !sceneReady || underlayGone) return;
