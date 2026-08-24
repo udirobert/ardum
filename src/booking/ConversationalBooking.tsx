@@ -7,7 +7,7 @@
 // Magic login, account upgrade, deposit routing, and attestation run
 // ambiently under "Securing your place…". Rails stay under disclosure.
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import MiraOrb from "@/components/MiraOrb";
 import CommitmentArc from "@/components/CommitmentArc";
 import { useFluidPour } from "@/components/FluidParticlePour";
@@ -67,6 +67,7 @@ export default function ConversationalBooking({
   } = useUniversalAccount();
 
   const { pour } = useFluidPour();
+  const grantRef = useRef<HTMLDivElement>(null);
   const [surface, setSurface] = useState<Surface>("grant");
   const [error, setError] = useState<string | null>(null);
   const [securingLabel, setSecuringLabel] = useState("Securing your place…");
@@ -169,9 +170,10 @@ export default function ConversationalBooking({
       // Fire the fluid pour — particles dissolve from the confirmation
       // area and stream toward the orb center, signaling that the intention
       // has been poured into Mira's care.
+      const rect = grantRef.current?.getBoundingClientRect();
       pour({
-        x: window.innerWidth / 2,
-        y: window.innerHeight * 0.6,
+        x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
+        y: rect ? rect.top + rect.height * 0.3 : window.innerHeight * 0.6,
         count: 280,
         color: "#a85a3a",
         durationMs: 2500,
@@ -319,7 +321,7 @@ export default function ConversationalBooking({
       : dialogue.ready;
 
   return (
-    <div className="mt-8 fade-in-up" data-testid="grant-ceremony">
+    <div ref={grantRef} className="mt-8 fade-in-up" data-testid="grant-ceremony">
       <div className="flex items-start gap-4 mb-6">
         <MiraOrb
           size={48}

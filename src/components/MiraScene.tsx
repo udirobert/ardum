@@ -358,6 +358,34 @@ function SDFCore({
   );
 }
 
+/** Lightweight core for standard tier (64–95px) — a simple lit sphere
+ *  with the terracotta palette. No raymarching cost. */
+function SimpleCore({ impulse }: { impulse: number }) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    if (!ref.current) return;
+    ref.current.rotation.y = -t * 0.15;
+    ref.current.rotation.z = Math.sin(t * 0.2) * 0.1;
+    const s = 0.42 + impulse * 0.05;
+    ref.current.scale.setScalar(s);
+  });
+
+  return (
+    <mesh ref={ref}>
+      <sphereGeometry args={[1, 32, 32]} />
+      <meshPhysicalMaterial
+        color="#d8a078"
+        roughness={0.15}
+        metalness={0.05}
+        clearcoat={0.4}
+        clearcoatRoughness={0.2}
+        envMapIntensity={0.3}
+      />
+    </mesh>
+  );
+}
+
 function Backdrop({ fill }: { fill: boolean }) {
   const { scene } = useThree();
   useEffect(() => {
@@ -484,7 +512,13 @@ function SceneInner({
       <directionalLight position={[2, -1, -2]} intensity={0.35} color="#6e3925" />
       <pointLight position={[0, 0, 1.5]} intensity={0.8 * (1 + impulse)} color="#d8a892" />
       <Environment preset="sunset" />
-      <SDFCore morph={props.morph} palette={props.palette} impulse={impulse} />
+      {/* SDF core is fragment-heavy — only render at hero (fill) tier.
+          Standard tier (64–95px) gets a simple lit sphere as the core. */}
+      {fill ? (
+        <SDFCore morph={props.morph} palette={props.palette} impulse={impulse} />
+      ) : (
+        <SimpleCore impulse={impulse} />
+      )}
       <CapsuleShell {...props} impulse={impulse} />
       {!disablePostFx && (
         <PostProcessing

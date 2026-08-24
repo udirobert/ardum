@@ -299,6 +299,9 @@ export default function MiraOrb({
   const { impulse } = useMiraImpulse();
   const morph = morphParamsForTier(effectivePresence, tier);
   const palette = vectorToPalette(resolvedVector);
+  // Derive holdTension from posture — when Mira is "holding", the capsule
+  // shell should exhibit surface-tension drip behavior.
+  const holdTension = effectivePresence.posture === "holding" ? 0.7 : 0;
 
   useEffect(() => {
     presenceRef.current = mergePresence(presence, activity);
@@ -567,6 +570,7 @@ export default function MiraOrb({
             palette={palette}
             reactionPulse={reactionPulse}
             impulse={impulse}
+            holdTension={holdTension}
             onReady={handleSceneReady}
           />
         </div>
@@ -607,6 +611,7 @@ export default function MiraOrb({
             palette={palette}
             reactionPulse={reactionPulse}
             impulse={impulse}
+            holdTension={holdTension}
           />
           <svg
             className="absolute inset-0 w-full h-full pointer-events-none"

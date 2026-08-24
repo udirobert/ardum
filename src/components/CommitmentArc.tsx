@@ -79,13 +79,29 @@ export default function CommitmentArc({
     [disabled, committed, onCommit, onThreshold],
   );
 
-  // If the user releases before 100%, spring back to 0.
+  // If the user releases before 100%, spring back to 0 with a smooth tween.
+  const springRef = useRef(0);
   const handleRelease = useCallback(() => {
     if (committed || disabled) return;
     if (val < 100) {
-      // Animate back with a short timer cascade (CSS transition handles visual).
-      setVal(0);
       thresholdFired.current = false;
+      // Animate from current val to 0 over ~400ms with ease-out
+      const startVal = val;
+      const startTime = performance.now();
+      const duration = 400;
+
+      const tick = () => {
+        const elapsed = performance.now() - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        // Cubic ease-out: 1 - (1-t)^3
+        const eased = 1 - Math.pow(1 - t, 3);
+        const current = Math.round(startVal * (1 - eased));
+        setVal(current);
+        if (t < 1) {
+          springRef.current = requestAnimationFrame(tick);
+        }
+      };
+      springRef.current = requestAnimationFrame(tick);
     }
   }, [val, committed, disabled]);
 

@@ -123,7 +123,7 @@ export default function RecommendationSurface({
         </div>
       )}
 
-      <RetreatCardEmergence recommendation={recommendation} aestheticVector={aestheticVector} />
+      <RetreatCardEmergence key={recommendation.retreatRootHash} recommendation={recommendation} aestheticVector={aestheticVector} />
 
       {/* Weak-fit caveat — shown only when the score is below 0.75. */}
       {episode.recommendation!.uncertainties.length > 0 && (
