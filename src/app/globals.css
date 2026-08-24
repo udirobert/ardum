@@ -493,6 +493,183 @@ body::before {
   transition-delay: 0s;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   CommitmentArc — Trigonometric arc slider for hold → commit gesture.
+   Inspired by the CSS flight slider (Álvaro Montoro).
+   sin(π × val / 100) produces parabolic lift, shadow depth, and scale
+   from a linear <input type="range"> — zero JS animation frames.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.commitment-arc {
+  --accent: #a85a3a;
+  --bg-track: rgba(168, 90, 58, 0.15);
+  --bg-fill: var(--accent);
+  --thumb-size: 3.2em;
+  --height: 3.5em;
+  width: 100%;
+  font-family: inherit;
+}
+
+.commitment-arc__labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5em;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #8a7e6e);
+}
+
+.commitment-arc__label--end {
+  font-weight: 500;
+  color: var(--foreground, #1a1714);
+}
+
+.commitment-arc__track-wrapper {
+  position: relative;
+}
+
+.commitment-arc__threshold {
+  position: absolute;
+  left: 80%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 60%;
+  background: var(--accent);
+  opacity: 0.3;
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.commitment-arc__amount {
+  position: absolute;
+  top: -2em;
+  left: 80%;
+  transform: translateX(-50%);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+.commitment-arc__confirmed {
+  text-align: center;
+  margin-top: 0.75em;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--accent);
+  animation: fade-in-up 480ms var(--ease-ardum) both;
+}
+
+.commitment-arc__input {
+  /* CSS custom property --val is set inline via style attribute */
+  --progress: calc(var(--val) * 1%);
+  --arc-sin: sin(3.14159 * var(--val) / 100);
+  --lift: calc(1 + 0.25 * var(--arc-sin));
+  --shadow-depth: calc(var(--arc-sin) * 0.8em);
+  --shadow-opacity: calc(0.15 + 0.2 * var(--arc-sin));
+  --threshold-bump: clamp(1, calc(1 + 0.15 * (var(--val) - 79)), 1.15);
+
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: var(--height);
+  border: none;
+  border-radius: 10em;
+  cursor: grab;
+  position: relative;
+  background:
+    /* filled region */
+    linear-gradient(var(--bg-fill), var(--bg-fill)) 0 50% / var(--progress) 100% no-repeat,
+    /* track */
+    linear-gradient(var(--bg-track), var(--bg-track)) 0 50% / 100% 100%;
+  border-radius: 1.75em;
+  transition: background 80ms ease;
+}
+
+.commitment-arc__input:active {
+  cursor: grabbing;
+}
+
+.commitment-arc__input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Track — WebKit/Blink */
+.commitment-arc__input::-webkit-slider-runnable-track {
+  height: 100%;
+  border-radius: 1.75em;
+}
+
+/* Thumb — WebKit/Blink */
+.commitment-arc__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--thumb-size);
+  height: var(--thumb-size);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 35%, #f6efe3 0%, var(--accent) 70%);
+  border: 3px solid #f6efe3;
+  transform: translateY(calc(-50% + var(--height) / 2)) scale(var(--lift));
+  filter:
+    drop-shadow(0 calc(var(--shadow-depth)) calc(var(--shadow-depth) * 0.6) rgba(168, 90, 58, var(--shadow-opacity)));
+  transition: transform 120ms ease-out, filter 120ms ease-out;
+  will-change: transform, filter;
+}
+
+/* Thumb — Firefox */
+.commitment-arc__input::-moz-range-thumb {
+  appearance: none;
+  width: var(--thumb-size);
+  height: var(--thumb-size);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 35%, #f6efe3 0%, var(--accent) 70%);
+  border: 3px solid #f6efe3;
+  transform: scale(var(--lift));
+  filter:
+    drop-shadow(0 calc(var(--shadow-depth)) calc(var(--shadow-depth) * 0.6) rgba(168, 90, 58, var(--shadow-opacity)));
+  transition: transform 120ms ease-out, filter 120ms ease-out;
+  will-change: transform, filter;
+}
+
+/* Track — Firefox */
+.commitment-arc__input::-moz-range-track {
+  height: var(--height);
+  border-radius: 1.75em;
+  background: transparent;
+}
+
+/* Focus ring */
+.commitment-arc__input:focus-visible::-webkit-slider-thumb {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.commitment-arc__input:focus-visible::-moz-range-thumb {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Reduced motion override for the arc */
+@media (prefers-reduced-motion: reduce) {
+  .commitment-arc__input::-webkit-slider-thumb {
+    transform: translateY(calc(-50% + var(--height) / 2)) scale(1) !important;
+    filter: none !important;
+    transition: none !important;
+  }
+  .commitment-arc__input::-moz-range-thumb {
+    transform: scale(1) !important;
+    filter: none !important;
+    transition: none !important;
+  }
+}
+
 /* Respect reduced motion — disable all animations. */
 @media (prefers-reduced-motion: reduce) {
   *,

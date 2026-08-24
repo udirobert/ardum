@@ -9,6 +9,8 @@
 
 import { useCallback, useState } from "react";
 import MiraOrb from "@/components/MiraOrb";
+import CommitmentArc from "@/components/CommitmentArc";
+import { useFluidPour } from "@/components/FluidParticlePour";
 import { presenceFromActivity } from "@/agent/mira-presence";
 import { useMagicAuth } from "./MagicAuth";
 import { useUniversalAccount } from "./UniversalAccount";
@@ -64,6 +66,7 @@ export default function ConversationalBooking({
     error: uaError,
   } = useUniversalAccount();
 
+  const { pour } = useFluidPour();
   const [surface, setSurface] = useState<Surface>("grant");
   const [error, setError] = useState<string | null>(null);
   const [securingLabel, setSecuringLabel] = useState("Securing your place…");
@@ -163,6 +166,17 @@ export default function ConversationalBooking({
         );
       }
 
+      // Fire the fluid pour — particles dissolve from the confirmation
+      // area and stream toward the orb center, signaling that the intention
+      // has been poured into Mira's care.
+      pour({
+        x: window.innerWidth / 2,
+        y: window.innerHeight * 0.6,
+        count: 280,
+        color: "#a85a3a",
+        durationMs: 2500,
+      });
+
       onBooked?.();
     } catch (err) {
       setError(
@@ -187,6 +201,7 @@ export default function ConversationalBooking({
     episodeId,
     expectedRevision,
     onBooked,
+    pour,
   ]);
 
   const handleContinueIdentity = useCallback(async () => {
@@ -345,14 +360,20 @@ export default function ConversationalBooking({
             {authConnecting ? "Connecting…" : "Continue with Google"}
           </button>
         ) : (
-          <button
-            type="button"
-            data-testid="grant-confirm-deposit"
-            onClick={() => void runCommitment()}
-            className="px-6 py-3 rounded-sm bg-[color:var(--accent)] text-background hover:bg-[color:var(--accent-ink)] transition-colors"
-          >
-            Confirm deposit of {amountLabel}
-          </button>
+          <CommitmentArc
+            labelStart="Hold"
+            labelEnd="Secure my place"
+            ariaLabel={`Confirm deposit of ${amountLabel}`}
+            amount={amountLabel}
+            disabled={false}
+            onThreshold={() => {
+              // Fire the lean impulse at the threshold — Mira reacts.
+              // Haptic feedback if available.
+              if (navigator.vibrate) navigator.vibrate(12);
+            }}
+            onCommit={() => void runCommitment()}
+            className="mt-2"
+          />
         )}
 
         {!magicConfigured && needsIdentity && (

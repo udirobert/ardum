@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Environment, MeshTransmissionMaterial } from "@react-three/drei";
+import { Environment } from "@react-three/drei";
 import {
   Bloom,
   ChromaticAberration,
@@ -26,6 +26,7 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useWebGLAvailable } from "@/hooks/useWebGLAvailable";
 import type { MorphParams } from "@/agent/mira-presence";
 import { MIRA_FRAG, MIRA_VERT } from "./mira-scene-shaders";
+import { SDF_CORE_VERT, SDF_CORE_FRAG } from "./mira-sdf-core";
 
 type RGB = [number, number, number];
 
@@ -35,6 +36,8 @@ type Props = {
   palette: { dark: RGB; warm: RGB; light: RGB; cream: RGB };
   reactionPulse: number;
   impulse?: number;
+  /** 0–1 surface-tension drip when a hold is active. */
+  holdTension?: number;
   /** Fill the parent instead of rendering a fixed `size` square. */
   fill?: boolean;
   /** Fires once the scene can be shown — GL created, or static reduced-motion frame mounted. */
@@ -82,6 +85,7 @@ function CapsuleShell({
   palette,
   reactionPulse,
   impulse = 0,
+  holdTension = 0,
 }: Omit<Props, "size">) {
   const group = useRef<THREE.Group>(null);
   const { size: viewport } = useThree();
@@ -134,6 +138,7 @@ function CapsuleShell({
           uPinch: { value: 0 },
           uImpulse: { value: 0 },
           uAsymmetry: { value: 0 },
+          uHoldTension: { value: 0 },
           uBrightness: { value: 0.55 },
           uAttractor0: { value: new THREE.Vector3().copy(FAR_AWAY) },
           uAttractor1: { value: new THREE.Vector3().copy(FAR_AWAY) },
@@ -181,6 +186,7 @@ function CapsuleShell({
     u.uBrightness.value = c.brightness + reactionPulse * 0.15 + impulse * 0.2;
     u.uImpulse.value = impulse;
     u.uAsymmetry.value = c.asymmetry;
+    u.uHoldTension.value = lerp(u.uHoldTension.value, holdTension, 0.06);
 
     const PAL = 0.06;
     (u.uDark.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.dark), PAL);
@@ -248,38 +254,106 @@ function CapsuleShell({
   );
 }
 
-function GlassCore({ impulse }: { impulse: number }) {
-  const ref = useRef<THREE.Mesh>(null);
+/**
+ * SDFCore — raymarched signed-distance-field metaball interior.
+ * Renders on a screen-space quad using a custom fragment shader that
+ * raymarches SDF primitives with smooth-union blending. The topology of
+ * the blobs changes continuously as they orbit and merge — something
+ * mesh geometry cannot achieve.
+ *
+ * Inspired by github.com/phobon/raymarching-tsl.
+ */
+function SDFCore({
+  morph,
+  palette,
+  impulse = 0,
+}: {
+  morph: MorphParams;
+  palette: { dark: RGB; warm: RGB; light: RGB; cream: RGB };
+  impulse: number;
+}) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const cur = useRef<MorphParams>({ ...morph });
+
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: SDF_CORE_VERT,
+        fragmentShader: SDF_CORE_FRAG,
+        transparent: true,
+        depthWrite: false,
+        uniforms: {
+          uTime: { value: 0 },
+          uBlobCount: { value: morph.blobCount },
+          uOrbitSpeed: { value: morph.orbitSpeed },
+          uTurbulence: { value: morph.turbulence },
+          uAsymmetry: { value: morph.asymmetry },
+          uBloom: { value: morph.bloom },
+          uPinch: { value: morph.pinch },
+          uBrightness: { value: morph.brightness },
+          uImpulse: { value: impulse },
+          uResolution: { value: new THREE.Vector2(512, 512) },
+          uDark: { value: new THREE.Vector3(...palette.dark) },
+          uWarm: { value: new THREE.Vector3(...palette.warm) },
+          uLight: { value: new THREE.Vector3(...palette.light) },
+          uCream: { value: new THREE.Vector3(...palette.cream) },
+        },
+      }),
+    // Stable across renders — uniforms are mutated in useFrame.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  useEffect(() => () => material.dispose(), [material]);
+
+  // r3f useFrame intentionally mutates uniforms each tick (same pattern as CapsuleShell).
+  /* eslint-disable react-hooks/immutability */
   useFrame((state) => {
     const t = state.clock.elapsedTime;
-    if (!ref.current) return;
-    ref.current.rotation.y = -t * 0.15;
-    ref.current.rotation.z = Math.sin(t * 0.2) * 0.1;
-    const s = 0.46 + impulse * 0.06;
-    ref.current.scale.setScalar(s);
+    const target = morph;
+    const c = cur.current;
+    const M = 0.12;
+
+    c.turbulence = lerp(c.turbulence, target.turbulence, M);
+    c.brightness = lerp(c.brightness, target.brightness, M);
+    c.blobCount = lerp(c.blobCount, target.blobCount, M);
+    c.orbitSpeed = lerp(c.orbitSpeed, target.orbitSpeed, M);
+    c.pinch = lerp(c.pinch, target.pinch, M);
+    c.bloom = lerp(c.bloom, target.bloom, M);
+    c.asymmetry = lerp(c.asymmetry, target.asymmetry, M);
+
+    const u = material.uniforms;
+    u.uTime.value = t;
+    u.uBlobCount.value = c.blobCount;
+    u.uOrbitSpeed.value = c.orbitSpeed * (1 + impulse * 0.3);
+    u.uTurbulence.value = c.turbulence + impulse * 0.3;
+    u.uAsymmetry.value = c.asymmetry;
+    u.uBloom.value = c.bloom;
+    u.uPinch.value = c.pinch;
+    u.uBrightness.value = c.brightness + impulse * 0.15;
+    u.uImpulse.value = impulse;
+
+    // Update resolution if viewport changed
+    const { width, height } = state.size;
+    const res = u.uResolution.value as THREE.Vector2;
+    // Cap at 512 for performance — SDF is fragment-heavy
+    const scale = Math.min(1, 512 / Math.max(width, height));
+    res.set(width * scale, height * scale);
+
+    // Palette lerp
+    const PAL = 0.06;
+    (u.uDark.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.dark), PAL);
+    (u.uWarm.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.warm), PAL);
+    (u.uLight.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.light), PAL);
+    (u.uCream.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.cream), PAL);
   });
+  /* eslint-enable react-hooks/immutability */
 
   return (
-    <mesh ref={ref}>
-      <sphereGeometry args={[1, 48, 48]} />
-      <MeshTransmissionMaterial
-        backside
-        samples={6}
-        resolution={256}
-        transmission={0.98}
-        thickness={0.65}
-        chromaticAberration={0.12}
-        anisotropy={0.25}
-        distortion={0.15 + impulse * 0.2}
-        distortionScale={0.35}
-        temporalDistortion={0.18}
-        roughness={0.05}
-        ior={1.45}
-        color="#f6d4c0"
-        attenuationColor="#6e3925"
-        attenuationDistance={1.8}
-        envMapIntensity={0.25}
-      />
+    <mesh ref={meshRef} frustumCulled={false} renderOrder={-1}>
+      {/* Fullscreen quad — rendered in clip space via the vertex shader */}
+      <planeGeometry args={[2, 2]} />
+      <primitive object={material} attach="material" />
     </mesh>
   );
 }
@@ -410,7 +484,7 @@ function SceneInner({
       <directionalLight position={[2, -1, -2]} intensity={0.35} color="#6e3925" />
       <pointLight position={[0, 0, 1.5]} intensity={0.8 * (1 + impulse)} color="#d8a892" />
       <Environment preset="sunset" />
-      <GlassCore impulse={impulse} />
+      <SDFCore morph={props.morph} palette={props.palette} impulse={impulse} />
       <CapsuleShell {...props} impulse={impulse} />
       {!disablePostFx && (
         <PostProcessing
@@ -481,6 +555,7 @@ export default function MiraScene({
   palette,
   reactionPulse,
   impulse = 0,
+  holdTension = 0,
   fill = false,
   onReady,
 }: Props) {
@@ -525,6 +600,7 @@ export default function MiraScene({
             palette={palette}
             reactionPulse={reactionPulse}
             impulse={impulse}
+            holdTension={holdTension}
             onPostFxFailed={() => {}}
           />
         </Canvas>

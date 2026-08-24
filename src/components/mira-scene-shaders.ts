@@ -12,6 +12,7 @@ uniform float uTurbulence; // sway amplitude
 uniform float uPinch;      // inverts the attraction field
 uniform float uImpulse;    // interaction ripple
 uniform float uAsymmetry;  // hemisphere bias
+uniform float uHoldTension; // surface-tension drip during active hold
 uniform vec3 uAttractor0;
 uniform vec3 uAttractor1;
 uniform vec3 uAttractor2;
@@ -58,6 +59,14 @@ void main() {
   float sway = uTurbulence * 0.2 * tip * tip;
   pos.x += sin(uTime * (0.9 + aRand * 0.7) + aRand * 6.2832) * sway;
   pos.z += cos(uTime * (0.7 + aRand * 0.9) + aRand * 4.1) * sway;
+
+  // Hold tension drip — lower-hemisphere capsules oscillate downward in
+  // clusters, then spring back, like a droplet deciding whether to fall.
+  // Inspired by saharan/drops surface-tension behavior.
+  float dripMask = smoothstep(0.0, -0.6, aOffset.y) * uHoldTension;
+  float dripPhase = sin(uTime * 1.2 + aRand * 4.0 + aOffset.x * 3.0);
+  float dripAmount = dripMask * max(0.0, dripPhase) * 0.15 * tip;
+  pos.y -= dripAmount * 6.0;
 
   pos = rotateByQuat(pos * uScale, aQuat);
   vec3 shell = aOffset * uRadius + pos;

@@ -263,6 +263,18 @@ system provides real deadlines when they exist.
   under the view-transition pseudo-elements; reduced motion zeroes all
   durations.
 - In-flow steps: transitions.dev `t-page-slide`, `t-stagger`.
+- Recommendation emergence: `GooeyEmergence` SVG filter makes the retreat
+  card bud off from the orb with viscous fluid detachment
+  (`components/GooeyEmergence.tsx`). Filter auto-removes after settle.
+- Commitment gesture: `CommitmentArc` — a CSS-driven range slider using
+  trigonometric arc physics (`sin(π×val/100)`) for parabolic lift, shadow
+  depth, and terracotta fill (`components/CommitmentArc.tsx`).
+- Commitment dissolve: `FluidParticlePour` — 2D SPH fluid particles
+  stream from the confirmation area into the orb on booking success
+  (`components/FluidParticlePour.tsx`). Canvas self-destructs after ~2.5s.
+- Hold-state drip: `uHoldTension` uniform in the capsule shell — lower-
+  hemisphere capsules oscillate downward like a suspended droplet deciding
+  whether to fall.
 
 ## Dependencies
 

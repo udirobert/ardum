@@ -19,6 +19,7 @@ import {
 import { usePathname } from "next/navigation";
 import MiraOrb from "./MiraOrb";
 import { MiraImpulseProvider } from "./MiraImpulse";
+import { FluidPourProvider } from "./FluidParticlePour";
 import {
   STEADY_PRESENCE,
   type MiraActivity,
@@ -73,35 +74,37 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
 
   return (
     <MiraImpulseProvider>
-      <MiraFieldContext.Provider value={setConfig}>
-        {active && (
-          <div
-            className="fixed inset-0 z-0 pointer-events-none"
-            aria-hidden
-            style={{ backgroundColor: "#0c0806" }}
-          >
-            <div className="absolute inset-0" style={{ background: DUSK }} />
-            <div className="absolute inset-0">
-              <MiraOrb
-                fill
-                size={480}
-                presence={config?.presence ?? STEADY_PRESENCE}
-                activity={config?.activity}
-                aestheticVector={config?.aestheticVector}
+      <FluidPourProvider>
+        <MiraFieldContext.Provider value={setConfig}>
+          {active && (
+            <div
+              className="fixed inset-0 z-0 pointer-events-none"
+              aria-hidden
+              style={{ backgroundColor: "#0c0806" }}
+            >
+              <div className="absolute inset-0" style={{ background: DUSK }} />
+              <div className="absolute inset-0">
+                <MiraOrb
+                  fill
+                  size={480}
+                  presence={config?.presence ?? STEADY_PRESENCE}
+                  activity={config?.activity}
+                  aestheticVector={config?.aestheticVector}
+                />
+              </div>
+              <div className="absolute inset-0" style={{ background: SCRIM }} />
+              <div
+                className="absolute inset-0 transition-opacity duration-700"
+                style={{
+                  background: "#0c0806",
+                  opacity: config?.veil ?? 0,
+                }}
               />
             </div>
-            <div className="absolute inset-0" style={{ background: SCRIM }} />
-            <div
-              className="absolute inset-0 transition-opacity duration-700"
-              style={{
-                background: "#0c0806",
-                opacity: config?.veil ?? 0,
-              }}
-            />
-          </div>
-        )}
-        {children}
-      </MiraFieldContext.Provider>
+          )}
+          {children}
+        </MiraFieldContext.Provider>
+      </FluidPourProvider>
     </MiraImpulseProvider>
   );
 }

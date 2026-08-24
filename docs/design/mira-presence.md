@@ -70,13 +70,37 @@ Fidelity scales with footprint and page budget:
 
 | Tier | Size | Expression |
 |---|---|---|
-| `hero` | ≥ 96 px | **MiraScene** — glass transmission core, attractor shell, bloom, chromatic aberration |
+| `hero` | ≥ 96 px | **MiraScene** — raymarched SDF metaball core, attractor capsule shell, bloom, chromatic aberration |
 | `standard` | 64–95 px | MiraScene at reduced footprint |
 | `inline` | < 64 px | 2D metaball WebGL or CSS fallback |
 
 `MiraOrb` selects the tier from `size`. Multiple orbs may mount on one page;
 WebGL contexts remain capped (`MAX_GL_ORBS`). Beyond the budget, CSS fallback
 applies.
+
+### SDF core
+
+The hero-tier core uses a raymarched signed-distance-field fragment shader
+(`mira-sdf-core.ts`). 1–4 SDF metaballs orbit and merge with smooth-union
+blending, producing topology-changing liquid forms that mesh geometry cannot
+achieve. Uniforms map to `MorphParams`:
+- `blobCount` → active SDF primitive count
+- `orbitSpeed` → rotation velocity
+- `turbulence` → fbm noise displacement amplitude
+- `asymmetry` → non-uniform scaling
+- `bloom` → smooth-union blend radius (fluidness of merge)
+- `pinch` → field contraction
+
+Performance is capped at 512×512 render resolution via uniform; falls back
+to the static gradient on WebGL failure.
+
+### Hold-tension drip
+
+When posture is `holding`, the `holdTension` prop (0–1) drives a
+`uHoldTension` shader uniform in the capsule shell. Lower-hemisphere
+capsules oscillate downward in clusters — like a droplet deciding whether
+to fall — then spring back. Inspired by saharan/drops surface-tension
+behavior.
 
 ## Interaction impulse
 

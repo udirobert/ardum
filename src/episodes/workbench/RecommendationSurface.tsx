@@ -2,8 +2,10 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { useMemo, type CSSProperties } from "react";
+import { useMemo, useState, useEffect, type CSSProperties } from "react";
+import { motion } from "framer-motion";
 import MiraOrb from "@/components/MiraOrb";
+import GooeyEmergence, { GooeySource } from "@/components/GooeyEmergence";
 import { matchLetter } from "@/agent/mira-voice";
 import { resolveRetreatVision } from "@/aesthetics/resolve-retreat-vision";
 import { type AestheticVector } from "@/aesthetics/image-pool";
@@ -121,7 +123,7 @@ export default function RecommendationSurface({
         </div>
       )}
 
-      <RetreatCard recommendation={recommendation} aestheticVector={aestheticVector} />
+      <RetreatCardEmergence recommendation={recommendation} aestheticVector={aestheticVector} />
 
       {/* Weak-fit caveat — shown only when the score is below 0.75. */}
       {episode.recommendation!.uncertainties.length > 0 && (
@@ -340,6 +342,55 @@ export default function RecommendationSurface({
         </div>
       </details>
     </div>
+  );
+}
+
+// The retreat card wrapped in a gooey emergence — the card "buds off" from
+// the orb with a viscous detachment, then settles crisp. The GooeySource
+// dot at the top merges into the card as it scales up via Framer Motion.
+function RetreatCardEmergence({
+  recommendation,
+  aestheticVector,
+}: {
+  recommendation: MatchResult;
+  aestheticVector: AestheticVector | null;
+}) {
+  const [emerged, setEmerged] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // The emergence fires once on mount — the card "arrives."
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount trigger for emergence animation
+    setMounted(true);
+    const timer = setTimeout(() => setEmerged(true), 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <GooeyEmergence
+      active={mounted && !emerged}
+      blur={10}
+      contrast={18}
+      settleMs={400}
+      className="relative"
+    >
+      <div className="flex justify-center mb-[-20px] relative z-10">
+        <GooeySource size={40} color="var(--accent)" className="opacity-60" />
+      </div>
+      <motion.div
+        initial={{ scale: 0.85, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        transition={{
+          type: "spring",
+          stiffness: 80,
+          damping: 18,
+          mass: 1.2,
+          delay: 0.1,
+        }}
+      >
+        <RetreatCard recommendation={recommendation} aestheticVector={aestheticVector} />
+      </motion.div>
+    </GooeyEmergence>
   );
 }
 
