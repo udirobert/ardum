@@ -118,7 +118,7 @@ float sceneSDF(vec3 p) {
 
   // Blend width driven by bloom (posture) + impulse — higher blend reads more
   // liquid. The exponential smooth-min's spacing is the inverse (~1/k), so we
-  // invert the width into `k`. Range here lands k ≈ 8 (tight) .. ~2.5 (warm,
+  // invert the width into k. Range here lands k approx 8 (tight) .. 2.5 (warm,
   // fully merged), keeping exp() inside safe float range for our field scale.
   float w = 0.10 + uBloom * 0.3 + uImpulse * 0.15;
   float k = 1.0 / (w + 0.02);
