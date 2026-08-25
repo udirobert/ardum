@@ -25,6 +25,7 @@ because both read the same contract.
 | `watching` | Active monitoring | Slow orbit, held asymmetry |
 | `holding` | Non-binding hold active | Contained pulse |
 | `gathering` | Coordination in flight | Merging lobes |
+| `championing` | Ready-to-book, moving with you | Bright, centered, warm expansion |
 | `resolving` | Setback absorbed, re-forming | Brief pinch → deliberate return |
 | `arriving` | Booked, commitment settled | Warm expansion |
 

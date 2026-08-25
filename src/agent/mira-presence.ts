@@ -14,6 +14,7 @@ export type MiraPosture =
   | "watching"
   | "holding"
   | "gathering"
+  | "championing"
   | "resolving"
   | "arriving";
 
@@ -124,6 +125,17 @@ const POSTURE_MORPH: Record<MiraPosture, MorphParams> = {
     bloom: 0.22,
     asymmetry: 0.18,
   },
+  championing: {
+    speed: 0.34,
+    turbulence: 0.92,
+    brightness: 1.2,
+    blobCount: 1,
+    orbitRadius: 0,
+    orbitSpeed: 0.35,
+    pinch: 0,
+    bloom: 0.55,
+    asymmetry: 0,
+  },
   resolving: {
     speed: 0.32,
     turbulence: 1.25,
@@ -155,6 +167,7 @@ const BREATH_DURATION: Record<MiraPosture, string> = {
   watching: "5s",
   holding: "2.8s",
   gathering: "3.5s",
+  championing: "2.6s",
   resolving: "2.4s",
   arriving: "3s",
 };
@@ -187,7 +200,7 @@ function postureFromStatus(
     case "coordinating":
       return "gathering";
     case "ready-to-book":
-      return "offering";
+      return "championing";
     case "booked":
       return "arriving";
     default:
@@ -353,6 +366,7 @@ export function ringStyle(posture: MiraPosture): MiraRingStyle {
     case "gathering":
       return "open";
     case "offering":
+    case "championing":
     case "arriving":
       return "radiating";
     default:
@@ -414,6 +428,7 @@ const POSTURE_ANNOUNCEMENTS: Record<MiraPosture, string> = {
   watching: "Mira is watching.",
   holding: "Mira is holding a planning window.",
   gathering: "Mira is gathering responses.",
+  championing: "Mira is ready to move with you.",
   resolving: "Mira is adjusting to a change.",
   arriving: "Mira is arriving with you.",
 };
