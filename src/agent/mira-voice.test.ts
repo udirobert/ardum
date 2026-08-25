@@ -81,7 +81,7 @@ describe("reasoningBeat", () => {
       3,
     );
     expect(steps.map((s) => s.text)).toEqual([
-      "Let me sit with what you've told me.",
+      "Let me work with what you've told me.",
       "You asked for low energy, 1k-2k budget, solo comfort.",
       "I'm weighing 3 retreats against that.",
       "One sits closest.",

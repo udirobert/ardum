@@ -130,12 +130,12 @@ export function matchLetter(
   // The deposit and preparation-plan lines belong to the hold and booking
   // steps respectively, not the review, so they stay out of the letter.
   lines.push(
-    `I found a retreat that fits where you are right now.`,
+    `I found a retreat that fits where you're heading.`,
     `I'm recommending this because ${arrival}, and ${socialLine}. This retreat specializes in ${match.practiceStyle.slice(0, 2).join(" and ")}.`,
     match.headline,
   );
 
-  const cta = `Want me to hold your spot?`;
+  const cta = `Let's hold your spot.`;
 
   return { lines, cta, recognitionLineCount };
 }
@@ -150,7 +150,7 @@ export function bookingDialogue(depositUsd: number, retreatTitle: string) {
   return {
     ready: [
       `The pieces that matter now agree. I can secure your place on ${retreatTitle}.`,
-      `Deposit ${amount}. Held until you arrive. I will not spend more without asking.`,
+      `Deposit ${amount}. Held until you arrive — I won't spend more without asking.`,
     ],
     /** Returning payer with a restored session — skip identity theater. */
     readyReturning: [
@@ -165,12 +165,12 @@ export function bookingDialogue(depositUsd: number, retreatTitle: string) {
     securing: ["Securing your place…"],
     done: [
       `You're booked.`,
-      `I've started your preparation plan. It's based on what I've learned about your energy, your practice, and what this retreat offers.`,
+      `I've built your preparation plan from what I've learned about your energy, your practice, and what this retreat offers.`,
       `Five minutes a day. Start tonight.`,
     ],
     /** Closes the worry loop after commitment (product-vision measures). */
     watchNext: [
-      `I'll keep watching your place until you arrive — the deposit stays held, the check-in window stays open, and I'll surface anything that would change the plan.`,
+      `I'll watch your place until you arrive — the deposit stays held, the check-in window stays open, and I'll surface anything that would change the plan.`,
     ],
   };
 }
@@ -187,7 +187,7 @@ export function classInvitation(
 ) {
   const amount = `$${classPriceUsd.toLocaleString()}`;
   const opener: Record<string, string> = {
-    low: `Can't commit to the full retreat? I understand. Your energy is low right now.`,
+    low: `Can't commit to the full retreat? That's okay — your energy is low right now.`,
     settled: `Not ready for the full retreat? That's fine.`,
     "in-movement": `Want to try before you commit? Good instinct.`,
     sharp: `Not sure about the full retreat? Let's start small.`,
@@ -286,13 +286,13 @@ export function preparationPlan(
 
 export function anticipationLine(days: number): string {
   if (days <= 0)
-    return "You're booked. Let it sink in — the retreat starts working on you now.";
+    return "You're booked. The retreat starts working on you now — let it.";
   if (days === 1)
-    return "One day in. Nothing to do yet — just carry the place with you.";
+    return "One day in. Nothing to do yet — carry the place with you.";
   if (days === 2)
     return "Two days in. Today's practice is small on purpose.";
   if (days === 3)
-    return "Halfway. This is usually when the looking-forward peaks. Let it.";
+    return "Halfway. The looking-forward usually peaks here — let it.";
   if (days === 4)
     return "Nearly there. Finish the plan gently — arrival is close.";
   return "The plan is complete. Travel lightly.";
@@ -305,7 +305,7 @@ export function anticipationLine(days: number): string {
 
 /** Voice line before the first swipe — Mira introduces herself. */
 export function calibrationIntro(): string {
-  return "I'm Mira. Before words — show me what you're drawn to. I'll learn from what you choose.";
+  return "I'm Mira. Show me what you're drawn to — I'll use it to find what fits where you're heading.";
 }
 
 /** Voice line after each swipe, indexed by reaction count (0-based). */
@@ -313,13 +313,13 @@ export function calibrationReactionLine(
   reactionCount: number,
   qualities: string[],
 ): string {
-  if (reactionCount <= 0) return "Noted.";
-  if (reactionCount === 1) return "I'm seeing a pattern.";
-  if (reactionCount === 2) return "Almost there — one more.";
+  if (reactionCount <= 0) return "Got it.";
+  if (reactionCount === 1) return "I'm finding your shape.";
+  if (reactionCount === 2) return "One more — let's narrow it.";
   if (qualities.length > 0) {
-    return `I have a sense of what you're drawn to — ${qualities.join(", ")}.`;
+    return `Here's what I'm seeing — ${qualities.join(", ")}. Let's find what fits.`;
   }
-  return "I have a sense of what you're drawn to.";
+  return "Here's what I'm seeing. Let's find what fits.";
 }
 
 // ── Reasoning beat ──────────────────────────────────────────────────
@@ -365,7 +365,7 @@ export function reasoningBeat(
   poolSize?: number,
 ): ReasoningStep[] {
   const steps: ReasoningStep[] = [
-    { text: "Let me sit with what you've told me.", delayMs: 0 },
+    { text: "Let me work with what you've told me.", delayMs: 0 },
   ];
 
   // ── Constraint-to-retreat mapping ──
