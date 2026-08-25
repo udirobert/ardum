@@ -146,11 +146,16 @@ and Beat 3); both were aspirational and neither was written.
 
 **What ships instead:** `EpisodeWorkbench` renders Mira's letter (via
 `matchLetter`), the retreat card, a thinking beat (`reasoningBeat`),
-Hold / Watch / Not-this actions, collapsed secondary tools (lenses,
-alternatives, counterfactuals), a voice-lane feedback path, and the
-`CommitmentPanel`. It is denser than the target contract's "one
-primary decision per state" — multiple actionable paths are visible
-simultaneously below the recommendation.
+one primary decision per recommendation state, collapsed secondary
+tools (lenses, alternatives, counterfactuals), a voice-lane feedback
+path, and the `CommitmentPanel`. The pre-hold review state shows a
+single Hold CTA plus a quiet "not this one" rejection link, with the
+watch/monitor affordance and all secondary tools behind a single
+disclosure; the ready-to-book state shows the commit CTA plus a quiet
+"release the hold" link, with the HoldPanel's hold-management actions
+suppressed. This aligns the shipping surface with the contract's "one
+primary human decision per state" (see
+[product-vision.md](../product-vision.md)).
 
 **Reduced motion support:** all motion respects `prefers-reduced-motion`.
 
