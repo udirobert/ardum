@@ -3,6 +3,9 @@
 // starter. Signed-distance-field metaballs with smooth-union blending,
 // noise displacement, and simple lighting produce topology-changing liquid
 // blob merges driven by MorphParams.
+// The exponential smooth-min (log-sum-exp) blend follows koji014's
+// "interactive-droplets" ray-marched metaball technique for rounded, liquid
+// merges; spire-1 orbit + fbm displacement remain Ardum's own.
 //
 // Rendered on a fullscreen quad inside the R3F scene, positioned behind the
 // capsule shell. The fragment shader does all the work — the vertex shader
@@ -49,11 +52,16 @@ float sdEllipsoid(vec3 p, vec3 radii) {
   return k0 * (k0 - 1.0) / k1;
 }
 
-// Smooth minimum (polynomial) — k controls blend radius.
-// Larger k = more fluid merge between shapes.
+// Smooth minimum (exponential / log-sum-exp) — a rounded, purely liquid merge.
+// Unlike the polynomial smooth min, the exponential kernel produces a clean
+// tapering neck between bodies and avoids the wider hump at larger blend radii.
+// Note the sign: here a *smaller* k yields a *wider, more fluid* merge (the
+// transition width is ~1/k), so callers pass a blend width that inverts to k.
+// Far sentinel values (1e6) underflow exp(-k*1e6) to 0 and collapse to the
+// other operand, so a "min" accumulator is safe to chain through this too.
 float smin(float a, float b, float k) {
-  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-  return mix(b, a, h) - k * h * (1.0 - h);
+  float e = exp(-k * a) + exp(-k * b);
+  return -log(e) / k;
 }
 
 // ─── Noise ──────────────────────────────────────────────────────────────
@@ -108,8 +116,12 @@ float sceneSDF(vec3 p) {
   // Core sphere — always present
   float core = sdSphere(p + disp * normalize(p + 0.001), 0.32);
 
-  // Blend radius driven by bloom (posture) + impulse
-  float k = 0.15 + uBloom * 0.25 + uImpulse * 0.1;
+  // Blend width driven by bloom (posture) + impulse — higher blend reads more
+  // liquid. The exponential smooth-min's spacing is the inverse (~1/k), so we
+  // invert the width into `k`. Range here lands k ≈ 8 (tight) .. ~2.5 (warm,
+  // fully merged), keeping exp() inside safe float range for our field scale.
+  float w = 0.10 + uBloom * 0.3 + uImpulse * 0.15;
+  float k = 1.0 / (w + 0.02);
 
   // Orbiting blobs — count controlled by uBlobCount
   float blobs = 1e6;
@@ -124,7 +136,7 @@ float sceneSDF(vec3 p) {
     );
     float r1 = 0.14 + uImpulse * 0.04;
     float b1 = sdSphere(p - p1 + disp * 0.5, r1);
-    blobs = min(blobs, b1);
+    blobs = smin(blobs, b1, k);
   }
 
   // Blob 2
@@ -140,7 +152,7 @@ float sceneSDF(vec3 p) {
       p - p2 + disp * 0.4,
       vec3(r2 * 1.2, r2, r2 * 0.9)
     );
-    blobs = min(blobs, b2);
+    blobs = smin(blobs, b2, k);
   }
 
   // Blob 3
@@ -153,7 +165,7 @@ float sceneSDF(vec3 p) {
     );
     float r3 = 0.10 + uImpulse * 0.025;
     float b3 = sdSphere(p - p3 + disp * 0.3, r3);
-    blobs = min(blobs, b3);
+    blobs = smin(blobs, b3, k);
   }
 
   // Blob 4
@@ -166,7 +178,7 @@ float sceneSDF(vec3 p) {
     );
     float r4 = 0.09;
     float b4 = sdSphere(p - p4 + disp * 0.35, r4);
-    blobs = min(blobs, b4);
+    blobs = smin(blobs, b4, k);
   }
 
   // Smooth union: blobs merge into core with liquid topology change

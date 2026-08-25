@@ -27,6 +27,12 @@ import { useWebGLAvailable } from "@/hooks/useWebGLAvailable";
 import type { MorphParams } from "@/agent/mira-presence";
 import { MIRA_FRAG, MIRA_VERT } from "./mira-scene-shaders";
 import { SDF_CORE_VERT, SDF_CORE_FRAG } from "./mira-sdf-core";
+import {
+  frameDelta,
+  paramsChanged,
+  smoothApproach,
+  smoothFactor,
+} from "@/lib/motion";
 
 type RGB = [number, number, number];
 
@@ -46,6 +52,13 @@ type Props = {
 
 const SHELL_RADIUS = 0.62;
 const CAPSULE_SCALE = 0.05;
+// Per-second morph rates (frame-rate-independent replacements for the old
+// per-frame lerp factors): MORPH_BASE_RATE ≈ the old 0.12/frame at 60 Hz.
+const MORPH_BASE_RATE = 7.6;
+const MORPH_KICK = 1.9; // burst multiplier when a posture changes
+const MORPH_KICK_DECAY = 5.0; // per-second decay back to the glide rate
+const PALETTE_RATE = 3.5; // per-second palette blend (was PAL 0.06/frame)
+const PARALLAX_RATE = 2.75; // per-second camera parallax (was 0.045/frame)
 const MAX_SATELLITES = 4;
 const FAR_AWAY = new THREE.Vector3(0, 0, 50);
 const TMP_COLOR = new THREE.Vector3();
@@ -93,6 +106,9 @@ function CapsuleShell({
 
   const satelliteRefs = useRef<(THREE.Mesh | null)[]>([]);
   const cur = useRef<MorphParams>({ ...morph });
+  const prevT = useRef(0);
+  const lastTarget = useRef<MorphParams>({ ...morph });
+  const kick = useRef(1);
 
   const geometry = useMemo(() => {
     const geo = new THREE.CapsuleGeometry(0.28, 4, 3, 6);
@@ -163,20 +179,27 @@ function CapsuleShell({
     const g = group.current;
     if (!g) return;
 
-    // Ease toward the posture target so state changes glide, never snap.
+    // Ease toward the posture target so motion glides, never snaps.
+    // Frame-rate independent via `dt`, with a response burst on change.
+    const dt = frameDelta(prevT.current, t);
+    prevT.current = t;
+    if (paramsChanged(morph, lastTarget.current)) {
+      kick.current = MORPH_KICK;
+      lastTarget.current = { ...morph };
+    }
+    kick.current = 1 + (kick.current - 1) * Math.exp(-MORPH_KICK_DECAY * dt);
+    const rate = MORPH_BASE_RATE * kick.current;
+
     const target = morph;
     const c = cur.current;
-    // Same responsiveness budget as the 2D field (MiraOrb): posture
-    // changes should read as responses, not slow drift.
-    const M = 0.12;
-    c.turbulence = lerp(c.turbulence, target.turbulence, M);
-    c.brightness = lerp(c.brightness, target.brightness, M);
-    c.blobCount = lerp(c.blobCount, target.blobCount, M);
-    c.orbitRadius = lerp(c.orbitRadius, target.orbitRadius, M);
-    c.orbitSpeed = lerp(c.orbitSpeed, target.orbitSpeed, M);
-    c.pinch = lerp(c.pinch, target.pinch, M);
-    c.bloom = lerp(c.bloom, target.bloom, M);
-    c.asymmetry = lerp(c.asymmetry, target.asymmetry, M);
+    c.turbulence = smoothApproach(c.turbulence, target.turbulence, rate, dt);
+    c.brightness = smoothApproach(c.brightness, target.brightness, rate, dt);
+    c.blobCount = smoothApproach(c.blobCount, target.blobCount, rate, dt);
+    c.orbitRadius = smoothApproach(c.orbitRadius, target.orbitRadius, rate, dt);
+    c.orbitSpeed = smoothApproach(c.orbitSpeed, target.orbitSpeed, rate, dt);
+    c.pinch = smoothApproach(c.pinch, target.pinch, rate, dt);
+    c.bloom = smoothApproach(c.bloom, target.bloom, rate, dt);
+    c.asymmetry = smoothApproach(c.asymmetry, target.asymmetry, rate, dt);
 
     const u = material.uniforms;
     u.uTime.value = t;
@@ -188,11 +211,11 @@ function CapsuleShell({
     u.uAsymmetry.value = c.asymmetry;
     u.uHoldTension.value = lerp(u.uHoldTension.value, holdTension, 0.06);
 
-    const PAL = 0.06;
-    (u.uDark.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.dark), PAL);
-    (u.uWarm.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.warm), PAL);
-    (u.uLight.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.light), PAL);
-    (u.uCream.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.cream), PAL);
+    const pf = smoothFactor(PALETTE_RATE, dt);
+    (u.uDark.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.dark), pf);
+    (u.uWarm.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.warm), pf);
+    (u.uLight.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.light), pf);
+    (u.uCream.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.cream), pf);
 
     // Attractors orbit in shell-anchor space; satellites mirror them in
     // group-local space so both stay aligned under the group's rotation.
@@ -274,6 +297,9 @@ function SDFCore({
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const cur = useRef<MorphParams>({ ...morph });
+  const prevT = useRef(0);
+  const lastTarget = useRef<MorphParams>({ ...morph });
+  const kick = useRef(1);
 
   const material = useMemo(
     () =>
@@ -312,15 +338,22 @@ function SDFCore({
     const t = state.clock.elapsedTime;
     const target = morph;
     const c = cur.current;
-    const M = 0.12;
+    const dt = frameDelta(prevT.current, t);
+    prevT.current = t;
+    if (paramsChanged(morph, lastTarget.current)) {
+      kick.current = MORPH_KICK;
+      lastTarget.current = { ...morph };
+    }
+    kick.current = 1 + (kick.current - 1) * Math.exp(-MORPH_KICK_DECAY * dt);
+    const rate = MORPH_BASE_RATE * kick.current;
 
-    c.turbulence = lerp(c.turbulence, target.turbulence, M);
-    c.brightness = lerp(c.brightness, target.brightness, M);
-    c.blobCount = lerp(c.blobCount, target.blobCount, M);
-    c.orbitSpeed = lerp(c.orbitSpeed, target.orbitSpeed, M);
-    c.pinch = lerp(c.pinch, target.pinch, M);
-    c.bloom = lerp(c.bloom, target.bloom, M);
-    c.asymmetry = lerp(c.asymmetry, target.asymmetry, M);
+    c.turbulence = smoothApproach(c.turbulence, target.turbulence, rate, dt);
+    c.brightness = smoothApproach(c.brightness, target.brightness, rate, dt);
+    c.blobCount = smoothApproach(c.blobCount, target.blobCount, rate, dt);
+    c.orbitSpeed = smoothApproach(c.orbitSpeed, target.orbitSpeed, rate, dt);
+    c.pinch = smoothApproach(c.pinch, target.pinch, rate, dt);
+    c.bloom = smoothApproach(c.bloom, target.bloom, rate, dt);
+    c.asymmetry = smoothApproach(c.asymmetry, target.asymmetry, rate, dt);
 
     const u = material.uniforms;
     u.uTime.value = t;
@@ -341,11 +374,11 @@ function SDFCore({
     res.set(width * scale, height * scale);
 
     // Palette lerp
-    const PAL = 0.06;
-    (u.uDark.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.dark), PAL);
-    (u.uWarm.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.warm), PAL);
-    (u.uLight.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.light), PAL);
-    (u.uCream.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.cream), PAL);
+    const pf = smoothFactor(PALETTE_RATE, dt);
+    (u.uDark.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.dark), pf);
+    (u.uWarm.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.warm), pf);
+    (u.uLight.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.light), pf);
+    (u.uCream.value as THREE.Vector3).lerp(TMP_COLOR.set(...palette.cream), pf);
   });
   /* eslint-enable react-hooks/immutability */
 
@@ -541,6 +574,7 @@ function SceneInner({
  */
 function PointerParallax() {
   const target = useRef({ x: 0, y: 0 });
+  const prevT = useRef(0);
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
       target.current.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -552,8 +586,21 @@ function PointerParallax() {
   // r3f useFrame intentionally mutates the camera each tick.
   useFrame((state) => {
     const c = state.camera;
-    c.position.x = lerp(c.position.x, target.current.x * 0.18, 0.045);
-    c.position.y = lerp(c.position.y, -0.5 + target.current.y * 0.14, 0.045);
+    const t = state.clock.elapsedTime;
+    const dt = frameDelta(prevT.current, t);
+    prevT.current = t;
+    c.position.x = smoothApproach(
+      c.position.x,
+      target.current.x * 0.18,
+      PARALLAX_RATE,
+      dt,
+    );
+    c.position.y = smoothApproach(
+      c.position.y,
+      -0.5 + target.current.y * 0.14,
+      PARALLAX_RATE,
+      dt,
+    );
   });
   return null;
 }

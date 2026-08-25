@@ -29,6 +29,7 @@ import {
 import { useMiraImpulse } from "@/components/MiraImpulse";
 import { useAttentionSignals, breathMultiplier } from "@/hooks/useAttentionSignals";
 import { haptic } from "@/lib/haptics";
+import { frameDelta, paramsChanged, smoothApproach, smoothFactor } from "@/lib/motion";
 
 const MiraScene = dynamic(() => import("./MiraScene"), { ssr: false });
 
@@ -262,6 +263,11 @@ function lerp(a: number, b: number, t: number) {
 }
 
 const REACTION_MS = 2400;
+// Frame-rate-independent morph rates (matches MiraScene's budget).
+const MORPH_BASE_RATE = 7.6;
+const MORPH_KICK = 1.9;
+const MORPH_KICK_DECAY = 5.0;
+const PALETTE_RATE_2D = 1.52; // per-second palette blend (was PALR 0.025/frame)
 
 export default function MiraOrb({
   presence = STEADY_PRESENCE,
@@ -473,29 +479,39 @@ export default function MiraOrb({
     const cur: MorphParams = { ...targetMorph() };
     let raf = 0;
     const start = performance.now();
+    let prevSec = -1;
+    let lastTarget: MorphParams = { ...targetMorph() };
+    let kick = 1;
 
     const draw = (now: number) => {
       const target = targetMorph();
-      // Posture shifts must read as a response to the person's decision:
-      // 0.12 reaches ~95% in ~0.4s instead of drifting for over a second.
-      const M = 0.12;
-      cur.speed = lerp(cur.speed, target.speed, M);
-      cur.turbulence = lerp(cur.turbulence, target.turbulence, M);
-      cur.brightness = lerp(cur.brightness, target.brightness, M);
-      cur.blobCount = lerp(cur.blobCount, target.blobCount, M);
-      cur.orbitRadius = lerp(cur.orbitRadius, target.orbitRadius, M);
-      cur.orbitSpeed = lerp(cur.orbitSpeed, target.orbitSpeed, M);
-      cur.pinch = lerp(cur.pinch, target.pinch, M);
-      cur.bloom = lerp(cur.bloom, target.bloom, M);
-      cur.asymmetry = lerp(cur.asymmetry, target.asymmetry, M);
+      // Frame-rate independent via real dt, with a response burst on change.
+      const sec = now / 1000;
+      const dt = prevSec < 0 ? 0 : frameDelta(prevSec, sec);
+      prevSec = sec;
+      if (paramsChanged(target, lastTarget)) {
+        kick = MORPH_KICK;
+        lastTarget = { ...target };
+      }
+      kick = 1 + (kick - 1) * Math.exp(-MORPH_KICK_DECAY * dt);
+      const rate = MORPH_BASE_RATE * kick;
+      cur.speed = smoothApproach(cur.speed, target.speed, rate, dt);
+      cur.turbulence = smoothApproach(cur.turbulence, target.turbulence, rate, dt);
+      cur.brightness = smoothApproach(cur.brightness, target.brightness, rate, dt);
+      cur.blobCount = smoothApproach(cur.blobCount, target.blobCount, rate, dt);
+      cur.orbitRadius = smoothApproach(cur.orbitRadius, target.orbitRadius, rate, dt);
+      cur.orbitSpeed = smoothApproach(cur.orbitSpeed, target.orbitSpeed, rate, dt);
+      cur.pinch = smoothApproach(cur.pinch, target.pinch, rate, dt);
+      cur.bloom = smoothApproach(cur.bloom, target.bloom, rate, dt);
+      cur.asymmetry = smoothApproach(cur.asymmetry, target.asymmetry, rate, dt);
 
       const tpal = paletteRef.current;
-      const PALR = 0.025;
+      const pfr = smoothFactor(PALETTE_RATE_2D, dt);
       for (let i = 0; i < 3; i++) {
-        curPal.dark[i] = lerp(curPal.dark[i], tpal.dark[i], PALR);
-        curPal.warm[i] = lerp(curPal.warm[i], tpal.warm[i], PALR);
-        curPal.light[i] = lerp(curPal.light[i], tpal.light[i], PALR);
-        curPal.cream[i] = lerp(curPal.cream[i], tpal.cream[i], PALR);
+        curPal.dark[i] = lerp(curPal.dark[i], tpal.dark[i], pfr);
+        curPal.warm[i] = lerp(curPal.warm[i], tpal.warm[i], pfr);
+        curPal.light[i] = lerp(curPal.light[i], tpal.light[i], pfr);
+        curPal.cream[i] = lerp(curPal.cream[i], tpal.cream[i], pfr);
       }
 
       let reactionPulse = 0;
