@@ -140,12 +140,12 @@ body::before {
    tokens so token-driven components read cream-on-dark without per-element
    restyling. ── */
 .dusk {
-  --background: #0c0806;
+  --background: #0f0a07;
   --foreground: #f6efe3;
   --muted: rgba(246, 239, 227, 0.66);
   --hairline: rgba(246, 239, 227, 0.18);
-  --surface: rgba(16, 10, 8, 0.55);
-  --surface-strong: rgba(28, 18, 13, 0.7);
+  --surface: rgba(18, 12, 9, 0.55);
+  --surface-strong: rgba(30, 20, 15, 0.7);
   --accent: #d8a892;
   --accent-soft: rgba(216, 168, 146, 0.55);
   --accent-ink: #e5b394;

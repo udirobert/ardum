@@ -40,18 +40,20 @@ type FieldConfig = {
   veil?: number;
 };
 
-// The dusk field the orb glows within — warm terracotta collapsing to near
-// black.
+// The dusk field the orb glows within — warm terracotta settling into
+// a deep dusk, not collapsing to black. Lifting the base luminance ~15%
+// so the orb reads as a warm presence in warm space, not a light in a void.
 const DUSK =
-  "radial-gradient(ellipse 92% 82% at 50% 42%, #2a1a12 0%, #180f0a 55%, #0c0806 100%)";
+  "radial-gradient(ellipse 92% 82% at 50% 42%, #3a2418 0%, #221610 55%, #0f0a07 100%)";
 
 // Legibility scrims layered over the orb: darken the top and bottom bands
 // where copy sits, plus a soft vignette so the presence reads as light from
-// depth. The orb's luminous middle stays clear.
+// depth. Softened from the original so the field breathes at the edges
+// instead of feeling boxed in — companionable, not walled.
 const SCRIM = [
-  "linear-gradient(to bottom, rgba(12,8,6,0.78) 0%, rgba(12,8,6,0) 26%)",
-  "linear-gradient(to top, rgba(12,8,6,0.86) 0%, rgba(12,8,6,0) 36%)",
-  "radial-gradient(ellipse 78% 78% at 50% 48%, rgba(12,8,6,0) 52%, rgba(12,8,6,0.5) 100%)",
+  "linear-gradient(to bottom, rgba(15,10,7,0.62) 0%, rgba(15,10,7,0) 22%)",
+  "linear-gradient(to top, rgba(15,10,7,0.68) 0%, rgba(15,10,7,0) 32%)",
+  "radial-gradient(ellipse 78% 78% at 50% 48%, rgba(15,10,7,0) 52%, rgba(15,10,7,0.36) 100%)",
 ].join(", ");
 
 /** Routes where the field is the atmosphere. */
@@ -80,7 +82,7 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
             <div
               className="fixed inset-0 z-0 pointer-events-none"
               aria-hidden
-              style={{ backgroundColor: "#0c0806" }}
+              style={{ backgroundColor: "#0f0a07" }}
             >
               <div className="absolute inset-0" style={{ background: DUSK }} />
               <div className="absolute inset-0">
@@ -96,7 +98,7 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
               <div
                 className="absolute inset-0 transition-opacity duration-700"
                 style={{
-                  background: "#0c0806",
+                  background: "#0f0a07",
                   opacity: config?.veil ?? 0,
                 }}
               />

@@ -518,7 +518,7 @@ function PostProcessing({
             new THREE.Vector2(fill ? 0.0006 : 0.0015, fill ? 0.0006 : 0.0015)
           }
         />
-        <Vignette eskil={false} offset={0.2} darkness={0.55} />
+        <Vignette eskil={false} offset={0.2} darkness={0.38} />
       </EffectComposer>
     </PostFxErrorBoundary>
   );
