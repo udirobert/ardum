@@ -53,6 +53,7 @@ export default function HoldPanel({
   const hasResponses = Boolean(episode.coordination?.responses.length);
   const reviewHold = nextDecision.kind === "review-hold";
   const awaitResponses = nextDecision.kind === "await-responses";
+  const readyToBook = nextDecision.kind === "ready-to-book";
 
   return (
     <div className="border border-[color:var(--accent-soft)] rounded-sm p-5">
@@ -163,33 +164,41 @@ export default function HoldPanel({
         </details>
       )}
 
-      <div className="flex flex-wrap gap-3">
-        {awaitResponses && inviteOpen && (
-          <PrimaryButton disabled={busy} onClick={() => void onRefresh()}>
-            {nextDecision.primaryLabel}
-          </PrimaryButton>
-        )}
-        {!reviewHold && inviteOpen && !awaitResponses && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void onRefresh()}
-            className="text-sm text-[color:var(--accent)]"
-          >
-            Check for a response
-          </button>
-        )}
-        {!reviewHold && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onRelease}
-            className="text-sm text-[color:var(--muted)]"
-          >
-            Release the hold
-          </button>
-        )}
-      </div>
+      {/* The HoldPanel action row carries the hold-management actions
+          (release, check-for-response). When the state is ready-to-book,
+          the primary decision moves to the commitment section, so we
+          suppress these actions here to avoid competing affordances —
+          a quiet "release the hold" link sits with the commitment CTA
+          instead. */}
+      {!readyToBook && (
+        <div className="flex flex-wrap gap-3">
+          {awaitResponses && inviteOpen && (
+            <PrimaryButton disabled={busy} onClick={() => void onRefresh()}>
+              {nextDecision.primaryLabel}
+            </PrimaryButton>
+          )}
+          {!reviewHold && inviteOpen && !awaitResponses && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void onRefresh()}
+              className="text-sm text-[color:var(--accent)]"
+            >
+              Check for a response
+            </button>
+          )}
+          {!reviewHold && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onRelease}
+              className="text-sm text-[color:var(--muted)]"
+            >
+              Release the hold
+            </button>
+          )}
+        </div>
+      )}
       <ExploreOtherFits
         alternatives={episode.recommendation?.alternatives ?? []}
         recommendation={recommendation}

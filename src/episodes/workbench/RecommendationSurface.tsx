@@ -223,21 +223,6 @@ export default function RecommendationSurface({
                 Not this one — show me another
               </button>
             )}
-
-            {expandSecondaryTools && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  actions.act({
-                    type: episode.monitor ? "check-monitor" : "start-monitoring",
-                  })
-                }
-                className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
-              >
-                {episode.monitor ? "Check for changes" : "or I can watch this for you →"}
-              </button>
-            )}
           </div>
 
           <p className="text-sm leading-relaxed italic text-[color:var(--muted)]">
@@ -254,22 +239,20 @@ export default function RecommendationSurface({
               weigh it differently, or see what else fits
             </summary>
             <div className="mt-4 space-y-6">
-              {!expandSecondaryTools && (
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      actions.act({
-                        type: episode.monitor ? "check-monitor" : "start-monitoring",
-                      })
-                    }
-                    className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
-                  >
-                    {episode.monitor ? "Check for changes" : "or I can watch this for you →"}
-                  </button>
-                </div>
-              )}
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    actions.act({
+                      type: episode.monitor ? "check-monitor" : "start-monitoring",
+                    })
+                  }
+                  className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
+                >
+                  {episode.monitor ? "Check for changes" : "or I can watch this for you →"}
+                </button>
+              </div>
               <LensFactors
                 activeLens={derived.activeLens}
                 lensData={derived.lensData}
@@ -316,15 +299,27 @@ export default function RecommendationSurface({
             change your mind before that line.
           </p>
           {!commitmentOpen ? (
-            <PrimaryButton
-              disabled={busy}
-              onClick={() => {
-                actions.fire("lean");
-                actions.setCommitmentOpen(true);
-              }}
-            >
-              {nextDecision.primaryLabel}
-            </PrimaryButton>
+            <div className="flex flex-col gap-2">
+              <PrimaryButton
+                disabled={busy}
+                onClick={() => {
+                  actions.fire("lean");
+                  actions.setCommitmentOpen(true);
+                }}
+              >
+                {nextDecision.primaryLabel}
+              </PrimaryButton>
+              {episode.hold?.status === "active" && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => actions.act({ type: "release-hold" })}
+                  className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
+                >
+                  or release the hold
+                </button>
+              )}
+            </div>
           ) : (
             <CommitmentPanel
               episode={episode}
