@@ -33,6 +33,18 @@ export function readAestheticVector(): AestheticVector {
   }
 }
 
+/**
+ * Whether a calibrated aesthetic vector exists in storage. Use this to
+ * decide whether `readAestheticVector` returns a genuine preference
+ * (true) or the neutral fallback (false). Callers that want a
+ * preliminary signal for un-calibrated practitioners should fall back
+ * to an intention-derived vector when this is false.
+ */
+export function hasStoredAestheticVector(): boolean {
+  if (typeof window === "undefined") return false;
+  return readStorage(VECTOR_KEY) !== null;
+}
+
 export function writeAestheticVector(vector: AestheticVector): void {
   writeStorage(VECTOR_KEY, JSON.stringify(vector));
 }

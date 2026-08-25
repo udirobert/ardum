@@ -63,11 +63,19 @@ Phases:
 2. **Aesthetic calibration** — four image reactions (`AestheticCalibration`)
    build a session vector over the ambient field. Swipe left/right on mobile;
    resonate/skip impulses ripple the orb and each reaction retunes its
-   palette live (`onVector`).
+   palette live (`onVector`). Calibration is off by default
+   (`NEXT_PUBLIC_AESTHETIC_CALIBRATION_ENABLED`); the intention ask is the
+   first interaction, not image reactions. When calibration is off (or not
+   yet completed), `vectorFromIntention` derives a preliminary aesthetic
+   vector from the intention statement so the retreat vision and orb
+   palette carry signal from the first moment rather than the neutral
+   default. A stored calibrated vector always takes precedence.
 3. **Retreat vision** — after calibration, `RetreatVision` resolves a
    **curated frame** from the local asset catalog
    (`public/aesthetics/visions/`). Deterministic matching from the aesthetic
    vector + calibration reactions. Cached in `localStorage` by fingerprint.
+   For un-calibrated practitioners, the vision uses the intention-derived
+   vector, so the frame still reflects the stated need.
 4. **Intention / returning** — voice lane + input lane (see above).
    When the practitioner has set a preferred name (`actors.preferred_name`),
    the intention heading personalizes: "What are you trying to make space

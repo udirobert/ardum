@@ -6,7 +6,8 @@ import MiraOrb, { preloadMiraScene } from "@/components/MiraOrb";
 import { useMiraField } from "@/components/MiraField";
 import { useMiraImpulse, type ImpulseKind } from "@/components/MiraImpulse";
 import ClarifyPanel from "@/episodes/ClarifyPanel";
-import { readAestheticVector } from "@/aesthetics/aesthetic-store";
+import { readAestheticVector, hasStoredAestheticVector } from "@/aesthetics/aesthetic-store";
+import { vectorFromIntention } from "@/aesthetics/vector-from-intention";
 import type { MatchResult } from "@/matching/types";
 import type { BudgetBand, EnergyState } from "@/calibration/schema";
 import type { CounterfactualResult } from "@/episodes/counterfactual";
@@ -104,9 +105,23 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
     Record<PerspectiveName, MatchResult | null> | null
   >(null);
   const [lensLoading, setLensLoading] = useState(false);
-  const [aestheticVector] = useState(() =>
+  // Prefer the calibrated vector (from the aesthetic calibration swipe
+  // flow). When none exists (calibration is off by default, per the
+  // product contract), derive a preliminary vector from the intention
+  // statement so the retreat vision and orb palette carry signal from
+  // the first moment rather than falling back to the neutral default.
+  const storedVector = useState(() =>
     typeof window !== "undefined" ? readAestheticVector() : null,
-  );
+  )[0];
+  const hasCalibrated = useState(() =>
+    typeof window !== "undefined" ? hasStoredAestheticVector() : false,
+  )[0];
+  const intentionStatement = payload?.episode.intentions.at(-1)?.statement;
+  const aestheticVector = useMemo(() => {
+    if (hasCalibrated && storedVector) return storedVector;
+    if (intentionStatement) return vectorFromIntention(intentionStatement);
+    return storedVector;
+  }, [hasCalibrated, storedVector, intentionStatement]);
 
   // Derived views: budget and energy counterfactuals.
   const [activeBand, setActiveBand] = useState<BudgetBand | null>(null);
