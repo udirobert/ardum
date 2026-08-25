@@ -109,17 +109,16 @@ disclosure (“the journey so far”), not as hero metadata.
 > cinematic flow (`RetreatExplorationView`) as built. That flow was
 > never implemented. What ships is `EpisodeWorkbench`, which renders
 > Mira's letter, the retreat card, and hold/feedback actions on a
-> single scrollable page. See
-> [inventory-led-implementation-summary.md](inventory-led-implementation-summary.md)
-> for what actually ships. The four-beat description below is a design
-> target, not current behavior.
+> single scrollable page. The four-beat description below is a design
+> target, not current behavior. The companion design docs it
+> referenced (`recommendation-reveal.md`, `refinement-alternatives.md`,
+> `inventory-led-implementation-summary.md`) were never written.
 
 The **design target** is a four-beat reveal flow, not a browse grid.
 Mira owns ranking and presents **one** retreat as her strongest current
 fit; alternatives and refinement are summoned by the practitioner, not
-always-on. The full contract is in [recommendation-reveal.md](recommendation-reveal.md)
-(Beat 2) and [refinement-alternatives.md](refinement-alternatives.md)
-(Beat 3). Both are aspirational; neither is implemented.
+always-on. The full contract was to live in two companion docs (Beat 2
+and Beat 3); both were aspirational and neither was written.
 
 **Target beats:**
 1. **Looking** — orb + quiet "looking at what fits" line. The breath

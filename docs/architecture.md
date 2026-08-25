@@ -44,7 +44,9 @@ projector-vs-cognee contract that backs the Semantic context row above are in
 ### Wider-aperture evidence (tier B / tier C)
 
 Product decision: [0010-wider-aperture-evidence](decisions/0010-wider-aperture-evidence.md).
-Beat 2 surfaces: [recommendation-reveal.md](design/recommendation-reveal.md).
+Design target for the pre-commitment recommendation surface:
+[experience-layer.md](design/experience-layer.md) (four-beat reveal,
+status: not implemented).
 
 ```text
 GET /api/episodes/[id]
@@ -54,7 +56,8 @@ GET /api/episodes/[id]
       → evidenceRepository.listPublicEvidence()
   → resolveWiderApertureEvidence()     (pure; gates tier B/C rows)
   → EpisodeDetailPayload.widerApertureEvidence
-  → (client rendering not yet wired — see inventory-led-implementation-summary.md)
+  → client rendering: wired on BookedLanding (post-commitment);
+    not yet wired on the pre-commitment recommendation surface
 ```
 
 | Module | Role |

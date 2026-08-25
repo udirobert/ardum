@@ -205,10 +205,16 @@ Do **not** optimize for time-on-feed, cohort page views, or “social engagement
 - **Tier B** — `project-cohort.ts`, `listContributionEpisodes()` on episode
   repository, post-booking grant commands + `BookedLanding` UI.
 - **API** — `loadWiderApertureStores()` on `GET /api/episodes/[id]` →
-  `widerApertureEvidence` on detail payload → conditional disclosure rows in
-  `RetreatExplorationView`.
-- **Demo seed** — `ARDUM_WIDER_APERTURE_SEED=1` merges dev cohort/public data;
-  `/demo/inventory-led` uses seed stores directly.
+  `widerApertureEvidence` on detail payload. As of 2026-08, the
+  practitioner-facing disclosure rows are wired on `BookedLanding`
+  (post-commitment) but not yet on the pre-commitment recommendation
+  surface. An earlier version of this record referenced a
+  `RetreatExplorationView` component for those rows; that component was
+  never implemented — see the status note in
+  [experience-layer.md](../design/experience-layer.md).
+- **Demo seed** — `ARDUM_WIDER_APERTURE_SEED=1` merges dev cohort/public
+  data. (The `/demo/inventory-led` route referenced here was never
+  implemented.)
 
 ## Alternatives considered
 

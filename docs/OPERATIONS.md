@@ -262,8 +262,20 @@ After booking, the preparation landing offers an optional grant:
 Cohort projection reads `episodeRepository.listContributionEpisodes()` —
 never verbatim statements or actor ids in practitioner UI.
 
-### Demo
+### Wider-aperture evidence wiring (status)
 
-`/demo/inventory-led` passes seed stores directly to `RetreatExplorationView`
-for UI iteration. Live episodes receive `widerApertureEvidence` on
-`GET /api/episodes/[id]` when gates pass.
+The wider-aperture evidence pipeline (`loadWiderApertureStores()` →
+`widerApertureEvidence` on the episode detail payload) is built and
+gated server-side. The practitioner-facing disclosure rows are wired on
+the booked landing (`BookedLanding`), which renders the post-commitment
+contribution grant. The pre-commitment recommendation surface
+(`EpisodeWorkbench` / `RecommendationSurface`) does not yet render
+wider-aperture rows; see the status note in
+[experience-layer.md](design/experience-layer.md) and the inventory-led
+implementation summary.
+
+> Note: an earlier version of this section and of
+> [0010](decisions/0010-wider-aperture-evidence.md) referenced a
+> `RetreatExplorationView` component and a `/demo/inventory-led` route.
+> Neither was implemented; the references are removed here and kept only
+> as historical design targets in the decision record.
