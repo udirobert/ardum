@@ -24,6 +24,7 @@ import { BlendFunction } from "postprocessing";
 import * as THREE from "three";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useWebGLAvailable } from "@/hooks/useWebGLAvailable";
+import { useDeviceTier } from "@/hooks/useDeviceTier";
 import type { MorphParams } from "@/agent/mira-presence";
 import { MIRA_FRAG, MIRA_VERT } from "./mira-scene-shaders";
 import { SDF_CORE_VERT, SDF_CORE_FRAG } from "./mira-sdf-core";
@@ -535,6 +536,15 @@ function SceneInner({
   const impulse = props.impulse ?? 0;
   const [postFxFailed, setPostFxFailed] = useState(false);
   const disablePostFx = skipPostFx || postFxFailed;
+  const tier = useDeviceTier();
+  // The raymarched SDF core is the single most expensive continuous
+  // effect (64-step march + 3D fbm noise at 512×512 every frame). It
+  // only renders at hero (fill) tier AND only on capable hardware; a
+  // runtime frame-rate sample downgrades to SimpleCore if the device
+  // can't sustain ~45fps with the raymarcher active.
+  const [sdfSustained, setSdfSustained] = useState(true);
+  useFrameRateGate({ enabled: fill && tier === "high", onDrop: () => setSdfSustained(false) });
+  const renderSDF = fill && tier === "high" && sdfSustained;
 
   return (
     <>
@@ -545,9 +555,9 @@ function SceneInner({
       <directionalLight position={[2, -1, -2]} intensity={0.35} color="#6e3925" />
       <pointLight position={[0, 0, 1.5]} intensity={0.8 * (1 + impulse)} color="#d8a892" />
       <Environment preset="sunset" />
-      {/* SDF core is fragment-heavy — only render at hero (fill) tier.
-          Standard tier (64–95px) gets a simple lit sphere as the core. */}
-      {fill ? (
+      {/* SDF core is fragment-heavy — hero tier on capable hardware only.
+          Standard tier (64–95px) and gated-down hero use SimpleCore. */}
+      {renderSDF ? (
         <SDFCore morph={props.morph} palette={props.palette} impulse={impulse} />
       ) : (
         <SimpleCore impulse={impulse} />
@@ -565,6 +575,56 @@ function SceneInner({
       )}
     </>
   );
+}
+
+/**
+ * Frame-rate safety net for the SDF core. Samples the RAF cadence over a
+ * ~2s window after mount; if the sustained frame rate drops below 45fps,
+ * fires `onDrop` once so the caller can downgrade to a cheaper core.
+ *
+ * The gate is a one-shot: once it drops, it stays dropped for the scene's
+ * lifetime. A device that recovers after a transient stall will re-gain
+ * the SDF core on the next page mount (the probe re-runs per mount).
+ */
+function useFrameRateGate({
+  enabled,
+  onDrop,
+}: {
+  enabled: boolean;
+  onDrop: () => void;
+}) {
+  const droppedRef = useRef(false);
+  useEffect(() => {
+    if (!enabled || droppedRef.current) return;
+    let raf = 0;
+    const samples: number[] = [];
+    const start = performance.now();
+    const minFps = 45;
+    const windowMs = 2000;
+    const warmupMs = 400;
+
+    const tick = (now: number) => {
+      samples.push(now);
+      // Keep only the samples inside the rolling window.
+      const cutoff = now - windowMs;
+      while (samples.length > 2 && samples[0] < cutoff) samples.shift();
+
+      if (now - start > warmupMs && samples.length > 30) {
+        const span = samples[samples.length - 1] - samples[0];
+        const fps = (samples.length - 1) / (span / 1000);
+        if (fps < minFps) {
+          droppedRef.current = true;
+          onDrop();
+          return;
+        }
+      }
+      // Stop sampling after the window — the gate is one-shot.
+      if (now - start > windowMs + warmupMs) return;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [enabled, onDrop]);
 }
 
 /**

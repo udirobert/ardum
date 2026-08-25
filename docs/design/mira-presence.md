@@ -70,8 +70,8 @@ Fidelity scales with footprint and page budget:
 
 | Tier | Size | Expression |
 |---|---|---|
-| `hero` | ≥ 96 px | **MiraScene** — raymarched SDF metaball core, attractor capsule shell, bloom, chromatic aberration |
-| `standard` | 64–95 px | MiraScene at reduced footprint |
+| `hero` | ≥ 96 px | **MiraScene** — raymarched SDF metaball core (gated by device capability), attractor capsule shell, bloom, chromatic aberration |
+| `standard` | 64–95 px | MiraScene at reduced footprint (SimpleCore, no raymarch) |
 | `inline` | < 64 px | 2D metaball WebGL or CSS fallback |
 
 `MiraOrb` selects the tier from `size`. Multiple orbs may mount on one page;
@@ -93,6 +93,17 @@ achieve. Uniforms map to `MorphParams`:
 
 Performance is capped at 512×512 render resolution via uniform; falls back
 to the static gradient on WebGL failure.
+
+**Device-capability gate:** the SDF core is the most expensive continuous
+effect (64-step raymarch + 3D fbm noise every frame), so it does not render
+unconditionally at hero tier. `useDeviceTier` probes GPU capability at mount
+(`prefers-reduced-motion`, `devicePixelRatio`, `WEBGL_debug_renderer_info`
+for discrete vs integrated); only `high`-tier hardware renders the SDF
+core. A runtime frame-rate gate (`useFrameRateGate`) samples the RAF cadence
+over a ~2s window and downgrades to `SimpleCore` if the sustained rate drops
+below ~45fps. Standard-tier hardware always uses `SimpleCore` (lit sphere,
+no raymarch); the capsule shell, postprocessing, and 2D metaball underlay
+are unaffected.
 
 ### Hold-tension drip
 
