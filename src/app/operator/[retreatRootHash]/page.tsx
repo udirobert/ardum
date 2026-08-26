@@ -6,14 +6,9 @@ import Link from "next/link";
 import { useOperatorAuth } from "@/booking/OperatorAuth";
 import MiraOrb from "@/components/MiraOrb";
 import { operatorPresence } from "@/agent/operator-presence";
+import OperatorDemandTable from "@/components/OperatorDemandTable";
 import type { AttestationIndex } from "@/attestation/schema";
 import type { DemandSummary } from "@/episodes/operator-projection";
-import {
-  ENERGY_STATES,
-  BUDGET_BANDS,
-  SOCIAL_COMFORT,
-  TRAVEL_WINDOWS,
-} from "@/calibration/schema";
 
 type RetreatDetailState =
   | { status: "loading" }
@@ -23,32 +18,6 @@ type RetreatDetailState =
       retreat: AttestationIndex;
       demand: DemandSummary;
     };
-
-const ENERGY_LABELS = new Map(ENERGY_STATES.map((e) => [e.value, e.label]));
-const BUDGET_LABELS = new Map(BUDGET_BANDS.map((b) => [b.value, b.label]));
-const SOCIAL_LABELS = new Map(SOCIAL_COMFORT.map((s) => [s.value, s.label]));
-const TRAVEL_LABELS = new Map(TRAVEL_WINDOWS.map((t) => [t.value, t.label]));
-
-function statusLabel(status: string): string {
-  switch (status) {
-    case "capturing":
-      return "describing what they need";
-    case "clarifying":
-      return "clarifying constraints";
-    case "recommendation-ready":
-      return "reviewing your retreat";
-    case "held":
-      return "holding your retreat";
-    case "ready-to-book":
-      return "ready to book";
-    case "booked":
-      return "booked";
-    case "monitoring":
-      return "watching your retreat";
-    default:
-      return status;
-  }
-}
 
 export default function RetreatDetailPage() {
   const params = useParams();
@@ -166,7 +135,7 @@ export default function RetreatDetailPage() {
         </div>
       </div>
 
-      {/* Matches list */}
+      {/* Matches table — sortable demand grid */}
       {demand.totalMatches === 0 ? (
         <div className="border border-[color:var(--hairline)] rounded-sm p-8">
           <MiraOrb
@@ -183,77 +152,30 @@ export default function RetreatDetailPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          <h2 className="font-serif text-2xl tracking-tight mb-4">
+        <div className="space-y-4">
+          <h2 className="font-serif text-2xl tracking-tight mb-2">
             Matched practitioners
           </h2>
-          {demand.matches.map((match) => (
-            <div
-              key={match.episodeId}
-              className="border border-[color:var(--hairline)] rounded-sm p-5"
-            >
-              <div className="flex items-baseline justify-between gap-4 mb-3">
-                <span className="tag">
-                  {match.isTopPick ? "top pick" : "alternative"}
-                </span>
-                <span className="text-xs text-[color:var(--muted)]">
-                  {statusLabel(match.status)}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-                {match.shape.energy && (
-                  <span>
-                    <span className="text-[color:var(--muted)]">energy: </span>
-                    {ENERGY_LABELS.get(match.shape.energy) ?? match.shape.energy}
-                  </span>
-                )}
-                {match.shape.budget && (
-                  <span>
-                    <span className="text-[color:var(--muted)]">budget: </span>
-                    {BUDGET_LABELS.get(match.shape.budget) ?? match.shape.budget}
-                  </span>
-                )}
-                {match.shape.social && (
-                  <span>
-                    <span className="text-[color:var(--muted)]">social: </span>
-                    {SOCIAL_LABELS.get(match.shape.social) ?? match.shape.social}
-                  </span>
-                )}
-                {match.shape.travelWindow && (
-                  <span>
-                    <span className="text-[color:var(--muted)]">window: </span>
-                    {TRAVEL_LABELS.get(match.shape.travelWindow) ??
-                      match.shape.travelWindow}
-                  </span>
-                )}
-                {match.shape.partySize && (
-                  <span>
-                    <span className="text-[color:var(--muted)]">
-                      party:{" "}
-                    </span>
-                    {match.shape.partySize === 1
-                      ? "solo"
-                      : `${match.shape.partySize} people`}
-                  </span>
-                )}
-              </div>
-              {match.holdExpiresAt && (
-                <p className="text-xs text-[color:var(--accent-ink)] mt-3">
-                  Holding — expires{" "}
-                  {new Date(match.holdExpiresAt).toLocaleString()}
-                </p>
-              )}
-              {match.bookedAt && (
-                <Link
-                  href={`/operator/${retreatRootHash}/bookings/${match.episodeId}`}
-                  className="text-xs text-[color:var(--accent-ink)] mt-3 inline-block hover:underline"
-                >
-                  Booked {new Date(match.bookedAt).toLocaleDateString()} →
-                  view preparation context
-                </Link>
-              )}
+          <div className="border border-[color:var(--hairline)] rounded-sm overflow-hidden">
+            <OperatorDemandTable matches={demand.matches} />
+          </div>
+          {/* Booking links for booked matches — stay below the table */}
+          {demand.matches.some((m) => m.bookedAt) && (
+            <div className="space-y-1">
+              {demand.matches
+                .filter((m) => m.bookedAt)
+                .map((match) => (
+                  <Link
+                    key={match.episodeId}
+                    href={`/operator/${retreatRootHash}/bookings/${match.episodeId}`}
+                    className="text-xs text-[color:var(--accent-ink)] inline-block hover:underline"
+                  >
+                    Booked {new Date(match.bookedAt!).toLocaleDateString()} →
+                    view preparation context
+                  </Link>
+                ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 

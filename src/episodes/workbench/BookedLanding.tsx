@@ -1,6 +1,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import MiraOrb from "@/components/MiraOrb";
+import EvidenceCards from "@/components/EvidenceCards";
 import {
   bookingDialogue,
   anticipationLine,
@@ -10,7 +11,6 @@ import { daysSinceBooking, preparationPresence } from "@/agent/preparation-prese
 import type { MatchResult } from "@/matching/types";
 import type { Episode } from "@/episodes/model";
 import type { MemoryContext } from "@/memory/semantic-memory";
-import type { MiraPresence } from "@/agent/mira-presence";
 import type { AestheticVector } from "@/aesthetics/image-pool";
 import type { EpisodeDetailPayload } from "@/episodes/detail-payload";
 
@@ -161,17 +161,39 @@ export default function BookedLanding({
       )}
 
       {commitment && (
-        <details className="opacity-70">
+        <details className="opacity-80">
           <summary className="tag cursor-pointer">How this is secured</summary>
-          <p className="tag mt-3 break-all leading-relaxed">
-            Deposit held in escrow until you arrive
-            {commitment.depositTxId
-              ? ` · ref ${commitment.depositTxId.slice(0, 18)}…`
-              : ""}
-            {commitment.bookingRootHash
-              ? ` · record ${commitment.bookingRootHash.slice(0, 22)}…`
-              : ""}
-          </p>
+          <div className="mt-4">
+            <EvidenceCards
+              cards={[
+                {
+                  title: "Deposit held in escrow",
+                  body: "Your deposit is held until you arrive. The operator does not receive it before check-in.",
+                  badge: "on-chain",
+                  source: commitment.depositTxId
+                    ? `tx ${commitment.depositTxId.slice(0, 18)}…`
+                    : "escrow contract",
+                  sourceUrl: commitment.depositTxId
+                    ? undefined
+                    : undefined,
+                  provenance: "held",
+                },
+                ...(commitment.bookingRootHash
+                  ? [{
+                      title: "Booking attestation",
+                      body: "A canonical booking record, signed by your wallet and stored on 0G Storage. This is the verifiable proof of your reservation.",
+                      badge: "attested" as const,
+                      source: `record ${commitment.bookingRootHash.slice(0, 22)}…`,
+                      provenance: "indexed",
+                    }]
+                  : []),
+              ]}
+            />
+            <p className="text-xs text-[color:var(--muted)] mt-3 max-w-prose leading-relaxed">
+              Technical references (settlement, escrow, reservation record)
+              stay inspectable after you confirm.
+            </p>
+          </div>
         </details>
       )}
 

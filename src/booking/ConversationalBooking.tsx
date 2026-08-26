@@ -24,6 +24,7 @@ import {
   DEFAULT_CHECKIN_WINDOW_HOURS,
 } from "./constants";
 import { bookingDialogue } from "@/agent/mira-voice";
+import EvidenceCards from "@/components/EvidenceCards";
 import type { BookingAttestation } from "./types";
 import BreathSync from "./BreathSync";
 
@@ -385,13 +386,32 @@ export default function ConversationalBooking({
           </p>
         )}
 
-        <details className="mt-5 opacity-70">
+        <details className="mt-5 opacity-80">
           <summary className="tag cursor-pointer">How this is secured</summary>
-          <p className="text-sm text-[color:var(--muted)] mt-3 max-w-prose leading-relaxed">
-            Your deposit is held until you arrive. The operator does not receive
-            it before check-in. Technical references (settlement, escrow,
-            reservation record) stay inspectable after you confirm.
-          </p>
+          <div className="mt-4">
+            <EvidenceCards
+              cards={[
+                {
+                  title: "Deposit held in escrow",
+                  body: "Your deposit is held until you arrive. The operator does not receive it before check-in.",
+                  badge: "on-chain",
+                  source: "escrow contract",
+                  provenance: "held",
+                },
+                {
+                  title: "Booking attestation",
+                  body: "After confirmation, a canonical booking record — signed by your wallet — is stored on 0G Storage as verifiable proof of your reservation.",
+                  badge: "attested",
+                  source: "0G Storage",
+                  provenance: "indexed",
+                },
+              ]}
+            />
+            <p className="text-xs text-[color:var(--muted)] mt-3 max-w-prose leading-relaxed">
+              Technical references (settlement, escrow, reservation record)
+              stay inspectable after you confirm.
+            </p>
+          </div>
         </details>
 
         <button
