@@ -341,12 +341,19 @@ export default function MiraOrb({
   }, [attention, effectivePresence.nudgeAvailable]);
 
   // Poke when a nudge becomes available — a one-time brightness lean-in.
+  // For the two most decision-relevant nudge kinds (hold-expiring,
+  // price-drop), also fire a gentle haptic so it's felt on mobile, not
+  // just seen. The other kinds stay visual-only — restraint by default.
   useEffect(() => {
     if (effectivePresence.nudgeAvailable && !prevNudge.current) {
       setPokeEpoch((e) => e + 1);
+      const kind = effectivePresence.nudgeKind;
+      if (kind === "hold-expiring" || kind === "price-drop") {
+        haptic("nudge");
+      }
     }
     prevNudge.current = !!effectivePresence.nudgeAvailable;
-  }, [effectivePresence.nudgeAvailable]);
+  }, [effectivePresence.nudgeAvailable, effectivePresence.nudgeKind]);
 
   // Decay the poke pulse back to 0 over ~1.5s. The epoch counter restarts
   // the decay cleanly if a second poke fires mid-decay. The peak value is

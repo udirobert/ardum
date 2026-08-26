@@ -218,12 +218,16 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
   // Compute nudge availability and merge it into the presence so the orb
   // leans in (poke) when Mira has something to say. projectMiraPresence is
   // the source of posture; nudgeAvailable is layered on here to keep the
-  // presence module decoupled from voice.
+  // presence module decoupled from voice. The nudgeKind rides along so the
+  // poke can vary its haptic by urgency.
   const basePresence = config?.presence ?? STEADY_PRESENCE;
   const episode = config?.episode;
   const nudgeAvailable = episode ? hasNudge(episode) : false;
+  const nudgeKind = nudgeAvailable
+    ? nudgeForEpisode(episode!)?.kind ?? undefined
+    : undefined;
   const presence: MiraPresence = nudgeAvailable
-    ? { ...basePresence, nudgeAvailable: true }
+    ? { ...basePresence, nudgeAvailable: true, nudgeKind }
     : basePresence;
 
   // Phase 3: the poke — a subtle 6px lean toward the whisper position when

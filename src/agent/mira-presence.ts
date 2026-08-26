@@ -6,6 +6,7 @@
 
 import type { EnergyState } from "@/calibration/schema";
 import type { Episode, EpisodeEvent, EpisodeStatus } from "@/episodes/model";
+import type { NudgeKind } from "@/agent/mira-voice";
 
 export type MiraPosture =
   | "steady"
@@ -38,6 +39,12 @@ export type MiraPresence = {
    * by projectMiraPresence (keeps the presence module decoupled from voice).
    */
   nudgeAvailable?: boolean;
+  /**
+   * The kind of the available nudge, so the poke can vary its haptic by
+   * urgency (hold-expiring and price-drop get a gentle buzz; others are
+   * visual-only). Set alongside nudgeAvailable by the field.
+   */
+  nudgeKind?: NudgeKind;
 };
 
 export type MiraActivity = "idle" | "processing" | "speaking" | "listening" | "arriving";

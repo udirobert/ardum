@@ -478,6 +478,7 @@ export type NudgeKind =
   | "hold-expiring"
   | "preparation-ready"
   | "preparation-complete"
+  | "reaching"
   | "idle";
 
 export type Nudge = {
@@ -588,6 +589,23 @@ export function nudgeForEpisode(
     }
   }
 
+  // ── Pre-intention: the arrival surface ──
+  // When there's no recommendation to discuss and no hold or booking arc
+  // in progress, Mira bridges to the intention input. This is the first
+  // nudge a new practitioner sees when they hold the orb on the arrival
+  // screen — not the generic idle, but a warm reach that echoes the
+  // page's own question.
+  if (
+    status === "capturing" ||
+    status === "paused" ||
+    status === "clarifying"
+  ) {
+    return {
+      kind: "reaching",
+      text: `I'm here. Tell me what you're trying to make space for.`,
+    };
+  }
+
   // ── Default: companionable idle ──
   // Not silence — Mira is here, present, with nothing urgent.
   return {
@@ -596,10 +614,14 @@ export function nudgeForEpisode(
   };
 }
 
-/** True when the episode has a non-idle nudge ready. Pure, no side effects. */
+/**
+ * True when the episode has a non-idle nudge ready. The `reaching` kind
+ * (the arrival-surface bridge) is excluded — it's companionable, not
+ * urgent, so it should not trigger the poke lean-in. Pure, no side effects.
+ */
 export function hasNudge(episode: Episode, now: number = Date.now()): boolean {
   const nudge = nudgeForEpisode(episode, now);
-  return nudge !== null && nudge.kind !== "idle";
+  return nudge !== null && nudge.kind !== "idle" && nudge.kind !== "reaching";
 }
 
 function daysSinceBookingSafe(bookedAt: string, now: number): number {

@@ -324,12 +324,19 @@ describe("nudgeForEpisode", () => {
 
   // ── Default ──
 
-  it("returns idle nudge when there is nothing to surface", () => {
+  it("returns reaching nudge when capturing (no recommendation yet)", () => {
     const nudge = nudgeForEpisode(
       mkEpisode({ status: "capturing" }),
     );
-    expect(nudge?.kind).toBe("idle");
-    expect(nudge?.text).toContain("I'm here");
+    expect(nudge?.kind).toBe("reaching");
+    expect(nudge?.text).toContain("make space for");
+  });
+
+  it("returns reaching nudge for paused episodes", () => {
+    const nudge = nudgeForEpisode(
+      mkEpisode({ status: "paused" }),
+    );
+    expect(nudge?.kind).toBe("reaching");
   });
 
   it("returns idle nudge for a strong recommendation with no uncertainties", () => {
@@ -359,7 +366,7 @@ describe("hasNudge", () => {
     ).toBe(true);
   });
 
-  it("returns false when the nudge is idle", () => {
+  it("returns false for the reaching nudge (capturing — companionable, not urgent)", () => {
     expect(hasNudge(mkEpisode({ status: "capturing" }))).toBe(false);
   });
 
