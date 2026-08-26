@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useOperatorAuth } from "@/booking/OperatorAuth";
 import OperatorWalletButton from "@/booking/OperatorWalletButton";
 import MiraOrb from "@/components/MiraOrb";
+import OperatorInsights from "@/components/OperatorInsights";
 import { useMiraImpulse } from "@/components/MiraImpulse";
 import { operatorPresence } from "@/agent/operator-presence";
 import { STEADY_PRESENCE } from "@/agent/mira-presence";
@@ -16,7 +17,7 @@ type DemandCounts = {
   bookings: number;
 };
 
-type OperatorRetreat = AttestationIndex & {
+export type OperatorRetreat = AttestationIndex & {
   demand?: DemandCounts;
 };
 
@@ -232,6 +233,12 @@ export default function OperatorPage() {
               </Link>
             );
           })}
+        </div>
+      )}
+
+      {state.status === "loaded" && state.retreats.length > 0 && (
+        <div className="mt-10 mb-4">
+          <OperatorInsights retreats={state.retreats} />
         </div>
       )}
 

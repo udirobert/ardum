@@ -25,6 +25,7 @@ import {
 } from "./constants";
 import { bookingDialogue } from "@/agent/mira-voice";
 import EvidenceCards from "@/components/EvidenceCards";
+import CommitmentRailTrace, { type RailStep } from "@/components/CommitmentRailTrace";
 import type { BookingAttestation } from "./types";
 import BreathSync from "./BreathSync";
 
@@ -259,6 +260,43 @@ export default function ConversationalBooking({
 
   // ── Securing: ambient rails under human status ─────────────────────
   if (surface === "securing") {
+    // Derive rail steps from the securingLabel phase. Each step is
+    // Mira-voiced and carries an evidence chip. The trace makes the
+    // rails visible without naming the chain, upgrade, or EIP-7702.
+    const railSteps: RailStep[] = [
+      {
+        id: "prepare",
+        label: "Preparing your account",
+        chip: "session",
+        status:
+          securingLabel === "Preparing your account…"
+            ? "active"
+            : securingLabel === "Securing your place…" || securingLabel === "Confirming your place…"
+              ? "done"
+              : "pending",
+        detail:
+          securingLabel !== "Preparing your account…" ? "ready" : undefined,
+      },
+      {
+        id: "deposit",
+        label: "Securing your place",
+        chip: "escrow",
+        status:
+          securingLabel === "Securing your place…"
+            ? "active"
+            : securingLabel === "Confirming your place…"
+              ? "done"
+              : "pending",
+        detail: securingLabel === "Confirming your place…" ? "deposit confirmed" : undefined,
+      },
+      {
+        id: "attest",
+        label: "Confirming your place",
+        chip: "attested",
+        status: securingLabel === "Confirming your place…" ? "active" : "pending",
+      },
+    ];
+
     return (
       <div className="mt-8 fade-in-up">
         <div className="flex items-start gap-4 mb-6">
@@ -280,7 +318,8 @@ export default function ConversationalBooking({
             <p className="text-sm text-[color:var(--muted)]">{securingLabel}</p>
           </div>
         </div>
-        <div className="ml-16">
+        <div className="ml-16 space-y-4">
+          <CommitmentRailTrace steps={railSteps} />
           <BreathSync active={true} />
         </div>
       </div>
