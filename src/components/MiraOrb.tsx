@@ -304,6 +304,8 @@ export default function MiraOrb({
   );
   const resolvedVector = aestheticVector ?? storedVector;
   const [reactionPulse, setReactionPulse] = useState(0);
+  const [pokePulse, setPokePulse] = useState(0);
+  const [pokeEpoch, setPokeEpoch] = useState(0);
   const { impulse } = useMiraImpulse();
   const attention = useAttentionSignals();
   const baseMorph = morphParamsForTier(effectivePresence, tier);
@@ -312,6 +314,10 @@ export default function MiraOrb({
   const morph: MorphParams = {
     ...baseMorph,
     speed: baseMorph.speed * breathMultiplier(attention),
+    // Phase 3 poke: a transient brightness burst layered on the steady
+    // nudgeAvailable boost. Decays over ~1.5s so the orb leans in once,
+    // then settles to its slightly brighter resting state.
+    brightness: baseMorph.brightness + pokePulse * 0.15,
   };
   const palette = vectorToPalette(resolvedVector);
   // Derive holdTension from posture — when Mira is "holding", the capsule
@@ -320,12 +326,48 @@ export default function MiraOrb({
 
   // Gentle nudge when tab regains focus — Mira noticed you came back.
   const prevAttention = useRef(attention);
+  const prevNudge = useRef(false);
   useEffect(() => {
     if (attention === "returning" && prevAttention.current !== "returning") {
       haptic("nudge");
+      // If a nudge is waiting when you return, re-poke so you notice it.
+      // Deferred to a rAF callback so we don't setState synchronously in
+      // the effect body (avoids cascading renders).
+      if (effectivePresence.nudgeAvailable) {
+        requestAnimationFrame(() => setPokeEpoch((e) => e + 1));
+      }
     }
     prevAttention.current = attention;
-  }, [attention]);
+  }, [attention, effectivePresence.nudgeAvailable]);
+
+  // Poke when a nudge becomes available — a one-time brightness lean-in.
+  useEffect(() => {
+    if (effectivePresence.nudgeAvailable && !prevNudge.current) {
+      setPokeEpoch((e) => e + 1);
+    }
+    prevNudge.current = !!effectivePresence.nudgeAvailable;
+  }, [effectivePresence.nudgeAvailable]);
+
+  // Decay the poke pulse back to 0 over ~1.5s. The epoch counter restarts
+  // the decay cleanly if a second poke fires mid-decay. The peak value is
+  // set inside the first rAF tick (not synchronously in the effect body).
+  useEffect(() => {
+    if (pokeEpoch === 0) return;
+    let raf = 0;
+    const start = performance.now();
+    const POKE_MS = 1500;
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      if (elapsed >= POKE_MS) {
+        setPokePulse(0);
+        return;
+      }
+      setPokePulse(1 - elapsed / POKE_MS);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [pokeEpoch]);
 
   useEffect(() => {
     presenceRef.current = mergePresence(presence, activity);

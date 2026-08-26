@@ -9,6 +9,7 @@
 
 import type { MatchResult } from "@/matching/types";
 import type { MemoryContext } from "@/memory/semantic-memory";
+import type { Episode } from "@/episodes/model";
 import { humanizeAgo } from "@/lib/time";
 
 type PractitionerSignals = {
@@ -454,4 +455,156 @@ export function reasoningBeat(
 
   steps.push({ text: "One sits closest.", delayMs: 2400 + topReasoning.length * 700 + (alternative ? 1600 : 800) });
   return steps;
+}
+
+// ── Nudge ───────────────────────────────────────────────────────────
+// When the practitioner presses and holds the orb, Mira offers one
+// insight drawn from the current episode state. The nudge is a pure
+// projection — no fetches, no LLM, no new state. It reads existing
+// data (recommendation, monitor, hold, preparation) and returns zero
+// or one nudge, prioritized by urgency and relevance.
+//
+// The function returns null when there's nothing worth saying — the
+// companionable idle, not silence. The voice lines follow the same
+// register as matchLetter and bookingDialogue: second-person, present
+// tense, warm, never alarming.
+
+export type NudgeKind =
+  | "uncertainty"
+  | "thin-trust"
+  | "provisional-fit"
+  | "price-drop"
+  | "slot-opened"
+  | "hold-expiring"
+  | "preparation-ready"
+  | "preparation-complete"
+  | "idle";
+
+export type Nudge = {
+  kind: NudgeKind;
+  text: string;
+};
+
+const HOLD_PRESSURE_MS = 12 * 60 * 60 * 1000;
+
+export function nudgeForEpisode(
+  episode: Episode,
+  now: number = Date.now(),
+): Nudge | null {
+  const status = episode.status;
+
+  // ── Pre-hold: recommendation surfaced but not yet held ──
+  if (status === "recommendation-ready" || status === "ready") {
+    const rec = episode.recommendation;
+    if (rec) {
+      const match = rec.result;
+
+      // Uncertainties — Mira's honest gaps
+      if (rec.uncertainties.length > 0) {
+        const first = rec.uncertainties[0];
+        return {
+          kind: "uncertainty",
+          text: `I'm not certain about ${first}. Here's what I'd watch.`,
+        };
+      }
+
+      // Thin trust signal
+      if (match.attestationCount <= 1) {
+        return {
+          kind: "thin-trust",
+          text: `One practitioner has vouched for this retreat. That's thin — I'm watching for more.`,
+        };
+      }
+
+      // Provisional fit — strong and weak axes
+      if (match.score < 0.7 && match.reasoning.length > 0) {
+        const weighted = match.reasoning.filter((r) => r.weight > 0);
+        const strongest = [...weighted].sort((a, b) => b.weight - a.weight)[0];
+        const weakest = [...weighted].sort((a, b) => a.weight - b.weight)[0];
+        if (strongest && weakest && strongest.axis !== weakest.axis) {
+          return {
+            kind: "provisional-fit",
+            text: `This is a provisional fit. ${strongest.then} But ${weakest.then}`,
+          };
+        }
+      }
+    }
+  }
+
+  // ── Post-hold: monitoring active ──
+  if (status === "monitoring" || status === "held" || status === "ready-to-book") {
+    const obs = episode.monitor?.observations.at(-1);
+    const rec = episode.recommendation;
+
+    if (obs) {
+      // Price drop — current observed price is lower than the recommended
+      // price. The practitioner should know their hold covers a better deal.
+      if (rec && obs.priceUsd < rec.result.priceUsd) {
+        return {
+          kind: "price-drop",
+          text: `The price dropped to $${obs.priceUsd.toLocaleString()}. Your hold still covers it.`,
+        };
+      }
+
+      // Slot opened — current observation shows availability when the
+      // previous one did not. Compare against the prior observation so
+      // we detect a genuine transition, not a steady available state.
+      const prevObs = episode.monitor?.observations.at(-2);
+      if (obs.available && prevObs && !prevObs.available) {
+        return {
+          kind: "slot-opened",
+          text: `A spot opened up. It's yours if you want it.`,
+        };
+      }
+    }
+
+    // Hold expiring
+    if (episode.hold?.status === "active") {
+      const remaining = new Date(episode.hold.expiresAt).getTime() - now;
+      if (remaining > 0 && remaining <= HOLD_PRESSURE_MS) {
+        const hours = Math.max(1, Math.round(remaining / (60 * 60 * 1000)));
+        return {
+          kind: "hold-expiring",
+          text: `Your hold expires in ${hours} ${hours === 1 ? "hour" : "hours"}. I can extend it or let it go.`,
+        };
+      }
+    }
+  }
+
+  // ── Post-booking: preparation arc ──
+  if (status === "booked" && episode.commitment?.status === "booked") {
+    const days = daysSinceBookingSafe(episode.commitment.bookedAt, now);
+    if (days >= 0 && days < 5) {
+      return {
+        kind: "preparation-ready",
+        text: `Today's practice is ready when you are.`,
+      };
+    }
+    if (days >= 5) {
+      return {
+        kind: "preparation-complete",
+        text: `You're ready. Travel lightly.`,
+      };
+    }
+  }
+
+  // ── Default: companionable idle ──
+  // Not silence — Mira is here, present, with nothing urgent.
+  return {
+    kind: "idle",
+    text: `I'm here. Nothing needs your attention right now.`,
+  };
+}
+
+/** True when the episode has a non-idle nudge ready. Pure, no side effects. */
+export function hasNudge(episode: Episode, now: number = Date.now()): boolean {
+  const nudge = nudgeForEpisode(episode, now);
+  return nudge !== null && nudge.kind !== "idle";
+}
+
+function daysSinceBookingSafe(bookedAt: string, now: number): number {
+  const booked = new Date(bookedAt);
+  if (Number.isNaN(booked.getTime())) return -1;
+  const ms = now - booked.getTime();
+  return Math.max(-1, Math.floor(ms / 86_400_000));
 }

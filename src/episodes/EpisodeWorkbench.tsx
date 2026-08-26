@@ -136,6 +136,7 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
     activity: busy || !payload ? "processing" : "idle",
     aestheticVector,
     veil: thinking ? 0.12 : 0.18,
+    episode: payload?.episode ?? null,
   });
 
   const lensRunner = useMemo(() => createAbortableRunner(), []);

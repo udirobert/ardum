@@ -32,6 +32,12 @@ export type MiraPresence = {
     kind: MiraReactionKind;
     eventId: string;
   };
+  /**
+   * Mira has a non-idle nudge ready — the orb leans in (poke) to signal it
+   * has something to say. Projected by the field from nudgeForEpisode, not
+   * by projectMiraPresence (keeps the presence module decoupled from voice).
+   */
+  nudgeAvailable?: boolean;
 };
 
 export type MiraActivity = "idle" | "processing" | "speaking" | "listening" | "arriving";
@@ -387,7 +393,11 @@ export function presenceToMorphParams(presence: MiraPresence): MorphParams {
   return {
     speed: base.speed + tension * 0.08,
     turbulence: base.turbulence + tension * 0.35,
-    brightness: base.brightness + tension * 0.12 - Math.max(0, -v) * 0.08,
+    brightness:
+      base.brightness +
+      tension * 0.12 -
+      Math.max(0, -v) * 0.08 +
+      (presence.nudgeAvailable ? 0.15 : 0),
     blobCount: base.blobCount,
     orbitRadius: base.orbitRadius + tension * 0.02,
     orbitSpeed: base.orbitSpeed + tension * 0.15,

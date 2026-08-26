@@ -16,7 +16,8 @@ export type ImpulseKind =
   | "commit"
   | "reject"
   | "resonate"
-  | "skip";
+  | "skip"
+  | "nudge";
 
 const STRENGTH: Record<ImpulseKind, number> = {
   lean: 0.35,
@@ -24,6 +25,7 @@ const STRENGTH: Record<ImpulseKind, number> = {
   reject: 0.55,
   resonate: 0.85,
   skip: 0.4,
+  nudge: 0.5,
 };
 
 // Each impulse carries a tactile signature.
@@ -33,6 +35,7 @@ const HAPTIC_MAP: Record<ImpulseKind, HapticPattern> = {
   reject: "release",
   resonate: "heartbeat",
   skip: "release",
+  nudge: "nudge",
 };
 
 type MiraImpulseContextValue = {
