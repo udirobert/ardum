@@ -27,6 +27,7 @@ import {
 import { usePathname } from "next/navigation";
 import MiraOrb from "./MiraOrb";
 import MiraNudge from "./MiraNudge";
+import MiraBeckon from "./MiraBeckon";
 import { MiraImpulseProvider, useMiraImpulse } from "./MiraImpulse";
 import { FluidPourProvider } from "./FluidParticlePour";
 import {
@@ -98,11 +99,13 @@ function GestureLayer({
   nudgeVisible,
   onNudgeShow,
   onNudgeHide,
+  onPressingChange,
 }: {
   episode: Episode | null | undefined;
   nudgeVisible: boolean;
   onNudgeShow: () => void;
   onNudgeHide: () => void;
+  onPressingChange: (pressing: boolean) => void;
 }) {
   const { fire } = useMiraImpulse();
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -124,6 +127,7 @@ function GestureLayer({
 
   const endHold = useCallback(() => {
     pressing.current = false;
+    onPressingChange(false);
     if (holdTimer.current) {
       clearTimeout(holdTimer.current);
       holdTimer.current = null;
@@ -131,7 +135,7 @@ function GestureLayer({
     if (nudgeVisible) {
       onNudgeHide();
     }
-  }, [nudgeVisible, onNudgeHide]);
+  }, [nudgeVisible, onNudgeHide, onPressingChange]);
 
   // Keyboard: space or enter triggers the nudge (press-and-release model).
   const onKeyDown = useCallback(
@@ -141,6 +145,7 @@ function GestureLayer({
         !nudgeVisible
       ) {
         e.preventDefault();
+        onPressingChange(true);
         const nudge = episode ? nudgeForEpisode(episode) : null;
         setCurrentNudge(nudge);
         fire("nudge");
@@ -150,7 +155,7 @@ function GestureLayer({
         onNudgeHide();
       }
     },
-    [episode, fire, nudgeVisible, onNudgeShow, onNudgeHide],
+    [episode, fire, nudgeVisible, onNudgeShow, onNudgeHide, onPressingChange],
   );
 
   const gestureStyle: CSSProperties = {
@@ -180,6 +185,7 @@ function GestureLayer({
         aria-expanded={nudgeVisible}
         onPointerDown={(e) => {
           pressing.current = true;
+          onPressingChange(true);
           beginHold();
           // Capture so we get the up event even if pointer moves out.
           (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -205,6 +211,7 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [config, setConfig] = useState<FieldConfig | null>(null);
   const [nudgeVisible, setNudgeVisible] = useState(false);
+  const [pressing, setPressing] = useState(false);
   const active = fieldActive(pathname);
   const scrollProgress = useScrollProgress();
 
@@ -265,7 +272,9 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
                 nudgeVisible={nudgeVisible}
                 onNudgeShow={() => setNudgeVisible(true)}
                 onNudgeHide={() => setNudgeVisible(false)}
+                onPressingChange={setPressing}
               />
+              <MiraBeckon pressing={pressing} nudgeVisible={nudgeVisible} />
             </div>
           )}
           {children}
