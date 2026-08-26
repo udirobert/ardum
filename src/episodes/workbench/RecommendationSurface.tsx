@@ -8,6 +8,7 @@ import MiraOrb from "@/components/MiraOrb";
 import GooeyEmergence, { GooeySource } from "@/components/GooeyEmergence";
 import { matchLetter } from "@/agent/mira-voice";
 import { resolveRetreatVision } from "@/aesthetics/resolve-retreat-vision";
+import { useScrollProgress } from "@/hooks/useScrollProgress";
 import { type AestheticVector } from "@/aesthetics/image-pool";
 import type { MatchResult } from "@/matching/types";
 import type { MiraPresence } from "@/agent/mira-presence";
@@ -18,6 +19,7 @@ import PrimaryButton from "./PrimaryButton";
 import HoldPanel from "./HoldPanel";
 import LensFactors from "./LensFactors";
 import ExploreOtherFits from "./ExploreOtherFits";
+import ReasoningOrbs from "./ReasoningOrbs";
 
 const CommitmentPanel = dynamic(
   () => import("@/booking/CommitmentPanel"),
@@ -95,6 +97,10 @@ export default function RecommendationSurface({
     : null;
   const holdUrgent = holdExpiry !== null && holdExpiry < 12 * 60 * 60 * 1000;
 
+  // Rejection division: when the practitioner clicks "not this one," the
+  // card gooey-divides away from the orb before the server action fires.
+  const [rejecting, setRejecting] = useState(false);
+
   const holdDecision =
     nextDecision.kind === "await-responses" ||
     nextDecision.kind === "review-hold" ||
@@ -147,7 +153,20 @@ export default function RecommendationSurface({
         </div>
       )}
 
-      <RetreatCardEmergence key={recommendation.retreatRootHash} recommendation={recommendation} aestheticVector={aestheticVector} />
+      <RetreatCardEmergence
+        key={recommendation.retreatRootHash}
+        recommendation={recommendation}
+        aestheticVector={aestheticVector}
+        dividing={rejecting}
+        onDivideComplete={() => {
+          if (rejecting) {
+            actions.act({
+              type: "reject-recommendation",
+              retreatRootHash: recommendation.retreatRootHash,
+            });
+          }
+        }}
+      />
 
       {/* Weak-fit caveat — shown only when the score is below 0.75. */}
       {episode.recommendation!.uncertainties.length > 0 && (
@@ -212,12 +231,7 @@ export default function RecommendationSurface({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() =>
-                  actions.act({
-                    type: "reject-recommendation",
-                    retreatRootHash: recommendation.retreatRootHash,
-                  })
-                }
+                onClick={() => setRejecting(true)}
                 className="text-sm text-[color:var(--muted)] hover:text-foreground underline"
               >
                 Not this one — show me another
@@ -345,19 +359,27 @@ export default function RecommendationSurface({
         onCategorical={(reason) => actions.act({ type: "feedback", reason })}
       />
 
-      {/* Reasoning disclosure: the data Mira saw for each axis. */}
+      {/* Reasoning disclosure: the data Mira saw for each axis, with an
+          orbiting-blob visualization that makes the fit structure legible
+          at a glance. The blobs are aria-hidden decoration; the text carries
+          the accessible detail. */}
       <details className="pt-2">
         <summary className="tag cursor-pointer">how Mira chose this</summary>
-        <div className="mt-4 space-y-4">
-          {recommendation.reasoning.map((step) => (
-            <div key={step.axis} className="text-sm border-l-2 border-[color:var(--hairline)] pl-3">
-              <p className="font-medium mb-1">{step.axis}</p>
-              <p className="text-[color:var(--muted)] text-xs mb-1">
-                {step.given}
-              </p>
-              <p className="text-[color:var(--foreground)]">{step.then}</p>
-            </div>
-          ))}
+        <div className="mt-4 flex flex-col sm:flex-row gap-4">
+          <div className="flex-shrink-0">
+            <ReasoningOrbs reasoning={recommendation.reasoning} size={64} />
+          </div>
+          <div className="space-y-4 flex-1">
+            {recommendation.reasoning.map((step) => (
+              <div key={step.axis} className="text-sm border-l-2 border-[color:var(--hairline)] pl-3">
+                <p className="font-medium mb-1">{step.axis}</p>
+                <p className="text-[color:var(--muted)] text-xs mb-1">
+                  {step.given}
+                </p>
+                <p className="text-[color:var(--foreground)]">{step.then}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </details>
     </div>
@@ -366,18 +388,29 @@ export default function RecommendationSurface({
 
 // The retreat card wrapped in a gooey emergence — the card "buds off" from
 // the orb with a viscous detachment, then settles crisp. The GooeySource
-// dot at the top merges into the card as it scales up via Framer Motion.
+// dot at the top stays tethered to the card while the practitioner reviews
+// it; when they scroll past, the card pulls slightly toward the orb (the
+// tether stretches). When the practitioner rejects ("not this one"), the
+// card gooey-divides — the filter stays active during the exit so the
+// card appears to drip away from the orb, not just disappear.
 function RetreatCardEmergence({
   recommendation,
   aestheticVector,
+  dividing,
+  onDivideComplete,
 }: {
   recommendation: MatchResult;
   aestheticVector: AestheticVector | null;
+  dividing: boolean;
+  onDivideComplete: () => void;
 }) {
   const [emerged, setEmerged] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const scrollProgress = useScrollProgress();
 
-  // The emergence fires once on mount — the card "arrives."
+  // The emergence fires once on mount — the card "arrives." The gooey
+  // filter stays active during the review state (the tether), then is
+  // removed once the card has settled.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount trigger for emergence animation
     setMounted(true);
@@ -385,12 +418,29 @@ function RetreatCardEmergence({
     return () => clearTimeout(timer);
   }, []);
 
+  // Fire the division callback once the exit animation completes.
+  useEffect(() => {
+    if (!dividing) return;
+    const timer = setTimeout(() => onDivideComplete(), 700);
+    return () => clearTimeout(timer);
+  }, [dividing, onDivideComplete]);
+
+  // The gooey filter stays active while the card is tethered (review
+  // state) or dividing (rejection). It's removed only once the card has
+  // fully settled and no transition is in flight.
+  const gooeyActive = (mounted && !emerged) || dividing;
+
+  // Scroll-pull: as the practitioner scrolls past the fold, the card
+  // drifts slightly toward the orb center (upward + inward), stretching
+  // the tether. Subtle — 6px max at full scroll.
+  const pull = scrollProgress * 6;
+
   return (
     <GooeyEmergence
-      active={mounted && !emerged}
+      active={gooeyActive}
       blur={10}
       contrast={18}
-      settleMs={400}
+      settleMs={dividing ? 800 : 400}
       className="relative"
     >
       <div className="flex justify-center mb-[-20px] relative z-10">
@@ -398,13 +448,21 @@ function RetreatCardEmergence({
       </div>
       <motion.div
         initial={{ scale: 0.85, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
+        animate={{
+          scale: dividing ? 0.7 : 1,
+          opacity: dividing ? 0 : 1,
+          y: dividing ? -30 : 0,
+        }}
         transition={{
           type: "spring",
-          stiffness: 80,
-          damping: 18,
+          stiffness: dividing ? 60 : 80,
+          damping: dividing ? 12 : 18,
           mass: 1.2,
-          delay: 0.1,
+          delay: dividing ? 0 : 0.1,
+        }}
+        style={{
+          transform: `translateY(-${pull}px)`,
+          transition: "transform 400ms ease-out",
         }}
       >
         <RetreatCard recommendation={recommendation} aestheticVector={aestheticVector} />
