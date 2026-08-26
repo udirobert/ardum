@@ -20,6 +20,7 @@ import HoldPanel from "./HoldPanel";
 import LensFactors from "./LensFactors";
 import ExploreOtherFits from "./ExploreOtherFits";
 import ReasoningOrbs from "./ReasoningOrbs";
+import ListeningSurface from "./ListeningSurface";
 
 const CommitmentPanel = dynamic(
   () => import("@/booking/CommitmentPanel"),
@@ -97,14 +98,20 @@ export default function RecommendationSurface({
     : null;
   const holdUrgent = holdExpiry !== null && holdExpiry < 12 * 60 * 60 * 1000;
 
-  // Rejection division: when the practitioner clicks "not this one," the
-  // card gooey-divides away from the orb before the server action fires.
+  // Rejection flow: when the practitioner clicks "not this one," we enter
+  // the Listening beat (Beat 3) — Mira shows bounded alternative cards.
+  // When they elevate one, the gooey division plays on the current card
+  // and the server action fires to bring the alternative forward.
+  const [listening, setListening] = useState(false);
   const [rejecting, setRejecting] = useState(false);
 
   const holdDecision =
     nextDecision.kind === "await-responses" ||
     nextDecision.kind === "review-hold" ||
     nextDecision.kind === "ready-to-book";
+
+  // The alternatives come from the recommendation snapshot.
+  const alternatives = episode.recommendation?.alternatives ?? [];
 
   return (
     <div
@@ -153,6 +160,30 @@ export default function RecommendationSurface({
         </div>
       )}
 
+      {/* Beat 3 — Listening: when the practitioner rejected the current
+          pick, Mira shows bounded alternative cards. The card and decision
+          area are hidden while the Listening surface is visible. */}
+      {listening ? (
+        <ListeningSurface
+          alternatives={alternatives}
+          currentTitle={recommendation.retreatTitle}
+          presence={miraPresence}
+          onElevate={() => {
+            // Elevating an alternative = rejecting the current pick. The
+            // gooey division plays on the current card, then the server
+            // action fires to re-recommend with the current pick excluded.
+            // The re-ranked top pick replaces it. Note: the server
+            // re-recommends deterministically — the elevated alternative
+            // may or may not become the new top pick depending on its
+            // score relative to the remaining pool.
+            setListening(false);
+            setRejecting(true);
+          }}
+          onBack={() => setListening(false)}
+          busy={busy}
+        />
+      ) : (
+        <>
       <RetreatCardEmergence
         key={recommendation.retreatRootHash}
         recommendation={recommendation}
@@ -231,7 +262,7 @@ export default function RecommendationSurface({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => setRejecting(true)}
+                onClick={() => setListening(true)}
                 className="text-sm text-[color:var(--muted)] hover:text-foreground underline"
               >
                 Not this one — show me another
@@ -346,6 +377,12 @@ export default function RecommendationSurface({
             />
           )}
         </div>
+      )}
+
+      {/* End of the card + decision area — closes the listening
+          conditional. Feedback and reasoning disclosures stay visible
+          in both the Arriving and Listening beats. */}
+        </>
       )}
 
       {/* Feedback — collapsed by default so it doesn't compete
