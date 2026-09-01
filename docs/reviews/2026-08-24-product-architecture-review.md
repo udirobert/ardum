@@ -336,10 +336,19 @@ No text analysis, no typing inference.
    The uncertainty gate mitigates it, but the aspirational "one decision
    per state" contract is violated on weak fits. Either converge or
    revise.
+   *(Resolved 2026-09-01 — contract formally revised: the shipped
+   `EpisodeWorkbench` is the contract, beats are surface states, and the
+   density rule is amended to the fit gate (`fitScore < 0.75`
+   auto-expand). See "Recommendation surface" in
+   `docs/design/experience-layer.md`.)*
 
 5. **Resolve the business model.** The "demand layer" thesis is correct
    but monetization is undeveloped. This shapes what you build for
    operators.
+   *(Resolved 2026-09-01 — ADR 0012: no booking commission ever; free
+   pre-launch; subscription + optional per-match fee for demand
+   visibility. See
+   `docs/decisions/0012-demand-layer-business-model.md`.)*
 
 6. **Document the composite weight sum (1.05) in the scoring contract.**
    Minor, but surprising to a future contributor.

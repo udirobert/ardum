@@ -104,58 +104,56 @@ hierarchy on the decision card:
 4. provenance and secondary tools (disclosure)
 
 Secondary tools — lens re-ranking, budget/energy counterfactuals, alternatives,
-monitor detail, “how Mira chose this” — never mutate a hold. **Uncertainty
-gate:** expand when recommendation uncertainties are present, when “this
-doesn’t feel right” is open, or before a hold; collapse under an active hold
-with low uncertainty. Operator chrome (revision counters, wallet substrings)
+monitor detail, “how Mira chose this” — never mutate a hold. **Density gate
+(amended 2026-09-01):** secondary tools stay collapsed by default and
+auto-expand when the recommendation's fit is genuinely weak
+(`fitScore < 0.75`); the practitioner can open or close the disclosure
+manually at any fit level. Operator chrome (revision counters, wallet substrings)
 does not belong in the primary card. Journey history lives in a quiet
 disclosure (“the journey so far”), not as hero metadata.
 
 ### Recommendation surface
 
-> **Status note (2026-08):** The section below described a four-beat
-> cinematic flow (`RetreatExplorationView`) as built. That flow was
-> never implemented. What ships is `EpisodeWorkbench`, which renders
-> Mira's letter, the retreat card, and hold/feedback actions on a
-> single scrollable page. The four-beat description below is a design
-> target, not current behavior. The companion design docs it
-> referenced (`recommendation-reveal.md`, `refinement-alternatives.md`,
-> `inventory-led-implementation-summary.md`) were never written.
+> **Contract revision (2026-09-01):** The original design target — a
+> four-beat cinematic flow with companion docs — was never built, and the
+> earlier "status note" treating it as an open gap is hereby closed. The
+> shipped `EpisodeWorkbench` is now the contract. The beats survive as
+> surface states (below), not as a cinematic sequence. The density rule
+> is amended: the surface holds "one primary human decision per state",
+> and secondary tools stay collapsed **unless the fit is genuinely weak**
+> (`fitScore < 0.75`), in which case they auto-expand so the practitioner
+> gets the reasoning, alternatives, and provenance they need to distrust
+> a weak match. Density on a weak fit is a feature, not a violation —
+> the gate (`expandSecondaryTools` in
+> `src/episodes/workbench/RecommendationSurface.tsx`) is the contract.
 
-The **design target** is a four-beat reveal flow, not a browse grid.
-Mira owns ranking and presents **one** retreat as her strongest current
-fit; alternatives and refinement are summoned by the practitioner, not
-always-on. The full contract was to live in two companion docs (Beat 2
-and Beat 3); both were aspirational and neither was written.
+**Beats as surface states:**
 
-**Target beats:**
-1. **Looking** — orb + quiet "looking at what fits" line. The breath
-   between intention and recommendation.
-2. **Arriving → settled** — image emerges from the orb, then settles
-   into the dark-glass decision card: Mira's letter (the *why*) →
-   retreat identity → one Hold CTA → status → collapsed disclosure
-   (alternatives, provenance, wider-aperture evidence when dense,
-   counterfactual, operator). No scroll,
-   no chat input, no floating button.
-3. **Listening** — summoned only via "see other possibilities" or
-   "not this." Bounded 3–5 alternative cards with one-line
-   differentiating reasons, elevate/not-this actions, and the voice
-   lane (the only place free-text refinement lives).
-4. **Committing** — the existing WebGPU commitment transition fires
-   from the card's Hold CTA.
+1. **Looking** — the thinking beat (`ThinkingBeat`): orb + progressive
+   reasoning lines while the agent runs.
+2. **Arriving → settled** — `RecommendationSurface`: dark-glass decision
+   card with Mira's letter (`matchLetter`), retreat identity, one Hold
+   CTA, status, collapsed disclosure.
+3. **Listening** — `ListeningSurface`: summoned only via "see other
+   possibilities" or "not this." Bounded 3–5 alternative cards with
+   one-line differentiating reasons, elevate/not-this actions, and the
+   voice lane (the only place free-text refinement lives).
+4. **Committing** — the existing WebGPU commitment transition fires from
+   the card's commit CTA (`CommitmentPanel`).
 
-**What ships instead:** `EpisodeWorkbench` renders Mira's letter (via
-`matchLetter`), the retreat card, a thinking beat (`reasoningBeat`),
-one primary decision per recommendation state, collapsed secondary
-tools (lenses, alternatives, counterfactuals), a voice-lane feedback
-path, and the `CommitmentPanel`. The pre-hold review state shows a
-single Hold CTA plus a quiet "not this one" rejection link, with the
-watch/monitor affordance and all secondary tools behind a single
-disclosure; the ready-to-book state shows the commit CTA plus a quiet
-"release the hold" link, with the HoldPanel's hold-management actions
-suppressed. This aligns the shipping surface with the contract's "one
-primary human decision per state" (see
-[product-vision.md](../product-vision.md)).
+**Density rule (amended contract):**
+
+- One primary human decision per recommendation state — hold CTA plus a
+  quiet "not this one" link pre-hold; commit CTA plus a quiet "release
+  the hold" link ready-to-book.
+- Secondary tools (lenses, alternatives, counterfactuals, provenance)
+  live behind a single disclosure: collapsed when the fit is strong,
+  auto-expanded when `fitScore < 0.75` (`expandSecondaryTools`). The
+  practitioner can always open or close it manually.
+- Adaptive density expresses confidence: spacious above 0.85, dense
+  below 0.65 — the surface breathes with the match quality.
+- No scroll-jacking, no chat input, no floating button on the decision
+  card.
 
 **Reduced motion support:** all motion respects `prefers-reduced-motion`.
 

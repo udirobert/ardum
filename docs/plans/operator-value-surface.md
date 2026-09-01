@@ -418,10 +418,8 @@ ready to commit.
    structured options, not inferred or free-text — this is within the
    ADR 0010 privacy contract. Reviewed and cleared.
 
-5. **Business model.** If Ardum is the demand layer, it doesn't charge
-   booking commission. It charges for demand visibility — a
-   subscription or per-match fee. This is a different business model
-   from every competitor, and it aligns with the value: you pay when
-   Mira finds someone who fits, not when a transaction closes. This is
-   a product decision for later — not needed for the first operator
-   demo.
+5. **Business model.** **Resolved by ADR 0012** (2026-09-01): no booking
+   commission, ever. Free while pre-launch; paid demand visibility later —
+   a per-operator subscription as the primary shape, an optional per-match
+   fee as the a-la-carte path. See
+   [ADR 0012](../decisions/0012-demand-layer-business-model.md).
