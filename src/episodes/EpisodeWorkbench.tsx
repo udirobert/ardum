@@ -25,6 +25,7 @@ import { createAbortableRunner } from "@/lib/abortableFetch";
 import { matchLetter } from "@/agent/mira-voice";
 import type { AestheticVector } from "@/aesthetics/image-pool";
 import { extractConstraints, hasConstraints } from "@/agent/conversation-extractor";
+import { providerFailureLine } from "@/agent/mira-voice";
 import type { MiraPresence } from "@/agent/mira-presence";
 import Link from "next/link";
 import {
@@ -698,9 +699,12 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
           )}
 
         {error && (
-          <p className="mt-5 text-sm text-[color:var(--accent-ink)]" role="alert">
-            {error}
-          </p>
+          <div className="mt-5" role="alert">
+            <p className="text-sm text-[color:var(--accent-ink)]">
+              {providerFailureLine("That")}
+            </p>
+            <p className="mt-1 text-xs text-[color:var(--muted)]">{error}</p>
+          </div>
         )}
       </div>
 

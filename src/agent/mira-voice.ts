@@ -630,3 +630,35 @@ function daysSinceBookingSafe(bookedAt: string, now: number): number {
   const ms = now - booked.getTime();
   return Math.max(-1, Math.floor(ms / 86_400_000));
 }
+
+// ── Failure vocabulary ──────────────────────────────────────────────
+// The moments trust is won or lost are the moments something goes
+// wrong. Mira speaks through these the way she speaks everywhere else:
+// advocate register, no blame, no jargon, one honest sentence. These
+// are the canonical lines — surfaces must not improvise failure copy.
+//
+// Wiring points (keep in sync when new failure paths ship):
+//   - noFitLine()          → ListeningSurface / alternatives-empty state
+//   - providerFailureLine() → workbench error banners (RPC, commit provider)
+//   - holdExpiredLine()    → nudgeForEpisode hold-expiring aftermath, detail payload
+//   - memoryDeletedLine()  → /memory deletion confirmation
+
+/** The pool held nothing that fits — the honest answer, not a stretch. */
+export function noFitLine(): string {
+  return "Nothing here fits you yet. That's not a flaw in what you asked for — the right place may not have published. I'll keep looking.";
+}
+
+/** Infrastructure failed. Calm, specific about what, zero jargon. */
+export function providerFailureLine(what: string): string {
+  return `${what} didn't go through just now. Nothing is lost — we can try again whenever you're ready.`;
+}
+
+/** The hold window closed while the practitioner was away. */
+export function holdExpiredLine(): string {
+  return "The hold I was keeping has ended. The place isn't gone — say the word and I'll start watching again, or hold it fresh.";
+}
+
+/** The practitioner deleted their memory on /memory. Boundary honored. */
+export function memoryDeletedLine(): string {
+  return "It's done — what I remembered is gone. We start fresh, and that's exactly as it should be.";
+}

@@ -21,6 +21,13 @@ import LensFactors from "./LensFactors";
 import ExploreOtherFits from "./ExploreOtherFits";
 import ReasoningOrbs from "./ReasoningOrbs";
 import ListeningSurface from "./ListeningSurface";
+import {
+  dismissListeningBeckon,
+  listeningBeckonSeen,
+  listeningBeckonSeenServer,
+  subscribeListeningBeckon,
+} from "@/lib/listening-teach";
+import { useSyncExternalStore } from "react";
 
 const CommitmentPanel = dynamic(
   () => import("@/booking/CommitmentPanel"),
@@ -104,6 +111,19 @@ export default function RecommendationSurface({
   // and the server action fires to bring the alternative forward.
   const [listening, setListening] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+
+  // The Listening beckon: a one-time hint that alternatives exist behind
+  // the rejection link (docs/design/experience-layer.md — Listening is
+  // summoned, so marketplace-socialized users may never discover it).
+  // Read through useSyncExternalStore so SSR renders identically (the
+  // server snapshot is "seen") and dismissal re-renders via the store.
+  const beckonSeen = useSyncExternalStore(
+    subscribeListeningBeckon,
+    listeningBeckonSeen,
+    listeningBeckonSeenServer,
+  );
+  const showBeckon = !beckonSeen;
+  const dismissBeckon = dismissListeningBeckon;
 
   const holdDecision =
     nextDecision.kind === "await-responses" ||
@@ -259,14 +279,26 @@ export default function RecommendationSurface({
             </PrimaryButton>
 
             {episode.recommendation!.alternatives.length > 0 && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setListening(true)}
-                className="text-sm text-[color:var(--muted)] hover:text-foreground underline"
-              >
-                Not this one — show me another
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setListening(true)}
+                  className="text-sm text-[color:var(--muted)] hover:text-foreground underline"
+                >
+                  Not this one — show me another
+                </button>
+                {!busy && showBeckon && (
+                  <p
+                    className="text-xs leading-relaxed text-[color:var(--muted)] border-l-2 border-[color:var(--accent-soft)] pl-3 cursor-pointer"
+                    onClick={dismissBeckon}
+                  >
+                    There are other places I considered — but I hold one at a
+                    time. If this isn&apos;t it, the button above opens them.
+                    <span aria-hidden> (tap to dismiss)</span>
+                  </p>
+                )}
+              </>
             )}
           </div>
 

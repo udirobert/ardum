@@ -164,3 +164,32 @@ server-projected presence rather than re-projecting episode state locally.
 
 The orb amplifies Mira's role as guide. Copy carries meaning; the form shows
 that something is happening in the journey.
+
+## The state-projection rule (amended 2026-09-01)
+
+Mira's visual system layers expressive techniques above the orb — the SDF
+raymarched core, gooey emergence, particle pour, arc slider (see
+[visual-wow-roadmap.md](visual-wow-roadmap.md)). The compound risk of that
+ambition is that Mira reads as a screensaver instead of a status display.
+The rule that prevents it:
+
+1. **Only the base posture carries journey state.** Wow layers
+   (shaders, gooey filters, particles, pulse effects) are decoration.
+   They may *amplify* a state change — celebrate it, give it weight —
+   but no state may ever be legible *only* through a wow layer. A user
+   with every effect disabled must receive the identical journey read.
+2. **Every posture and reaction has a text announcement.** `presenceAnnouncement()`
+   projects posture/reaction into the sr-only `aria-live` region rendered
+   by `MiraOrb` — the orb itself is `aria-hidden`. Screen-reader users get
+   the same channel: "Mira is holding a planning window," "Mira noted a
+   setback." The coverage suite in `src/agent/mira-presence.test.ts`
+   (`presenceAnnouncement (state-projection contract)`) is the enforcement
+   point: add a posture without an announcement and the build fails.
+3. **A new expressive technique ships with a tier gate and an
+   announcement audit, or it doesn't ship.** The tier system
+   (`MiraRenderTier`, device-capability gating) handles *whether* the
+   technique renders; this rule handles *whether anything is lost* when
+   it doesn't.
+
+The hierarchy, stated once: **base posture = state. Reactions = change.
+Wow layers = emphasis. Text = the same truth for everyone else.**

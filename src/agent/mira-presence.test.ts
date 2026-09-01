@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   mergePresence,
   morphParamsForTier,
+  presenceAnnouncement,
   presenceFromActivity,
   projectMiraPresence,
   ringStyle,
   STEADY_PRESENCE,
+} from "./mira-presence";
+import type {
+  MiraPosture,
+  MiraReactionKind,
 } from "./mira-presence";
 import type { Episode } from "@/episodes/model";
 
@@ -161,5 +166,66 @@ describe("morphParamsForTier", () => {
     const params = morphParamsForTier(presence, "inline");
     expect(params.blobCount).toBe(1);
     expect(params.orbitRadius).toBe(0);
+  });
+});
+
+// State-projection rule (docs/design/mira-presence.md): every posture
+// and reaction must have a text announcement — the visual orb is never
+// the only channel carrying journey state. This suite is the enforcement
+// point: add a posture without an announcement and the build fails.
+describe("presenceAnnouncement (state-projection contract)", () => {
+  const POSTURES: MiraPosture[] = [
+    "steady",
+    "inquiry",
+    "offering",
+    "watching",
+    "holding",
+    "gathering",
+    "championing",
+    "resolving",
+    "arriving",
+  ];
+
+  const REACTIONS: MiraReactionKind[] = [
+    "setback",
+    "relief",
+    "deadline",
+    "surprise",
+  ];
+
+  it("has a distinct, non-empty announcement for every posture", () => {
+    const announcements = POSTURES.map((posture) =>
+      presenceAnnouncement({ posture, valence: 0 }),
+    );
+    for (const a of announcements) {
+      expect(a.length).toBeGreaterThan(0);
+      expect(a).toMatch(/Mira/);
+    }
+    expect(new Set(announcements).size).toBe(POSTURES.length);
+  });
+
+  it("has a distinct, non-empty announcement for every reaction", () => {
+    const announcements = REACTIONS.map((kind) =>
+      presenceAnnouncement({
+        posture: "steady",
+        valence: 0,
+        reaction: { kind, eventId: "e1" },
+      }),
+    );
+    for (const a of announcements) {
+      expect(a.length).toBeGreaterThan(0);
+    }
+    expect(new Set(announcements).size).toBe(REACTIONS.length);
+  });
+
+  it("a reaction overrides the posture announcement", () => {
+    const reactionAnnouncement = presenceAnnouncement({
+      posture: "watching",
+      valence: 0,
+      reaction: { kind: "deadline", eventId: "e1" },
+    });
+    expect(reactionAnnouncement).not.toBe(
+      presenceAnnouncement({ posture: "watching", valence: 0 }),
+    );
   });
 });

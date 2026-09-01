@@ -8,6 +8,8 @@ import MiraOrb from "@/components/MiraOrb";
 import OperatorInsights from "@/components/OperatorInsights";
 import { useMiraImpulse } from "@/components/MiraImpulse";
 import { operatorPresence } from "@/agent/operator-presence";
+import { operatorBriefing } from "@/agent/operator-briefing";
+import { providerFailureLine } from "@/agent/mira-voice";
 import { STEADY_PRESENCE } from "@/agent/mira-presence";
 import type { AttestationIndex } from "@/attestation/schema";
 
@@ -112,6 +114,13 @@ export default function OperatorPage() {
     return operatorPresence(totals);
   }, [state]);
 
+  // Mira's authored read of the demand — the "morning ritual" (ADR 0012:
+  // this is the demand-visibility surface operators pay for).
+  const briefing = useMemo(() => {
+    if (state.status !== "loaded") return null;
+    return operatorBriefing(state.retreats);
+  }, [state]);
+
   if (!address) {
     return (
       <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 pb-24">
@@ -153,7 +162,7 @@ export default function OperatorPage() {
 
       {state.status === "error" && (
         <p className="text-sm text-[color:var(--accent-ink)]" role="alert">
-          {state.message}
+          {providerFailureLine("Loading your retreats")}
         </p>
       )}
 
@@ -180,6 +189,32 @@ export default function OperatorPage() {
 
       {state.status === "loaded" && state.retreats.length > 0 && (
         <div className="space-y-4">
+          {/* The morning ritual: Mira's read of the demand, above the
+              data. Aggregates only — the density gate holds. */}
+          {briefing && (
+            <div className="flex items-start gap-4 mb-8" aria-live="polite">
+              <MiraOrb
+                size={48}
+                presence={presence}
+                className="flex-shrink-0 mt-1"
+              />
+              <div>
+                <p className="text-lg leading-relaxed">{briefing.headline}</p>
+                {briefing.lines.length > 0 && (
+                  <ul className="mt-3 space-y-1.5">
+                    {briefing.lines.map((line) => (
+                      <li
+                        key={line}
+                        className="text-sm leading-relaxed text-[color:var(--muted)]"
+                      >
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
           {state.retreats.map((retreat) => {
             const d = retreat.demand;
             const hasDemand = d && (d.totalMatches > 0 || d.activeHolds > 0 || d.bookings > 0);

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { reasoningBeat } from "./mira-voice";
+import {
+  reasoningBeat,
+  noFitLine,
+  providerFailureLine,
+  holdExpiredLine,
+  memoryDeletedLine,
+} from "./mira-voice";
 import type { MatchResult } from "@/matching/types";
 
 function makeResult(): MatchResult {
@@ -154,5 +160,40 @@ describe("reasoningBeat", () => {
     const texts = steps.map((s) => s.text);
     expect(texts).toContain("Strong energy fit.");
     expect(texts).not.toContain("Cycle timing aligns.");
+  });
+});
+
+describe("failure vocabulary", () => {
+  // The failure lines are the canonical voice for broken moments
+  // (mira-voice.ts "Failure vocabulary"). Surfaces must not improvise.
+
+  it("noFitLine names the honest outcome without blaming the ask", () => {
+    const line = noFitLine();
+    expect(line).toMatch(/Nothing here fits/);
+    expect(line).toMatch(/I'll keep looking/);
+    // Never suggests the practitioner asked wrong.
+    expect(line).not.toMatch(/try different|broaden|relax your/i);
+  });
+
+  it("providerFailureLine is calm, specific, and jargon-free", () => {
+    const line = providerFailureLine("Loading your retreats");
+    expect(line).toContain("Loading your retreats");
+    expect(line).toMatch(/Nothing is lost/);
+    // No crypto or infra jargon.
+    expect(line).not.toMatch(/RPC|node|chain|wallet|transaction/i);
+  });
+
+  it("holdExpiredLine offers recovery, not loss", () => {
+    const line = holdExpiredLine();
+    expect(line).toMatch(/has ended/);
+    expect(line).toMatch(/watching again|hold it fresh/);
+  });
+
+  it("memoryDeletedLine honors the boundary", () => {
+    const line = memoryDeletedLine();
+    expect(line).toMatch(/gone/);
+    expect(line).toMatch(/start fresh/);
+    // No guilt, no upsell.
+    expect(line).not.toMatch(/are you sure|wish|regret/i);
   });
 });
