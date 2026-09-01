@@ -15,18 +15,12 @@ import type {
   PerspectiveName,
 } from "./perspectives";
 import type {
-  Episode,
   EpisodeCommand,
   IntentionConstraints,
-  NextDecision,
 } from "./model";
-import type { EpisodeDetailPayload } from "./detail-payload";
 import { createAbortableRunner } from "@/lib/abortableFetch";
-import { matchLetter } from "@/agent/mira-voice";
-import type { AestheticVector } from "@/aesthetics/image-pool";
 import { extractConstraints, hasConstraints } from "@/agent/conversation-extractor";
 import { providerFailureLine } from "@/agent/mira-voice";
-import type { MiraPresence } from "@/agent/mira-presence";
 import Link from "next/link";
 import {
   ThinkingBeat,
@@ -278,6 +272,7 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
     const base = payloadRef.current;
     if (!base) return null;
     const impulseKind = commandImpulse(command);
+    if (impulseKind) fire(impulseKind);
     setBusy(true);
     setError(null);
 
