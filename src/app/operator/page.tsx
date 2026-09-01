@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useOperatorAuth } from "@/booking/OperatorAuth";
 import OperatorWalletButton from "@/booking/OperatorWalletButton";
 import MiraOrb from "@/components/MiraOrb";
-import OperatorInsights from "@/components/OperatorInsights";
 import { useMiraImpulse } from "@/components/MiraImpulse";
 import { operatorPresence } from "@/agent/operator-presence";
 import { operatorBriefing } from "@/agent/operator-briefing";
@@ -19,7 +18,7 @@ type DemandCounts = {
   bookings: number;
 };
 
-export type OperatorRetreat = AttestationIndex & {
+type OperatorRetreat = AttestationIndex & {
   demand?: DemandCounts;
 };
 
@@ -29,8 +28,18 @@ type State =
   | { status: "loaded"; retreats: OperatorRetreat[] }
   | { status: "error"; message: string };
 
+type SortMode = "activity" | "recent";
+
+function activityOf(retreat: OperatorRetreat): number {
+  const d = retreat.demand;
+  return (d?.totalMatches ?? 0) + (d?.activeHolds ?? 0) + (d?.bookings ?? 0);
+}
+
 // The page IS the notification (operator plan, Phase 3): poll, don't push.
 const POLL_MS = 30_000;
+
+const ROW_GRID =
+  "grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_4.5rem] sm:items-baseline gap-x-4";
 
 export default function OperatorPage() {
   const { address } = useOperatorAuth();
@@ -38,6 +47,7 @@ export default function OperatorPage() {
   const [state, setState] = useState<State>(
     () => (address ? { status: "loading" } : { status: "idle" }),
   );
+  const [sort, setSort] = useState<SortMode>("activity");
   // Demand signature per retreat for poll-diffing — only events the
   // operator can already individually see (holds, bookings) pulse the
   // orb; match-count changes stay silent so impulse timing can never
@@ -46,10 +56,6 @@ export default function OperatorPage() {
 
   const applyRetreats = useCallback(
     (retreats: OperatorRetreat[]) => {
-      // Demand signature per retreat for poll-diffing — only events the
-      // operator can already individually see (holds, bookings) pulse the
-      // orb; match-count changes stay silent so impulse timing can never
-      // leak an individual below the density gate.
       const prev = demandSignature.current;
       const next = new Map(
         retreats.map((r) => [r.rootHash, r.demand ?? {
@@ -121,6 +127,37 @@ export default function OperatorPage() {
     return operatorBriefing(state.retreats);
   }, [state]);
 
+  const totals = useMemo(() => {
+    if (state.status !== "loaded")
+      return { totalMatches: 0, activeHolds: 0, bookings: 0 };
+    return state.retreats.reduce(
+      (acc, r) => ({
+        totalMatches: acc.totalMatches + (r.demand?.totalMatches ?? 0),
+        activeHolds: acc.activeHolds + (r.demand?.activeHolds ?? 0),
+        bookings: acc.bookings + (r.demand?.bookings ?? 0),
+      }),
+      { totalMatches: 0, activeHolds: 0, bookings: 0 },
+    );
+  }, [state]);
+
+  const sortedRetreats = useMemo(() => {
+    if (state.status !== "loaded") return [];
+    const list = [...state.retreats];
+    if (sort === "activity") {
+      list.sort(
+        (a, b) =>
+          activityOf(b) - activityOf(a) ||
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+    } else {
+      list.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+    }
+    return list;
+  }, [state, sort]);
+
   if (!address) {
     return (
       <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 pb-24">
@@ -139,18 +176,20 @@ export default function OperatorPage() {
   }
 
   return (
-    <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
-      <div className="flex items-baseline justify-between mb-8">
-        <div className="flex items-center gap-5">
+    <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-8 pb-24">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
           <MiraOrb size={48} presence={presence} />
           <div>
-            <p className="tag mb-2">operator</p>
-            <h1 className="font-serif text-4xl tracking-tight">Your retreats</h1>
+            <p className="tag mb-1">operator</p>
+            <h1 className="font-serif text-2xl sm:text-3xl tracking-tight">
+              Your retreats
+            </h1>
           </div>
         </div>
         <Link
           href="/attest"
-          className="px-5 py-2.5 rounded-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent-soft)] transition-colors text-sm"
+          className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
         >
           List another →
         </Link>
@@ -169,7 +208,7 @@ export default function OperatorPage() {
       {state.status === "idle" && null}
 
       {state.status === "loaded" && state.retreats.length === 0 && (
-        <div className="border border-[color:var(--hairline)] rounded-sm p-8">
+        <div className="border border-[color:var(--hairline)] rounded-sm p-6">
           <MiraOrb size={48} presence={STEADY_PRESENCE} className="mb-4" />
           <p className="text-lg leading-relaxed mb-2">
             You haven&apos;t listed any retreats yet.
@@ -188,93 +227,145 @@ export default function OperatorPage() {
       )}
 
       {state.status === "loaded" && state.retreats.length > 0 && (
-        <div className="space-y-4">
+        <>
           {/* The morning ritual: Mira's read of the demand, above the
-              data. Aggregates only — the density gate holds. */}
+              data. Aggregates only — the density gate holds. The header
+              orb carries presence; no second orb here. */}
           {briefing && (
-            <div className="flex items-start gap-4 mb-8" aria-live="polite">
-              <MiraOrb
-                size={48}
-                presence={presence}
-                className="flex-shrink-0 mt-1"
-              />
-              <div>
-                <p className="text-lg leading-relaxed">{briefing.headline}</p>
-                {briefing.lines.length > 0 && (
-                  <ul className="mt-3 space-y-1.5">
-                    {briefing.lines.map((line) => (
-                      <li
-                        key={line}
-                        className="text-sm leading-relaxed text-[color:var(--muted)]"
-                      >
-                        {line}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+            <div aria-live="polite" className="mb-5">
+              <p className="text-base leading-snug">{briefing.headline}</p>
+              {briefing.lines.length > 0 && (
+                <ul className="mt-1.5 space-y-0.5">
+                  {briefing.lines.map((line) => (
+                    <li
+                      key={line}
+                      className="text-xs leading-relaxed text-[color:var(--muted)]"
+                    >
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
-          {state.retreats.map((retreat) => {
-            const d = retreat.demand;
-            const hasDemand = d && (d.totalMatches > 0 || d.activeHolds > 0 || d.bookings > 0);
-            return (
-              <Link
-                key={retreat.rootHash}
-                href={`/operator/${retreat.rootHash}`}
-                className="block border border-[color:var(--hairline)] rounded-sm p-6 hover:border-[color:var(--accent-soft)] transition-colors"
-              >
-                <div className="flex items-baseline justify-between gap-4 mb-2">
-                  <h2 className="font-serif text-2xl tracking-tight">
-                    {retreat.title}
-                  </h2>
-                  <span className="tag flex-shrink-0">
-                    {new Date(retreat.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-                <p className="text-sm text-[color:var(--muted)]">
-                  {retreat.claims.location} · {retreat.claims.durationDays} days ·
-                  ${retreat.claims.priceUsd.toLocaleString()} · cohort of{" "}
-                  {retreat.claims.capacity}
-                </p>
-                {hasDemand && (
-                  <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-xs">
-                    {d!.totalMatches > 0 && (
-                      <span className="text-[color:var(--muted)]">
-                        <span className="text-foreground font-medium">
-                          {d!.totalMatches}
-                        </span>{" "}
-                        matched
-                      </span>
-                    )}
-                    {d!.activeHolds > 0 && (
-                      <span className="text-[color:var(--accent-ink)]">
-                        <span className="font-medium">{d!.activeHolds}</span>{" "}
-                        holding
-                      </span>
-                    )}
-                    {d!.bookings > 0 && (
-                      <span className="text-[color:var(--accent-ink)]">
-                        <span className="font-medium">{d!.bookings}</span> booked
-                      </span>
-                    )}
-                  </div>
-                )}
-                {!hasDemand && (
-                  <p className="text-xs text-[color:var(--muted)] mt-3">
-                    Mira is watching for practitioners who fit this retreat.
-                  </p>
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      )}
 
-      {state.status === "loaded" && state.retreats.length > 0 && (
-        <div className="mt-10 mb-4">
-          <OperatorInsights retreats={state.retreats} />
-        </div>
+          <div className="border-t border-[color:var(--hairline)] pt-3 mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs">
+            <p>
+              <span className="tabular-nums font-medium">
+                {state.retreats.length}
+              </span>{" "}
+              retreats ·{" "}
+              <span className="tabular-nums font-medium">
+                {totals.totalMatches}
+              </span>{" "}
+              matched ·{" "}
+              <span className="tabular-nums font-medium text-[color:var(--accent-ink)]">
+                {totals.activeHolds}
+              </span>{" "}
+              holding ·{" "}
+              <span className="tabular-nums font-medium text-[color:var(--accent-ink)]">
+                {totals.bookings}
+              </span>{" "}
+              booked
+            </p>
+            <p className="text-[color:var(--muted)]">
+              Sort:{" "}
+              {(["activity", "recent"] as const).map((mode, i) => (
+                <span key={mode}>
+                  {i > 0 && " · "}
+                  <button
+                    type="button"
+                    onClick={() => setSort(mode)}
+                    aria-pressed={sort === mode}
+                    className={
+                      sort === mode
+                        ? "text-foreground transition-colors"
+                        : "hover:text-foreground transition-colors"
+                    }
+                  >
+                    {mode}
+                  </button>
+                </span>
+              ))}
+            </p>
+          </div>
+
+          <div className={`${ROW_GRID} hidden sm:grid pb-2`}>
+            <span className="tag">retreat</span>
+            <span className="tag text-right">matched</span>
+            <span className="tag text-right">holding</span>
+            <span className="tag text-right">booked</span>
+          </div>
+
+          <div className="border-t border-[color:var(--hairline)]">
+            {sortedRetreats.map((retreat) => {
+              const d = retreat.demand;
+              const matches = d?.totalMatches ?? 0;
+              const holds = d?.activeHolds ?? 0;
+              const booked = d?.bookings ?? 0;
+              const quiet = matches === 0 && holds === 0 && booked === 0;
+              return (
+                <Link
+                  key={retreat.rootHash}
+                  href={`/operator/${retreat.rootHash}`}
+                  className={`${ROW_GRID} py-3 border-b border-[color:var(--hairline)] hover:bg-[color:var(--surface)] transition-colors`}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-base font-medium truncate">
+                      {retreat.title}
+                    </span>
+                    <span className="block text-xs text-[color:var(--muted)] truncate">
+                      {retreat.claims.location} · {retreat.claims.durationDays}{" "}
+                      days · ${retreat.claims.priceUsd.toLocaleString()} ·
+                      cohort of {retreat.claims.capacity}
+                    </span>
+                  </span>
+                  {quiet ? (
+                    <span className="mt-1 sm:mt-0 sm:col-span-3">
+                      <span className="tag">watching</span>
+                    </span>
+                  ) : (
+                    <>
+                      <span className="hidden sm:block text-right text-sm tabular-nums">
+                        {matches}
+                      </span>
+                      <span className="hidden sm:block text-right text-sm tabular-nums text-[color:var(--accent-ink)]">
+                        {holds}
+                      </span>
+                      <span className="hidden sm:block text-right text-sm tabular-nums text-[color:var(--accent-ink)]">
+                        {booked}
+                      </span>
+                      <span className="mt-1 sm:hidden flex flex-wrap gap-x-3 text-xs text-[color:var(--muted)]">
+                        <span>
+                          <span className="tabular-nums font-medium text-foreground">
+                            {matches}
+                          </span>{" "}
+                          matched
+                        </span>
+                        {holds > 0 && (
+                          <span className="text-[color:var(--accent-ink)]">
+                            <span className="tabular-nums font-medium">
+                              {holds}
+                            </span>{" "}
+                            holding
+                          </span>
+                        )}
+                        {booked > 0 && (
+                          <span className="text-[color:var(--accent-ink)]">
+                            <span className="tabular-nums font-medium">
+                              {booked}
+                            </span>{" "}
+                            booked
+                          </span>
+                        )}
+                      </span>
+                    </>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </>
       )}
 
       <div className="mt-12 pt-8 border-t border-[color:var(--hairline)]">

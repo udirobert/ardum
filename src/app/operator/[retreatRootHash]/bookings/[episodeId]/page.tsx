@@ -132,7 +132,7 @@ export default function BookingDetailPage() {
   const shape = detail.intentionShape;
 
   return (
-    <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24">
+    <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-8 pb-24">
       <Link
         href={`/operator/${detail.retreat.rootHash}`}
         className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors mb-8 inline-block"
@@ -140,20 +140,42 @@ export default function BookingDetailPage() {
         ← back to {detail.retreat.title}
       </Link>
 
-      <p className="tag mb-2">booking detail</p>
-      <div className="flex items-center gap-5 mb-4">
-        <MiraOrb size={48} presence={{ posture: "arriving", valence: 0 }} />
-        <h1 className="font-serif text-4xl sm:text-5xl tracking-tight">
+      <div className="flex items-center gap-4 mb-3">
+        <MiraOrb size={36} presence={{ posture: "arriving", valence: 0 }} />
+        <h1 className="font-serif text-3xl tracking-tight">
           Someone is coming.
         </h1>
       </div>
-      <p className="text-lg text-[color:var(--muted)] max-w-prose mb-12 leading-relaxed">
+      <p className="text-base text-[color:var(--muted)] max-w-prose mb-4 leading-relaxed">
         Booked for {detail.retreat.title} on{" "}
         {new Date(detail.episode.bookedAt).toLocaleDateString()}.
       </p>
 
+      {/* Booking facts — glanceable at the top */}
+      {detail.booking && (
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs border-y border-[color:var(--hairline)] py-2.5 mb-8">
+          <span>
+            <span className="text-[color:var(--muted)]">deposit: </span>
+            <span className="tabular-nums font-medium">
+              ${detail.booking.depositUsd.toLocaleString()}
+            </span>
+          </span>
+          <span>
+            <span className="text-[color:var(--muted)]">booked: </span>
+            {new Date(detail.booking.bookedAt).toLocaleDateString()}
+          </span>
+          {detail.episode.depositTxId && (
+            <span>
+              <span className="text-[color:var(--muted)]">ref: </span>
+              {detail.episode.depositTxId.slice(0, 18)}
+              {detail.episode.depositTxId.length > 18 ? "…" : ""}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Intention shape — coarse constraints, never the verbatim statement */}
-      <div className="border border-[color:var(--hairline)] rounded-sm p-6 mb-8">
+      <div className="border border-[color:var(--hairline)] rounded-sm p-4 mb-8">
         <p className="tag mb-4">what they&apos;re making space for</p>
         <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm">
           {shape.energy && (
@@ -202,15 +224,15 @@ export default function BookingDetailPage() {
         <p className="text-sm text-[color:var(--muted)] mb-6">
           Mira prepared them with a 5-day wind-down plan.
         </p>
-        <ol className="space-y-5">
+        <ol className="space-y-3">
           {detail.preparationPlan.days.map((day) => (
             <li key={day.day} className="flex gap-4">
-              <span className="font-serif text-3xl text-[color:var(--accent-soft)] leading-none w-10 flex-shrink-0">
+              <span className="font-serif text-xl text-[color:var(--accent-soft)] leading-none w-6 flex-shrink-0">
                 {day.day}
               </span>
               <div className="flex-1">
                 <div className="flex items-baseline justify-between gap-3 mb-1">
-                  <p className="font-serif text-lg tracking-tight">
+                  <p className="font-serif text-base tracking-tight">
                     {day.title}
                   </p>
                   <span className="tag opacity-60 flex-shrink-0">
@@ -225,23 +247,6 @@ export default function BookingDetailPage() {
           ))}
         </ol>
       </div>
-
-      {/* Booking details */}
-      {detail.booking && (
-        <div className="border-l-2 border-[color:var(--accent-soft)] pl-5 mb-8">
-          <p className="tag mb-2">booking</p>
-          <p className="text-sm text-[color:var(--muted)] leading-relaxed">
-            Deposit: ${detail.booking.depositUsd.toLocaleString()} · booked{" "}
-            {new Date(detail.booking.bookedAt).toLocaleDateString()}
-            {detail.episode.depositTxId && (
-              <>
-                {" "}· ref {detail.episode.depositTxId.slice(0, 18)}
-                {detail.episode.depositTxId.length > 18 ? "…" : ""}
-              </>
-            )}
-          </p>
-        </div>
-      )}
 
       <div className="mt-12 pt-8 border-t border-[color:var(--hairline)]">
         <p className="text-xs text-[color:var(--muted)] max-w-prose">

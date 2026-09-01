@@ -91,28 +91,28 @@ export default function MemoryView({ episodes }: Props) {
       )}
 
       {episodes.length === 0 ? (
-        <div className="border border-[color:var(--hairline)] rounded-sm p-6 bg-[color:var(--surface)]">
-          <p className="font-serif text-2xl mb-2">Nothing retained.</p>
+        <div className="border border-[color:var(--hairline)] rounded-sm p-5 bg-[color:var(--surface)]">
+          <p className="font-serif text-xl mb-2">Nothing retained.</p>
           <p className="text-sm text-[color:var(--muted)]">
             Mira will ask before giving a new intention a persistent home.
           </p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)]">
           {episodes.map((episode) => {
             const current = episode.intentions.at(-1)!;
             return (
               <article
                 key={episode.id}
-                className="border border-[color:var(--hairline)] rounded-sm p-6 bg-[color:var(--surface)]"
+                className="p-5 border-t border-[color:var(--hairline)] first:border-t-0"
               >
-                <p className="tag mb-2">
+                <p className="tag mb-1">
                   {episode.status} · revision {episode.revision}
                 </p>
-                <h2 className="font-serif text-2xl tracking-tight mb-4">
+                <h2 className="font-serif text-xl tracking-tight mb-2">
                   {current.statement}
                 </h2>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm mb-5">
+                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm mb-4">
                   <dt className="text-[color:var(--muted)]">Added</dt>
                   <dd>{new Date(episode.createdAt).toLocaleString()}</dd>
                   <dt className="text-[color:var(--muted)]">Used for</dt>
@@ -126,11 +126,11 @@ export default function MemoryView({ episodes }: Props) {
                       .join(" · ") || "None yet"}
                   </dd>
                 </dl>
-                <details className="mb-5">
+                <details className="mb-4">
                   <summary className="tag cursor-pointer">
                     show intention history and events
                   </summary>
-                  <div className="mt-4 space-y-4 text-sm">
+                  <div className="mt-3 space-y-4 text-sm">
                     {episode.intentions.map((revision) => (
                       <div key={revision.version}>
                         <p className="font-medium">Revision {revision.version}</p>
@@ -151,7 +151,7 @@ export default function MemoryView({ episodes }: Props) {
                     ))}
                   </div>
                 </details>
-                <div className="flex flex-wrap gap-4">
+                <div className="flex flex-wrap items-center gap-3">
                   <Link
                     href={`/episode/${episode.id}`}
                     className="text-sm text-[color:var(--accent)]"
@@ -181,8 +181,8 @@ export default function MemoryView({ episodes }: Props) {
         </div>
       )}
 
-      <div className="mt-12 pt-8 border-t border-[color:var(--hairline)]">
-        <h2 className="font-serif text-2xl mb-3">Boundaries</h2>
+      <div className="mt-8 pt-6 border-t border-[color:var(--hairline)]">
+        <h2 className="font-serif text-xl mb-3">Boundaries</h2>
         <ul className="space-y-2 text-sm text-[color:var(--muted)]">
           <li>Browser data is a cache, not authority.</li>
           <li>Semantic recall may add context but cannot change episode facts.</li>

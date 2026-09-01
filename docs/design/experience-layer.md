@@ -237,6 +237,27 @@ Mira stays fixed; the decision surface slides.
 operator — reaches the orb. Kinds: `lean`, `commit`, `reject`, `resonate`,
 `skip`. Decaying 0–1 scalar drives shader uniforms on hero `MiraScene`.
 
+## Information-first surfaces
+
+Operator surfaces are compact, information-first tools — the operator is
+working, not watching Mira perform. Hairline-divided rows over bordered
+cards; aggregates always visible, never paginated or autoplayed; no dead
+affordances (every control must do something); one orb per page carries
+presence. Mira's briefing voice stays, but it sits compactly above the
+data and never gates access to it. Motion is limited to hover/focus
+transitions, all gated by `prefers-reduced-motion`. The privacy contract
+(intention shapes only, aggregates under the density gate) applies with
+full force regardless of layout.
+
+The same clauses cover the practitioner's secondary tooling: the memory
+list, the listening alternatives, explore-other-fits counterfactuals, and
+evidence panels render as hairline-divided rows inside one bordered list —
+quiet, scannable, legible statically (state-projection rule). These rows
+are secondary: the workbench decision card stays a letter with one ask,
+the RetreatCard emergence keeps the image-centric arrival, and the density
+contract (`data-density` thresholds; secondary tools auto-expanding below
+fit 0.75) is unchanged.
+
 ## Anticipation layer (booked → departure)
 
 The booking-to-departure window is where travel-happiness research finds

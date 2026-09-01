@@ -15,6 +15,7 @@
 // the flat matched-practitioners list with a sortable, scannable grid.
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { DemandMatch, IntentionShape } from "@/episodes/operator-projection";
 import type { EnergyState, BudgetBand, SocialComfort, TravelWindow } from "@/calibration/schema";
 import { ENERGY_STATES, BUDGET_BANDS, SOCIAL_COMFORT, TRAVEL_WINDOWS } from "@/calibration/schema";
@@ -78,8 +79,11 @@ function Tag({ label, value }: { label?: string; value?: string }) {
 
 export default function OperatorDemandTable({
   matches,
+  bookingHref,
 }: {
   matches: DemandMatch[];
+  /** When provided, booked rows link through to the booking detail. */
+  bookingHref?: (match: DemandMatch) => string | undefined;
 }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({
     key: "status",
@@ -149,6 +153,7 @@ export default function OperatorDemandTable({
         <tbody>
           {sorted.map((match) => {
             const s = match.shape as IntentionShape;
+            const href = match.bookedAt ? bookingHref?.(match) : undefined;
             return (
               <tr
                 key={match.episodeId}
@@ -161,9 +166,18 @@ export default function OperatorDemandTable({
                       style={{ background: statusColor(match.status) }}
                       aria-hidden
                     />
-                    <span className="text-[12.5px] font-medium text-[color:var(--foreground)]">
-                      {statusLabel(match.status)}
-                    </span>
+                    {href ? (
+                      <Link
+                        href={href}
+                        className="text-[12.5px] font-medium text-[color:var(--accent-ink)] hover:underline"
+                      >
+                        {statusLabel(match.status)} →
+                      </Link>
+                    ) : (
+                      <span className="text-[12.5px] font-medium text-[color:var(--foreground)]">
+                        {statusLabel(match.status)}
+                      </span>
+                    )}
                     {match.isTopPick && (
                       <span className="tag opacity-60 flex-shrink-0">top pick</span>
                     )}

@@ -41,7 +41,7 @@ export default function ExploreOtherFits({
   expanded: boolean;
 }) {
   const body = (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {alternatives.length > 0 && (
         <div>
           <p className="tag mb-2">
@@ -49,29 +49,31 @@ export default function ExploreOtherFits({
               ? "and one more that also qualified"
               : "other possibilities I'm weighing"}
           </p>
-          <ul className="space-y-4">
+          <ul className="divide-y divide-[color:var(--hairline)]">
             {alternatives.map((alt, index) => (
               <li
                 key={alt.retreatRootHash}
-                className="border-l-2 border-[color:var(--hairline)] pl-4"
+                className="py-3 first:pt-0 flex items-start justify-between gap-4"
               >
-                <p className="text-xs text-[color:var(--muted)] mb-1">
-                  {index === 0 ? "next in line" : `option ${index + 1}`}
-                </p>
-                <p className="font-serif text-lg tracking-tight">
-                  {alt.retreatTitle}
-                </p>
-                <p className="text-sm text-[color:var(--muted)] mt-0.5">
-                  {alt.retreatLocation} · {alt.durationDays} days · $
-                  {alt.priceUsd.toLocaleString()}
-                </p>
-                {alt.reasoning.length > 0 && (
-                  <p className="text-sm mt-2 italic text-[color:var(--accent-ink)]">
-                    {alt.reasoning[0].then}
+                <div className="min-w-0">
+                  <p className="text-xs text-[color:var(--muted)] mb-1">
+                    {index === 0 ? "next in line" : `option ${index + 1}`}
                   </p>
-                )}
+                  <p className="font-serif text-base tracking-tight">
+                    {alt.retreatTitle}
+                  </p>
+                  <p className="text-xs text-[color:var(--muted)] mt-0.5">
+                    {alt.retreatLocation} · {alt.durationDays} days · $
+                    {alt.priceUsd.toLocaleString()}
+                  </p>
+                  {alt.reasoning.length > 0 && (
+                    <p className="text-xs mt-1 italic text-[color:var(--accent-ink)]">
+                      {alt.reasoning[0].then}
+                    </p>
+                  )}
+                </div>
                 {index === 0 && recommendation && (
-                  <p className="text-xs text-[color:var(--muted)] mt-1">
+                  <p className="text-xs text-[color:var(--muted)] text-right shrink-0 tabular-nums">
                     Scored {Math.round(alt.score * 100)} vs{" "}
                     {Math.round(recommendation.score * 100)} for{" "}
                     {recommendation.retreatTitle}.
@@ -80,7 +82,7 @@ export default function ExploreOtherFits({
               </li>
             ))}
             {!holdActive && (
-              <li className="text-sm text-[color:var(--muted)] pt-1">
+              <li className="text-sm text-[color:var(--muted)] pt-3">
                 Use &ldquo;Not this one&rdquo; to move to the next in line.
               </li>
             )}
@@ -102,7 +104,7 @@ export default function ExploreOtherFits({
                 type="button"
                 disabled={busy || bandLoading}
                 onClick={() => onPickBand(isActive ? null : value)}
-                className={`px-3 py-2 rounded-sm border text-sm transition-colors disabled:opacity-40 ${
+                className={`px-2.5 py-1.5 rounded-sm border text-sm transition-colors disabled:opacity-40 ${
                   isActive
                     ? "border-[color:var(--accent)] text-[color:var(--accent-ink)]"
                     : "border-[color:var(--hairline)] hover:border-[color:var(--accent)]"
@@ -142,7 +144,7 @@ export default function ExploreOtherFits({
                 type="button"
                 disabled={busy || energyLoading}
                 onClick={() => onPickEnergy(isActive ? null : value)}
-                className={`px-3 py-2 rounded-sm border text-sm transition-colors disabled:opacity-40 ${
+                className={`px-2.5 py-1.5 rounded-sm border text-sm transition-colors disabled:opacity-40 ${
                   isActive
                     ? "border-[color:var(--accent)] text-[color:var(--accent-ink)]"
                     : "border-[color:var(--hairline)] hover:border-[color:var(--accent)]"

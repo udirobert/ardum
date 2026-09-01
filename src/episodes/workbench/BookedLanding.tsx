@@ -59,9 +59,9 @@ export default function BookedLanding({
   const arcComplete = days >= plan.days.length;
 
   return (
-    <div className="space-y-8" data-testid="booked-landing">
+    <div className="space-y-6" data-testid="booked-landing">
       <div className="flex items-start gap-4">
-        <MiraOrb size={48} presence={waitPresence ?? miraPresence} className="flex-shrink-0 mt-1" />
+        <MiraOrb size={40} presence={waitPresence ?? miraPresence} className="flex-shrink-0 mt-1" />
         <div className="space-y-3 flex-1">
           {days <= 0
             ? dialogue.done.map((line, i) => (
@@ -87,23 +87,23 @@ export default function BookedLanding({
 
       <div>
         <p className="font-serif text-2xl tracking-tight mb-1">{plan.title}</p>
-        <p className="text-sm text-[color:var(--muted)] mb-6">
+        <p className="text-sm text-[color:var(--muted)] mb-4">
           {arcComplete
             ? "The plan is complete. Travel lightly."
             : `Five minutes a day. Today is day ${currentDay}.`}
         </p>
-        <ol className="space-y-5">
+        <ol className="space-y-3">
           {plan.days.map((day) => {
             if (day.day > currentDay) return null;
             const isCurrent = day.day === currentDay && !arcComplete;
             if (!isCurrent) {
               return (
                 <li key={day.day} className="flex gap-4 opacity-60">
-                  <span className="font-serif text-3xl text-[color:var(--accent-soft)] leading-none w-10 flex-shrink-0">
+                  <span className="font-serif text-xl text-[color:var(--accent-soft)] leading-none w-6 flex-shrink-0">
                     {day.day}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="font-serif text-lg tracking-tight truncate">
+                    <p className="font-serif text-base tracking-tight truncate">
                       {day.title}
                     </p>
                   </div>
@@ -112,12 +112,12 @@ export default function BookedLanding({
             }
             return (
               <li key={day.day} className="flex gap-4">
-                <span className="font-serif text-3xl text-[color:var(--accent-soft)] leading-none w-10 flex-shrink-0">
+                <span className="font-serif text-xl text-[color:var(--accent-soft)] leading-none w-6 flex-shrink-0">
                   {day.day}
                 </span>
                 <div className="flex-1">
                   <div className="flex items-baseline justify-between gap-3 mb-1">
-                    <p className="font-serif text-lg tracking-tight">{day.title}</p>
+                    <p className="font-serif text-base tracking-tight">{day.title}</p>
                     <span className="tag opacity-60 flex-shrink-0">{day.duration}</span>
                   </div>
                   <p className="text-sm text-[color:var(--muted)] leading-relaxed">
@@ -135,7 +135,7 @@ export default function BookedLanding({
         )}
       </div>
 
-      <div className="border-l-2 border-[color:var(--accent-soft)] pl-5">
+      <div className="border-l-2 border-[color:var(--accent-soft)] pl-4">
         <p className="tag mb-2">what Mira will watch next</p>
         {dialogue.watchNext.map((line, i) => (
           <p
@@ -163,7 +163,7 @@ export default function BookedLanding({
       {commitment && (
         <details className="opacity-80">
           <summary className="tag cursor-pointer">How this is secured</summary>
-          <div className="mt-4">
+          <div className="mt-3">
             <EvidenceCards
               cards={[
                 {

@@ -488,8 +488,8 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
 
   // ── Main render: a clean state switch ──
   return (
-    <section className="dusk mx-auto w-full max-w-3xl px-6 sm:px-10 pt-12 pb-24 min-h-[calc(100svh-56px)]">
-      <div className="mb-10">
+    <section className="dusk mx-auto w-full max-w-3xl px-6 sm:px-10 pt-8 pb-24 min-h-[calc(100svh-56px)]">
+      <div className="mb-6">
         <button
           type="button"
           onClick={() => router.push("/")}
@@ -499,15 +499,15 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
         </button>
       </div>
 
-      <div className="mb-8">
+      <div className="mb-6">
         <p className="tag mb-2">what you are making space for</p>
-        <h1 className="font-serif text-4xl sm:text-5xl tracking-tight leading-tight">
+        <h1 className="font-serif text-2xl sm:text-3xl tracking-tight leading-tight">
           {intention.statement}
         </h1>
       </div>
 
       <div
-        className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-6 sm:p-8 surface-card"
+        className="border border-[color:var(--hairline)] rounded-sm bg-[color:var(--surface)] p-5 sm:p-6 surface-card"
         aria-live="polite"
       >
         {/* Thinking beat — non-blocking trace at the top of the card.
@@ -517,7 +517,7 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
             the beat reads as the breath between intention and arrival;
             it appears below the collapsed trace when settled. */}
         {isRecommendationState && thinkingSnapshot && (
-          <div className="mb-6 pb-6 border-b border-[color:var(--hairline)]">
+          <div className="mb-4 pb-4 border-b border-[color:var(--hairline)]">
             <ThinkingBeat
               key={`thinking-beat-${thinkingBeatKey}`}
               thinking={thinking}
@@ -708,7 +708,7 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
         )}
       </div>
 
-      <details className="mt-12 opacity-80">
+      <details className="mt-8 opacity-80">
         <summary className="tag cursor-pointer mb-4">the journey so far</summary>
         <ol className="space-y-3">
           {episode.events

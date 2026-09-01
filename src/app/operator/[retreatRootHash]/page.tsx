@@ -96,43 +96,32 @@ export default function RetreatDetailPage() {
         ← your retreats
       </Link>
 
-      <p className="tag mb-2">retreat detail</p>
-      <div className="flex items-center gap-5 mb-4">
-        <MiraOrb size={48} presence={operatorPresence(demand)} />
-        <h1 className="font-serif text-4xl sm:text-5xl tracking-tight">
+      <div className="flex items-center gap-4 mb-3">
+        <MiraOrb size={36} presence={operatorPresence(demand)} />
+        <h1 className="font-serif text-2xl sm:text-3xl tracking-tight">
           {retreat.title}
         </h1>
       </div>
-      <p className="text-[color:var(--muted)] mb-12">
+      <p className="text-sm text-[color:var(--muted)] mb-8">
         {retreat.claims.location} · {retreat.claims.durationDays} days ·
         ${retreat.claims.priceUsd.toLocaleString()} · cohort of{" "}
         {retreat.claims.capacity}
       </p>
 
-      {/* Demand summary */}
-      <div className="grid grid-cols-3 gap-6 mb-12">
-        <div>
-          <p className="font-serif text-3xl tracking-tight">
-            {demand.totalMatches}
+      {/* Demand summary — one slim strip, always visible */}
+      <div className="flex gap-6 mb-8">
+        {(
+          [
+            [demand.totalMatches, "matched"],
+            [demand.activeHolds, "holding"],
+            [demand.bookings, "booked"],
+          ] as const
+        ).map(([value, label]) => (
+          <p key={label} className="flex items-baseline gap-1.5">
+            <span className="text-xl tabular-nums font-medium">{value}</span>
+            <span className="text-xs text-[color:var(--muted)]">{label}</span>
           </p>
-          <p className="text-xs text-[color:var(--muted)] mt-1">
-            practitioners matched
-          </p>
-        </div>
-        <div>
-          <p className="font-serif text-3xl tracking-tight">
-            {demand.activeHolds}
-          </p>
-          <p className="text-xs text-[color:var(--muted)] mt-1">
-            holding spots
-          </p>
-        </div>
-        <div>
-          <p className="font-serif text-3xl tracking-tight">
-            {demand.bookings}
-          </p>
-          <p className="text-xs text-[color:var(--muted)] mt-1">booked</p>
-        </div>
+        ))}
       </div>
 
       {/* Matches table — sortable demand grid */}
@@ -157,25 +146,13 @@ export default function RetreatDetailPage() {
             Matched practitioners
           </h2>
           <div className="border border-[color:var(--hairline)] rounded-sm overflow-hidden">
-            <OperatorDemandTable matches={demand.matches} />
+            <OperatorDemandTable
+              matches={demand.matches}
+              bookingHref={(match) =>
+                `/operator/${retreatRootHash}/bookings/${match.episodeId}`
+              }
+            />
           </div>
-          {/* Booking links for booked matches — stay below the table */}
-          {demand.matches.some((m) => m.bookedAt) && (
-            <div className="space-y-1">
-              {demand.matches
-                .filter((m) => m.bookedAt)
-                .map((match) => (
-                  <Link
-                    key={match.episodeId}
-                    href={`/operator/${retreatRootHash}/bookings/${match.episodeId}`}
-                    className="text-xs text-[color:var(--accent-ink)] inline-block hover:underline"
-                  >
-                    Booked {new Date(match.bookedAt!).toLocaleDateString()} →
-                    view preparation context
-                  </Link>
-                ))}
-            </div>
-          )}
         </div>
       )}
 

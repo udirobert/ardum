@@ -52,26 +52,26 @@ export default async function MemoryPage() {
     episodes.find((item) => item.status !== "completed") ?? null;
 
   return (
-    <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 py-16">
+    <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 py-10">
       <Link href="/" className="tag hover:text-foreground">
         ← back
       </Link>
       <div className="flex items-center gap-4 mt-8 mb-8">
-        <MiraOrb size={56} presence={miraPresence} />
+        <MiraOrb size={40} presence={miraPresence} />
         <div>
           <p className="font-serif text-2xl">Mira</p>
           <p className="tag">your intention &amp; privacy</p>
         </div>
       </div>
-      <h1 className="font-serif text-4xl sm:text-5xl tracking-tight mb-4">
+      <h1 className="font-serif text-2xl sm:text-3xl tracking-tight mb-4">
         What I am keeping in mind.
       </h1>
-      <p className="text-[color:var(--muted)] text-lg leading-relaxed mb-4">
+      <p className="text-[color:var(--muted)] text-base leading-relaxed mb-3">
         Operational history belongs to each intention. It is stored behind an
         anonymous ownership cookie, not in a public URL. You can inspect,
         export, or delete it here.
       </p>
-      <p className="why mb-10">
+      <p className="why mb-8">
         Each entry below is what Mira is allowed to remember — your intention,
         what you have clarified, and the steps that followed. Nothing here is
         shared with retreats, wallets, or invitees.
@@ -82,7 +82,7 @@ export default async function MemoryPage() {
       {activeEpisode && (
         <Link
           href={`/episode/${activeEpisode.id}`}
-          className="block border border-[color:var(--accent-soft)] rounded-sm px-5 py-4 mb-8 hover:border-[color:var(--accent)] transition-colors"
+          className="block border border-[color:var(--accent-soft)] rounded-sm px-4 py-3 mb-8 hover:border-[color:var(--accent)] transition-colors"
         >
           <span className="font-serif text-lg tracking-tight">
             Continue your intention →
@@ -107,7 +107,7 @@ export default async function MemoryPage() {
           aria-label="what our previous visits looked like"
           aria-live="polite"
           data-testid="memory-summary"
-          className="border-l-2 border-[color:var(--accent-soft)] pl-5 mb-8"
+          className="border-l-2 border-[color:var(--accent-soft)] pl-4 mb-6"
         >
           <div className="flex items-start gap-3 mb-3">
             <MiraOrb size={40} presence={miraPresence} />

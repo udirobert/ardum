@@ -16,10 +16,9 @@
 //    elevate/not-this actions, and the voice lane (the only place free-text
 //    refinement lives)."
 //
-// The cards emerge with a staggered reveal — each one buds off in sequence,
-// so the surface reads as Mira laying out options, not a list rendering.
+// Alternatives render as hairline-divided rows — quiet, information-first;
+// the state stays fully legible statically (state-projection rule).
 
-import { motion } from "framer-motion";
 import MiraOrb from "@/components/MiraOrb";
 import type { MiraPresence } from "@/agent/mira-presence";
 import type { MatchResult } from "@/matching/types";
@@ -65,51 +64,40 @@ export default function ListeningSurface({
         </div>
       </div>
 
-      {/* Staggered alternative cards — each buds off in sequence. */}
-      <div className="space-y-4">
+      {/* Bounded alternative rows — scannable, elevate on the right. */}
+      <div className="divide-y divide-[color:var(--hairline)]">
         {shown.map((alt, index) => (
-          <motion.div
+          <div
             key={alt.retreatRootHash}
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{
-              type: "spring",
-              stiffness: 100,
-              damping: 20,
-              mass: 0.8,
-              delay: index * 0.12,
-            }}
-            className="border border-[color:var(--hairline)] rounded-sm p-4 sm:p-5 surface-card"
+            className="py-4 first:pt-0 flex items-start justify-between gap-4"
           >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-[color:var(--muted)] mb-1">
-                  {index === 0 ? "next in line" : `option ${index + 1}`}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-[color:var(--muted)] mb-1">
+                {index === 0 ? "next in line" : `option ${index + 1}`}
+              </p>
+              <p className="font-serif text-lg tracking-tight">
+                {alt.retreatTitle}
+              </p>
+              <p className="text-xs text-[color:var(--muted)] mt-0.5">
+                {alt.retreatLocation} · {alt.durationDays} days · $
+                {alt.priceUsd.toLocaleString()}
+              </p>
+              {alt.reasoning.length > 0 && (
+                <p className="text-xs mt-1 italic text-[color:var(--accent-ink)]">
+                  {alt.reasoning[0].then}
                 </p>
-                <p className="font-serif text-xl tracking-tight">
-                  {alt.retreatTitle}
-                </p>
-                <p className="text-sm text-[color:var(--muted)] mt-0.5">
-                  {alt.retreatLocation} · {alt.durationDays} days · $
-                  {alt.priceUsd.toLocaleString()}
-                </p>
-                {alt.reasoning.length > 0 && (
-                  <p className="text-sm mt-2 italic text-[color:var(--accent-ink)]">
-                    {alt.reasoning[0].then}
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => onElevate(alt.retreatRootHash)}
-                className="flex-shrink-0 px-4 py-2 rounded-sm text-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent)] hover:text-[color:var(--accent-ink)] transition-colors disabled:opacity-40"
-                aria-label={`Elevate ${alt.retreatTitle} to the top recommendation`}
-              >
-                Elevate
-              </button>
+              )}
             </div>
-          </motion.div>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onElevate(alt.retreatRootHash)}
+              className="flex-shrink-0 px-4 py-2 rounded-sm text-sm border border-[color:var(--hairline)] hover:border-[color:var(--accent)] hover:text-[color:var(--accent-ink)] transition-colors disabled:opacity-40"
+              aria-label={`Elevate ${alt.retreatTitle} to the top recommendation`}
+            >
+              Elevate
+            </button>
+          </div>
         ))}
       </div>
 

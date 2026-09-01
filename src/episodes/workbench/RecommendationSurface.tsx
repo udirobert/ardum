@@ -136,9 +136,11 @@ export default function RecommendationSurface({
   return (
     <div
       className={[
-        "space-y-6",
-        density === "spacious" ? "space-y-8" : "",
-        density === "dense" ? "space-y-4" : "",
+        density === "spacious"
+          ? "space-y-6"
+          : density === "dense"
+            ? "space-y-3"
+            : "space-y-5",
         holdUrgent ? "commitment-urgent" : "",
       ]
         .filter(Boolean)
@@ -309,13 +311,13 @@ export default function RecommendationSurface({
 
           {/* Secondary tools collapse behind a single disclosure. */}
           <details
-            className="border-t border-[color:var(--hairline)] pt-5"
+            className="border-t border-[color:var(--hairline)] pt-4"
             open={expandSecondaryTools || undefined}
           >
             <summary className="tag cursor-pointer">
               weigh it differently, or see what else fits
             </summary>
-            <div className="mt-4 space-y-6">
+            <div className="mt-3 space-y-5">
               <div className="flex flex-col gap-2">
                 <button
                   type="button"
@@ -434,7 +436,7 @@ export default function RecommendationSurface({
           the accessible detail. */}
       <details className="pt-2">
         <summary className="tag cursor-pointer">how Mira chose this</summary>
-        <div className="mt-4 flex flex-col sm:flex-row gap-4">
+        <div className="mt-3 flex flex-col sm:flex-row gap-4">
           <div className="flex-shrink-0">
             <ReasoningOrbs reasoning={recommendation.reasoning} size={64} />
           </div>
@@ -622,7 +624,7 @@ function FeedbackDisclosure({
       <summary className="tag cursor-pointer">
         this doesn&apos;t feel right
       </summary>
-      <fieldset className="border-t border-[color:var(--hairline)] pt-5 mt-3">
+      <fieldset className="border-t border-[color:var(--hairline)] pt-4 mt-2">
         <legend className="tag mb-3">tell Mira what feels off</legend>
         <div className="space-y-3">
           <textarea
@@ -647,7 +649,7 @@ function FeedbackDisclosure({
             {busy ? "Sitting with that…" : "Tell Mira →"}
           </button>
         </div>
-        <details className="mt-5 pt-4 border-t border-[color:var(--hairline)]">
+        <details className="mt-4 pt-3 border-t border-[color:var(--hairline)]">
           <summary className="text-xs text-[color:var(--muted)] cursor-pointer">
             or pick a category
           </summary>
