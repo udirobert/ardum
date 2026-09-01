@@ -57,7 +57,7 @@ export default async function MemoryPage() {
         ← back
       </Link>
       <div className="flex items-center gap-4 mt-8 mb-8">
-        <MiraOrb size={40} presence={miraPresence} />
+        <MiraOrb size={40} presence={miraPresence} viewTransitionName="mira-orb" />
         <div>
           <p className="font-serif text-2xl">Mira</p>
           <p className="tag">your intention &amp; privacy</p>

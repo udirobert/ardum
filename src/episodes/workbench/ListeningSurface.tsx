@@ -22,6 +22,7 @@
 import MiraOrb from "@/components/MiraOrb";
 import type { MiraPresence } from "@/agent/mira-presence";
 import type { MatchResult } from "@/matching/types";
+import { formatUsd } from "@/lib/format";
 
 type Props = {
   alternatives: MatchResult[];
@@ -79,8 +80,8 @@ export default function ListeningSurface({
                 {alt.retreatTitle}
               </p>
               <p className="text-xs text-[color:var(--muted)] mt-0.5">
-                {alt.retreatLocation} · {alt.durationDays} days · $
-                {alt.priceUsd.toLocaleString()}
+                {alt.retreatLocation} · {alt.durationDays} days ·{" "}
+                {formatUsd(alt.priceUsd)}
               </p>
               {alt.reasoning.length > 0 && (
                 <p className="text-xs mt-1 italic text-[color:var(--accent-ink)]">

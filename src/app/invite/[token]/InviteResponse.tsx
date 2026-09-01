@@ -5,6 +5,7 @@ import { preloadMiraScene } from "@/components/MiraOrb";
 import { useMiraField } from "@/components/MiraField";
 import { useMiraImpulse } from "@/components/MiraImpulse";
 import { DUSK_PANEL } from "@/aesthetics/dusk-theme";
+import { formatDateTime } from "@/lib/format";
 
 // Warm the hero scene chunk as soon as the invite bundle evaluates — the
 // shell field is this page's atmosphere.
@@ -125,7 +126,7 @@ export default function InviteResponse({ token }: { token: string }) {
               ))}
             </div>
             <p className="tag mt-6">
-              expires {new Date(invitation.expiresAt).toLocaleString()}
+              expires {formatDateTime(new Date(invitation.expiresAt))}
             </p>
           </div>
         </div>

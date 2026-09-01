@@ -1,5 +1,6 @@
 import type { MatchResult } from "@/matching/types";
 import type { PerspectiveName } from "@/episodes/perspectives";
+import { formatUsd } from "@/lib/format";
 
 // Prominent lens factors — "What if we weighted this differently?"
 // Surfaces the three ranking lenses (balanced/restorative/movement) in
@@ -92,8 +93,8 @@ function LensOutcome({
         {pick.retreatTitle}
       </p>
       <p className="text-sm text-[color:var(--muted)]">
-        {pick.retreatLocation} · {pick.durationDays} days · $
-        {pick.priceUsd.toLocaleString()}
+        {pick.retreatLocation} · {pick.durationDays} days ·{" "}
+        {formatUsd(pick.priceUsd)}
       </p>
     </div>
   );

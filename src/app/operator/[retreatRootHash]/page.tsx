@@ -9,6 +9,7 @@ import { operatorPresence } from "@/agent/operator-presence";
 import OperatorDemandTable from "@/components/OperatorDemandTable";
 import type { AttestationIndex } from "@/attestation/schema";
 import type { DemandSummary } from "@/episodes/operator-projection";
+import { formatUsd } from "@/lib/format";
 
 type RetreatDetailState =
   | { status: "loading" }
@@ -97,14 +98,14 @@ export default function RetreatDetailPage() {
       </Link>
 
       <div className="flex items-center gap-4 mb-3">
-        <MiraOrb size={36} presence={operatorPresence(demand)} />
+        <MiraOrb size={36} presence={operatorPresence(demand)} viewTransitionName="mira-orb" />
         <h1 className="font-serif text-2xl sm:text-3xl tracking-tight">
           {retreat.title}
         </h1>
       </div>
       <p className="text-sm text-[color:var(--muted)] mb-8">
         {retreat.claims.location} · {retreat.claims.durationDays} days ·
-        ${retreat.claims.priceUsd.toLocaleString()} · cohort of{" "}
+        {formatUsd(retreat.claims.priceUsd)} · cohort of{" "}
         {retreat.claims.capacity}
       </p>
 

@@ -19,6 +19,7 @@ import type {
   IntentionConstraints,
 } from "./model";
 import { createAbortableRunner } from "@/lib/abortableFetch";
+import { formatDate } from "@/lib/format";
 import { extractConstraints, hasConstraints } from "@/agent/conversation-extractor";
 import { providerFailureLine } from "@/agent/mira-voice";
 import Link from "next/link";
@@ -712,7 +713,7 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
             .map((item) => (
               <li key={item.id} className="flex gap-4 text-sm">
                 <time className="tag w-28 shrink-0">
-                  {new Date(item.createdAt).toLocaleDateString()}
+                  {formatDate(new Date(item.createdAt))}
                 </time>
                 <span>{item.summary}</span>
               </li>

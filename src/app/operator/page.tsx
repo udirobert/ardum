@@ -10,6 +10,7 @@ import { operatorPresence } from "@/agent/operator-presence";
 import { operatorBriefing } from "@/agent/operator-briefing";
 import { providerFailureLine } from "@/agent/mira-voice";
 import { STEADY_PRESENCE } from "@/agent/mira-presence";
+import { formatUsd } from "@/lib/format";
 import type { AttestationIndex } from "@/attestation/schema";
 
 type DemandCounts = {
@@ -161,7 +162,7 @@ export default function OperatorPage() {
   if (!address) {
     return (
       <section className="mx-auto w-full max-w-2xl px-6 sm:px-10 pt-12 pb-24">
-        <MiraOrb size={48} presence={STEADY_PRESENCE} className="mb-6" />
+        <MiraOrb size={48} presence={STEADY_PRESENCE} className="mb-6" viewTransitionName="mira-orb" />
         <p className="tag mb-4">operator</p>
         <h1 className="font-serif text-4xl sm:text-5xl tracking-tight mb-6">
           Your retreats.
@@ -179,7 +180,7 @@ export default function OperatorPage() {
     <section className="mx-auto w-full max-w-3xl px-6 sm:px-10 pt-8 pb-24">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <MiraOrb size={48} presence={presence} />
+          <MiraOrb size={48} presence={presence} viewTransitionName="mira-orb" />
           <div>
             <p className="tag mb-1">operator</p>
             <h1 className="font-serif text-2xl sm:text-3xl tracking-tight">
@@ -316,7 +317,7 @@ export default function OperatorPage() {
                     </span>
                     <span className="block text-xs text-[color:var(--muted)] truncate">
                       {retreat.claims.location} · {retreat.claims.durationDays}{" "}
-                      days · ${retreat.claims.priceUsd.toLocaleString()} ·
+                      days · {formatUsd(retreat.claims.priceUsd)} ·
                       cohort of {retreat.claims.capacity}
                     </span>
                   </span>

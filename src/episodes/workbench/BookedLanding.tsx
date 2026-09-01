@@ -61,7 +61,7 @@ export default function BookedLanding({
   return (
     <div className="space-y-6" data-testid="booked-landing">
       <div className="flex items-start gap-4">
-        <MiraOrb size={40} presence={waitPresence ?? miraPresence} className="flex-shrink-0 mt-1" />
+        <MiraOrb size={40} presence={waitPresence ?? miraPresence} className="flex-shrink-0 mt-1" viewTransitionName="mira-orb" />
         <div className="space-y-3 flex-1">
           {days <= 0
             ? dialogue.done.map((line, i) => (

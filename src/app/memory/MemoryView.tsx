@@ -18,6 +18,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { formatDate, formatDateTime } from "@/lib/format";
 import type { Episode } from "@/episodes/model";
 
 type Props = {
@@ -114,7 +115,7 @@ export default function MemoryView({ episodes }: Props) {
                 </h2>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm mb-4">
                   <dt className="text-[color:var(--muted)]">Added</dt>
-                  <dd>{new Date(episode.createdAt).toLocaleString()}</dd>
+                  <dd>{formatDateTime(new Date(episode.createdAt))}</dd>
                   <dt className="text-[color:var(--muted)]">Used for</dt>
                   <dd>
                     Clarification, recommendation, monitoring, and coordination
@@ -145,7 +146,7 @@ export default function MemoryView({ episodes }: Props) {
                         key={event.id}
                         className="text-[color:var(--muted)]"
                       >
-                        {new Date(event.createdAt).toLocaleDateString()} ·{" "}
+                        {formatDate(new Date(event.createdAt))} ·{" "}
                         {event.summary}
                       </p>
                     ))}

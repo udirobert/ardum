@@ -1,6 +1,7 @@
 import type { MatchResult } from "@/matching/types";
 import type { BudgetBand, EnergyState } from "@/calibration/schema";
 import { BUDGET_BANDS, ENERGY_STATES } from "@/calibration/schema";
+import { formatUsd } from "@/lib/format";
 
 // A small panel that shows which retreat a hypothetical budget band picks.
 // The `sameAsMain` flag turns this into a statement (the override agrees
@@ -42,8 +43,8 @@ export function BudgetCounterfactualOutcome({
         {topRanked.retreatTitle}
       </p>
       <p className="text-sm text-[color:var(--muted)]">
-        {topRanked.retreatLocation} · {topRanked.durationDays} days · $
-        {topRanked.priceUsd.toLocaleString()}
+        {topRanked.retreatLocation} · {topRanked.durationDays} days ·{" "}
+        {formatUsd(topRanked.priceUsd)}
       </p>
     </div>
   );
@@ -87,8 +88,8 @@ export function EnergyCounterfactualOutcome({
         {topRanked.retreatTitle}
       </p>
       <p className="text-sm text-[color:var(--muted)]">
-        {topRanked.retreatLocation} · {topRanked.durationDays} days · $
-        {topRanked.priceUsd.toLocaleString()}
+        {topRanked.retreatLocation} · {topRanked.durationDays} days ·{" "}
+        {formatUsd(topRanked.priceUsd)}
       </p>
     </div>
   );

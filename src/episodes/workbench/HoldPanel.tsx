@@ -2,6 +2,7 @@ import type { MatchResult } from "@/matching/types";
 import type { BudgetBand, EnergyState } from "@/calibration/schema";
 import type { CounterfactualResult } from "@/episodes/counterfactual";
 import type { Episode, NextDecision } from "@/episodes/model";
+import { formatDateTime } from "@/lib/format";
 import ExploreOtherFits from "./ExploreOtherFits";
 import PrimaryButton from "./PrimaryButton";
 
@@ -59,7 +60,7 @@ export default function HoldPanel({
     <div className="border border-[color:var(--accent-soft)] rounded-sm p-5">
       <p className="tag mb-2">non-binding planning hold</p>
       <p className="mb-1">
-        Held until {new Date(hold.expiresAt).toLocaleString()}.
+        Held until {formatDateTime(new Date(hold.expiresAt))}.
       </p>
       <p className="text-sm text-[color:var(--muted)] mb-5">
         Nothing has been booked or charged.

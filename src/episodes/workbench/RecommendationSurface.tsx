@@ -27,6 +27,7 @@ import {
   listeningBeckonSeenServer,
   subscribeListeningBeckon,
 } from "@/lib/listening-teach";
+import { formatDateTime, formatUsd } from "@/lib/format";
 import { useSyncExternalStore } from "react";
 
 const CommitmentPanel = dynamic(
@@ -152,7 +153,7 @@ export default function RecommendationSurface({
           speaking, so they share a single presence. */}
       {letter && letter.lines.length > 0 && (
         <div className="flex items-start gap-3">
-          <MiraOrb size={40} presence={miraPresence ?? undefined} className="flex-shrink-0 mt-1" />
+          <MiraOrb size={40} presence={miraPresence ?? undefined} className="flex-shrink-0 mt-1" viewTransitionName="mira-orb" />
           <div className="space-y-2 leading-relaxed flex-1">
             {letter.recognitionLineCount > 0 && (
               <div className="space-y-2">
@@ -364,8 +365,8 @@ export default function RecommendationSurface({
         <div className="flex items-start gap-3">
           <MiraOrb size={28} presence={miraPresence ?? undefined} className="flex-shrink-0 mt-0.5" />
           <p className="text-sm leading-relaxed text-[color:var(--muted)]">
-            Last checked {new Date(latestObservation.observedAt).toLocaleString()}:
-            {" "}
+            Last checked {formatDateTime(new Date(latestObservation.observedAt))}
+            :{" "}
             {latestObservation.summary}
           </p>
         </div>
@@ -586,7 +587,7 @@ function RetreatCard({
             {recommendation.retreatTitle}
           </h3>
           <p className="text-sm text-[#f6efe3]/80 mt-1">
-            {recommendation.retreatLocation} · {recommendation.durationDays} days · ${recommendation.priceUsd.toLocaleString()} · cohort of {recommendation.capacity}
+            {recommendation.retreatLocation} · {recommendation.durationDays} days · {formatUsd(recommendation.priceUsd)} · cohort of {recommendation.capacity}
           </p>
         </div>
       </div>

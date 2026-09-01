@@ -6,6 +6,7 @@ import {
   BudgetCounterfactualOutcome,
   EnergyCounterfactualOutcome,
 } from "./CounterfactualOutcomes";
+import { formatUsd } from "@/lib/format";
 
 // Surfaces the alternatives + budget/energy counterfactuals as a single
 // component. Expanded when uncertainty is high, feedback is open, or no
@@ -63,8 +64,8 @@ export default function ExploreOtherFits({
                     {alt.retreatTitle}
                   </p>
                   <p className="text-xs text-[color:var(--muted)] mt-0.5">
-                    {alt.retreatLocation} · {alt.durationDays} days · $
-                    {alt.priceUsd.toLocaleString()}
+                    {alt.retreatLocation} · {alt.durationDays} days ·{" "}
+                    {formatUsd(alt.priceUsd)}
                   </p>
                   {alt.reasoning.length > 0 && (
                     <p className="text-xs mt-1 italic text-[color:var(--accent-ink)]">

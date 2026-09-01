@@ -3,6 +3,7 @@ import type {
   HoldProvider,
   MonitoringProvider,
 } from "./contracts";
+import { formatUsd } from "@/lib/format";
 
 const HOURS = 60 * 60 * 1000;
 
@@ -24,7 +25,7 @@ export const localMonitoringProvider: MonitoringProvider = {
       priceUsd: listedPriceUsd + priceDelta,
       observedAt: checkedAt.toISOString(),
       summary: available
-        ? `Availability is open at $${(listedPriceUsd + priceDelta).toLocaleString()}.`
+        ? `Availability is open at ${formatUsd(listedPriceUsd + priceDelta)}.`
         : "No planning hold is available in this check.",
     };
   },

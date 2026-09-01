@@ -16,6 +16,7 @@ import type {
   AttestationIndex,
   BreathCycle,
 } from "@/attestation/schema";
+import { formatUsd } from "@/lib/format";
 import type {
   MatchResult,
   ReasoningStep,
@@ -94,7 +95,7 @@ const BUDGET_LIMITS: Record<string, number> = {
 
 function budgetVerdict(band: string, priceUsd: number): AxisResult {
   const ceiling = BUDGET_LIMITS[band] ?? Infinity;
-  const given = `Retreat $${priceUsd.toLocaleString()}. Practitioner band: ${band}.`;
+  const given = `Retreat ${formatUsd(priceUsd)}. Practitioner band: ${band}.`;
   if (priceUsd <= ceiling) {
     return {
       score: 1,
@@ -181,7 +182,7 @@ const budgetAxis: Axis = {
   weight: 0.15,
   describe() {
     return `Budget (weight 0.15): score 1.0 if price ≤ band ceiling, 0.6 if within 20% over, 0.3 if within 50% over, 0.05 otherwise. Bands: ${Object.entries(BUDGET_LIMITS)
-      .map(([b, c]) => `${b} ≤ $${c === Infinity ? "∞" : c.toLocaleString()}`)
+      .map(([b, c]) => `${b} ≤ ${c === Infinity ? "∞" : formatUsd(c)}`)
       .join(", ")}. Output axis name 'Budget'.`;
   },
   apply(p, a) {

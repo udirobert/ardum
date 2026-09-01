@@ -12,6 +12,7 @@ import MiraOrb from "@/components/MiraOrb";
 import CommitmentArc from "@/components/CommitmentArc";
 import { useFluidPour } from "@/components/FluidParticlePour";
 import { haptic } from "@/lib/haptics";
+import { formatUsd } from "@/lib/format";
 import { presenceFromActivity } from "@/agent/mira-presence";
 import { useMagicAuth } from "./MagicAuth";
 import { useUniversalAccount } from "./UniversalAccount";
@@ -76,7 +77,7 @@ export default function ConversationalBooking({
   const [securingLabel, setSecuringLabel] = useState("Securing your place…");
 
   const dialogue = bookingDialogue(depositUsd, retreatTitle);
-  const amountLabel = `$${depositUsd.toLocaleString()}`;
+  const amountLabel = formatUsd(depositUsd);
 
   const runCommitment = useCallback(async () => {
     if (!address) return;

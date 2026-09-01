@@ -287,12 +287,15 @@ system provides real deadlines when they exist.
 ## Transitions
 
 - Route changes: React `<ViewTransition>` (`app/layout.tsx`, gated by
-  `experimental.viewTransition`). The page content fades/rises; the header
-  (`site-header`) is pinned as a spatial anchor. Mira does not transition:
-  the shell field is a persistent element outside the page group, so the
-  orb simply stays while content changes around her. CSS in `globals.css`
-  under the view-transition pseudo-elements; reduced motion zeroes all
-  durations.
+  `experimental.viewTransition`). Enter and exit overlap so navigation
+  reads as one continuous move. Two anchors persist: the header
+  (`site-header`) is pinned as the spatial anchor, and Mira — each
+  route's primary orb carries `viewTransitionName="mira-orb"`, so the
+  browser morphs the same orb to its new position/size while content
+  crossfades (she never disappears and re-enters). The shell field
+  stays as persistent ambient outside the page group. CSS in
+  `globals.css` under the view-transition pseudo-elements; reduced
+  motion zeroes all durations.
 - In-flow steps: transitions.dev `t-page-slide`, `t-stagger`.
 - Recommendation emergence: `GooeyEmergence` SVG filter makes the retreat
   card bud off from the orb with viscous fluid detachment

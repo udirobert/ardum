@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDate } from "@/lib/format";
+
 // EvidenceCards — provenance surfaced as inspectable rows, not text dumps.
 //
 // The "How this is secured" disclosure and the wider-aperture evidence panels
@@ -45,7 +47,7 @@ function formatRefreshed(iso?: string): string | null {
   if (!iso) return null;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString(undefined, {
+  return formatDate(date, {
     month: "short",
     day: "numeric",
     year: "numeric",

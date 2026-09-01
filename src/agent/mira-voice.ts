@@ -11,6 +11,7 @@ import type { MatchResult } from "@/matching/types";
 import type { MemoryContext } from "@/memory/semantic-memory";
 import type { Episode } from "@/episodes/model";
 import { humanizeAgo } from "@/lib/time";
+import { formatUsd } from "@/lib/format";
 
 type PractitionerSignals = {
   energy?: string;
@@ -147,7 +148,7 @@ export function matchLetter(
 // bounds; rails run ambiently under securing status.
 
 export function bookingDialogue(depositUsd: number, retreatTitle: string) {
-  const amount = `$${depositUsd.toLocaleString()}`;
+  const amount = formatUsd(depositUsd);
   return {
     ready: [
       `The pieces that matter now agree. I can secure your place on ${retreatTitle}.`,
@@ -186,7 +187,7 @@ export function classInvitation(
   classPriceUsd: number,
   signals: PractitionerSignals,
 ) {
-  const amount = `$${classPriceUsd.toLocaleString()}`;
+  const amount = formatUsd(classPriceUsd);
   const opener: Record<string, string> = {
     low: `Can't commit to the full retreat? That's okay — your energy is low right now.`,
     settled: `Not ready for the full retreat? That's fine.`,
@@ -543,7 +544,7 @@ export function nudgeForEpisode(
       if (rec && obs.priceUsd < rec.result.priceUsd) {
         return {
           kind: "price-drop",
-          text: `The price dropped to $${obs.priceUsd.toLocaleString()}. Your hold still covers it.`,
+          text: `The price dropped to ${formatUsd(obs.priceUsd)}. Your hold still covers it.`,
         };
       }
 

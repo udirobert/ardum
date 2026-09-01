@@ -65,6 +65,12 @@ type MiraOrbProps = {
    * orbs are inline signatures.
    */
   fill?: boolean;
+  /**
+   * View-transition shared-element name. Set on the one primary orb per
+   * route so Mira morphs between pages as a persistent presence instead
+   * of fading out with the old page and back in with the new one.
+   */
+  viewTransitionName?: string;
 };
 
 // Ardum base palette (sRGB 0–1).
@@ -277,6 +283,7 @@ export default function MiraOrb({
   className,
   aestheticVector,
   fill = false,
+  viewTransitionName,
 }: MiraOrbProps) {
   const orbRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -680,7 +687,7 @@ export default function MiraOrb({
 
   return (
     <motion.div
-      initial={reduced ? false : { opacity: 0 }}
+      initial={reduced || viewTransitionName ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
       className={`flex flex-col items-center gap-3 ${className ?? ""}`}
@@ -688,7 +695,7 @@ export default function MiraOrb({
       {useScene ? (
         <div
           className="relative"
-          style={{ width: size, height: size }}
+          style={{ width: size, height: size, viewTransitionName }}
           aria-hidden
         >
           <MiraScene
@@ -727,6 +734,7 @@ export default function MiraOrb({
         style={{
           width: size,
           height: size,
+          viewTransitionName,
           background:
             "radial-gradient(circle at 35% 30%, rgba(168,90,58,0.35), rgba(168,90,58,0.08) 60%, transparent 80%)",
           border: "1px solid rgba(168,90,58,0.15)",

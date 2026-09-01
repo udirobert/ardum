@@ -343,16 +343,19 @@ body::before {
 
 /* ── View Transitions ──
    Route navigations run through React's <ViewTransition> (layout.tsx).
-   The page content exits down/fades, the new page arrives up/fades.
-   Mira herself never transitions: the shell field (MiraField, layout.tsx)
-   is a persistent element outside the page group, so the orb simply stays
-   while content changes around her. */
+   The page content exits/fades while the new page arrives — overlapped,
+   so navigation reads as one continuous move, not stop-start.
+   Two anchors persist across routes: the header (site-header) and Mira —
+   each route's primary orb shares the mira-orb view-transition name and
+   morphs to its new position/size instead of fading out and back in.
+   The shell field (MiraField, layout.tsx) stays persistent outside the
+   page group as ambient atmosphere. */
 
 ::view-transition-old(.page-out) {
-  animation: fade-out 240ms var(--ease-ardum) both;
+  animation: fade-out 180ms var(--ease-ardum) both;
 }
 ::view-transition-new(.page-in) {
-  animation: fade-in-up 420ms var(--ease-ardum) 120ms both;
+  animation: fade-in-up 360ms var(--ease-ardum) both;
 }
 
 /* The header is the fixed spatial anchor during transitions. */
@@ -364,6 +367,21 @@ body::before {
   display: none;
 }
 ::view-transition-new(site-header) {
+  animation: none;
+}
+
+/* Mira is the second anchor: the primary orb on each route shares this
+   name, so the browser morphs one orb into the next position/size while
+   the page content crossfades — presence never disappears and re-enters.
+   old/new keep their own opacity (no crossfade ghosting); the group
+   carries the glide. */
+::view-transition-group(mira-orb) {
+  animation-duration: 360ms;
+  animation-timing-function: var(--ease-ardum);
+  z-index: 90;
+}
+::view-transition-old(mira-orb),
+::view-transition-new(mira-orb) {
   animation: none;
 }
 

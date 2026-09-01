@@ -11,6 +11,7 @@ import {
   SOCIAL_COMFORT,
   TRAVEL_WINDOWS,
 } from "@/calibration/schema";
+import { formatDate, formatUsd } from "@/lib/format";
 
 type BookingDetail = {
   episode: {
@@ -141,14 +142,14 @@ export default function BookingDetailPage() {
       </Link>
 
       <div className="flex items-center gap-4 mb-3">
-        <MiraOrb size={36} presence={{ posture: "arriving", valence: 0 }} />
+        <MiraOrb size={36} presence={{ posture: "arriving", valence: 0 }} viewTransitionName="mira-orb" />
         <h1 className="font-serif text-3xl tracking-tight">
           Someone is coming.
         </h1>
       </div>
       <p className="text-base text-[color:var(--muted)] max-w-prose mb-4 leading-relaxed">
         Booked for {detail.retreat.title} on{" "}
-        {new Date(detail.episode.bookedAt).toLocaleDateString()}.
+        {formatDate(new Date(detail.episode.bookedAt))}.
       </p>
 
       {/* Booking facts — glanceable at the top */}
@@ -157,12 +158,12 @@ export default function BookingDetailPage() {
           <span>
             <span className="text-[color:var(--muted)]">deposit: </span>
             <span className="tabular-nums font-medium">
-              ${detail.booking.depositUsd.toLocaleString()}
+              {formatUsd(detail.booking.depositUsd)}
             </span>
           </span>
           <span>
             <span className="text-[color:var(--muted)]">booked: </span>
-            {new Date(detail.booking.bookedAt).toLocaleDateString()}
+            {formatDate(new Date(detail.booking.bookedAt))}
           </span>
           {detail.episode.depositTxId && (
             <span>

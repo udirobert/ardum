@@ -1,4 +1,5 @@
 import EvidenceCards, { type EvidenceCard } from "./EvidenceCards";
+import { formatDate } from "@/lib/format";
 import type {
   CohortEvidence,
   PublicEvidence,
@@ -10,7 +11,7 @@ const FAINT = "rgba(246,239,227,0.55)";
 function formatRefreshed(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString(undefined, {
+  return formatDate(date, {
     month: "short",
     day: "numeric",
     year: "numeric",
