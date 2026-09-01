@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 type Row = Record<string, unknown>;
 
 type Filter = {
-  op: "eq" | "lte" | "is" | "null" | "not-is" | "not-null";
+  op: "eq" | "lte" | "is" | "null" | "not-is" | "not-null" | "overlaps";
   field: string;
   value: unknown;
 };
@@ -65,6 +65,36 @@ export class InMemorySupabaseClient {
       this.tables.set(table, list);
     }
     return list;
+  }
+
+  // Stored generated columns from scripts/migrations/007-episode-query-
+  // columns.sql. The mock derives them on every write to `episodes` so
+  // server-side filters over `contribution_granted` and
+  // `retreat_root_hashes` behave exactly as the live database would.
+  withGeneratedColumns(table: string, row: Row): Row {
+    if (table !== "episodes" || row.state === undefined) return row;
+    const state = row.state as Record<string, unknown> | undefined;
+    const contribution = state?.widerApertureContribution as
+      | { grantedAt?: string; revokedAt?: string }
+      | undefined;
+    const recommendation = state?.recommendation as
+      | {
+          result?: { retreatRootHash?: string };
+          alternatives?: { retreatRootHash?: string }[];
+        }
+      | undefined;
+    const hashes = [
+      recommendation?.result?.retreatRootHash,
+      ...(recommendation?.alternatives ?? [])
+        .map((alt) => alt.retreatRootHash)
+        .filter((h): h is string => Boolean(h)),
+    ].filter((h): h is string => Boolean(h));
+    return {
+      ...row,
+      contribution_granted: Boolean(contribution?.grantedAt) &&
+        !contribution?.revokedAt,
+      retreat_root_hashes: hashes,
+    };
   }
 
   from(table: string): QueryBuilder {
@@ -200,6 +230,11 @@ export class QueryBuilder {
     return this;
   }
 
+  overlaps(field: string, values: unknown[]): this {
+    this.filters.push({ op: "overlaps", field, value: values });
+    return this;
+  }
+
   order(field: string, opts: { ascending: boolean }): this {
     this.orderBy = { field, ascending: opts.ascending };
     return this;
@@ -229,6 +264,11 @@ export class QueryBuilder {
           return v !== f.value;
         case "not-null":
           return v !== null && v !== undefined;
+        case "overlaps":
+          return Array.isArray(v) &&
+            Array.isArray(f.value)
+            ? (v as unknown[]).some((x) => (f.value as unknown[]).includes(x))
+            : false;
         default:
           return false;
       }
@@ -307,7 +347,9 @@ export class QueryBuilder {
           if (fkError) {
             return { data: null, error: fkError };
           }
-          this.rows.push(this.data as Row);
+          this.rows.push(
+            this.client.withGeneratedColumns(this.tableName, this.data as Row),
+          );
           return { data: null, error: null };
         }
         case "upsert": {
@@ -327,15 +369,32 @@ export class QueryBuilder {
             const i = this.rows.findIndex(
               (r) => r[key] === (this.data as Row)[key],
             );
-            if (i >= 0) Object.assign(this.rows[i], this.data);
-            else this.rows.push(this.data as Row);
+            const derived = this.client.withGeneratedColumns(
+              this.tableName,
+              this.data as Row,
+            );
+            if (i >= 0) Object.assign(this.rows[i], derived);
+            else this.rows.push(derived);
           } else {
-            this.rows.push(this.data as Row);
+            this.rows.push(
+              this.client.withGeneratedColumns(
+                this.tableName,
+                this.data as Row,
+              ),
+            );
           }
           return { data: null, error: null };
         }
         case "update":
-          for (const row of matches) Object.assign(row, this.data as Row);
+          for (const row of matches) {
+            Object.assign(
+              row,
+              this.client.withGeneratedColumns(
+                this.tableName,
+                this.data as Row,
+              ),
+            );
+          }
           if (this.selectFields) {
             return {
               data: matches.map((r) => this.project(r)),

@@ -352,6 +352,14 @@ const preferenceAxis: Axis = {
 // Display-only axes (weight 0) appear in reasoning but don't move the
 // score — they're context, not rank signal.
 //
+// Note: the weights sum to 1.05, not 1.0 (0.35 + 0.25 + 0.15 + 0.15 +
+// 0.10 + 0.05 + 0.05). The composite below is a clamped weighted sum, so
+// a perfect match on every axis tops out at the 1.0 clamp; skipped axes
+// (e.g. "Breath & practice" without a pose baseline, "Preference fit"
+// with no preferences set) simply contribute 0. This is deliberate — do
+// not "fix" the sum to 1.0 without re-tuning the ranking policy and the
+// lens overrides in `RESTORATIVE_LENS` / `MOVEMENT_LENS`.
+//
 // Keys are typed as a union so callers can override weights with full
 // type safety. Adding a new scoreable axis requires extending both this
 // union and the type in `CompositeOverrides`.

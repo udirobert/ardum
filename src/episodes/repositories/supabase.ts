@@ -204,37 +204,27 @@ export async function deleteOwned(
 }
 
 export async function listContributionEpisodes(): Promise<Episode[]> {
+  // Filtered server-side by the contribution_granted generated column
+  // (scripts/migrations/007-episode-query-columns.sql) instead of loading
+  // every row and filtering client-side.
   const { data, error } = await client()
     .from("episodes")
     .select("state")
-    .limit(5000);
+    .eq("contribution_granted", true);
   if (error) throw new Error(error.message);
-  return (data ?? [])
-    .map((row) => row.state as Episode)
-    .filter(
-      (episode) =>
-        episode.widerApertureContribution?.grantedAt &&
-        !episode.widerApertureContribution.revokedAt,
-    );
+  return (data ?? []).map((row) => row.state as Episode);
 }
 
 export async function listByRetreatRootHash(
   rootHashes: string[],
 ): Promise<Episode[]> {
   if (rootHashes.length === 0) return [];
-  const set = new Set(rootHashes);
+  // Server-side array overlap against the retreat_root_hashes generated
+  // column (top-level result + all alternatives), same migration.
   const { data, error } = await client()
     .from("episodes")
     .select("state")
-    .limit(5000);
+    .overlaps("retreat_root_hashes", rootHashes);
   if (error) throw new Error(error.message);
-  return (data ?? [])
-    .map((row) => row.state as Episode)
-    .filter((episode) => {
-      const top = episode.recommendation?.result?.retreatRootHash;
-      if (top && set.has(top)) return true;
-      return episode.recommendation?.alternatives?.some((alt) =>
-        set.has(alt.retreatRootHash),
-      );
-    });
+  return (data ?? []).map((row) => row.state as Episode);
 }

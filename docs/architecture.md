@@ -383,6 +383,26 @@ commitment providers are unavailable. Failed commands do not discard the prior
 valid recommendation or state. Retries repeat only the failed idempotent
 operation.
 
+### Observability contract
+
+Runtime visibility into those silent failure paths is owned by
+`src/lib/observability.ts`, a single structured-logging entrypoint used by
+the automation runner, the commitment provider, the agent booking flow, and
+fire-and-forget memory enrichment. Its contract:
+
+- emits JSON events to stdout (parseable by any log aggregator) with a
+  component, outcome, and correlation id;
+- never throws — observability must not break the path it observes;
+- strips sensitive fields: intention text is never logged, wallet
+  addresses are truncated, tokens never logged;
+- is deliberately framework-agnostic (no Pino/Winston/OpenTelemetry
+  dependency); the `sink` function is the single swap point if a hosted
+  stack is adopted later.
+
+A practitioner reporting a failed booking can quote the `correlationId`
+from the API response to make support traceable without exposing wallet
+or intention data.
+
 ## Verification boundaries
 
 The repository contract and the end-to-end smoke journey are the two

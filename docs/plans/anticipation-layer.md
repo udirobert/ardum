@@ -1,6 +1,9 @@
 # Plan: The anticipation layer
 
-> **Status:** Building (2026-08-20)
+> **Status:** Shipped (2026-09-01) — all four build items live:
+> `preparation-presence.ts` + `BookedLanding` savoring beats +
+> `RetreatVisionFrame`, and the completed-landing return close in
+> `EpisodeWorkbench`. The full reflective ritual remains deferred by design.
 > **Premise:** The emotional arc of a retreat does not end at "booked" —
 > by the research, that is where most of the joy begins. Ardum currently
 > goes quiet exactly when the practitioner is happiest.
