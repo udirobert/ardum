@@ -48,7 +48,7 @@ escrow, block 288972600).
 |---|---|---|
 | **Arbitrum** | Escrow contract deployed on Arbitrum Sepolia; USDC deposits verified on-chain | Block 288972600, 1 USDC in escrow |
 | **Particle** | Auth (operator Google login) + Universal Account (practitioner EIP-7702 cross-chain) | Gasless attestations via ZeroDev Kernel |
-| **ZeroDev** | Kernel smart account + paymaster + session key for operator gasless writes | Session key enabled on first UserOp |
+| **ZeroDev** | Kernel smart account + paymaster + scoped session key for operator gasless writes | Session key enabled on first UserOp; policy limited to escrow lifecycle calls (zero value, 30-day expiry) |
 | **Magic** | Practitioner social login → EOA → Particle UA upgrade | Grant ceremony smoke test passes |
 | **0G Storage** | Retreat attestations + booking attestations stored immutably | Seed attestations + real booking attestation |
 
@@ -73,8 +73,9 @@ escrow, block 288972600).
   knowledge needed)
 - Agent API that makes Ardum listable as an Agent Service Provider on
   OKX.AI and other agent marketplaces
-- 184 tests passing, including repository contract suite, ranking policy
-  property tests, and recommendation conformance tests
+- 379 tests passing (36 suites), including repository contract suite, ranking policy
+  property tests, recommendation conformance tests, and a 91-case
+  conversation-extractor corpus for the voice lane
 
 ## Link to Code
 

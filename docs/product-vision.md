@@ -283,3 +283,7 @@ Ardum should optimize for:
 - infrastructure steps the person never had to learn.
 
 Conversion is an outcome of confidence, not the north-star metric.
+
+Operator-side, the aligned measures follow the demand-layer business
+model (ADR 0012): matches surfaced, holds opened, and demand-visibility
+retention — never booking commission or conversion interception.
