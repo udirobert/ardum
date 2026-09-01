@@ -343,6 +343,8 @@ No text analysis, no typing inference.
 
 6. **Document the composite weight sum (1.05) in the scoring contract.**
    Minor, but surprising to a future contributor.
+   *(Resolved 2026-09-01 — documented at `COMPOSITE_WEIGHTS` in
+   `src/agent/score.ts`.)*
 
 7. **Add an agent-path integration test.** The smoke journey covers cookie
    flows; the agent flow (match → book with mocked RPC) needs the same
@@ -351,6 +353,8 @@ No text analysis, no typing inference.
 8. **Document the observability contract in the architecture doc.** The
    module exists and is used, but the architecture doc's "Failure behavior"
    section doesn't mention it.
+   *(Resolved 2026-09-01 — see "Observability contract" under Failure
+   behavior in `docs/architecture.md`.)*
 
 9. **Consider extracting the workbench into state-specific subcomponents.**
    The 2073-line component handles every episode state in a single render
@@ -360,6 +364,11 @@ No text analysis, no typing inference.
 10. **Fix the Supabase list-query scaling.** `listContributionEpisodes()`
     and `listByRetreatRootHash()` load up to 5000 full JSONB rows and
     filter client-side. Add a generated column or filtered query.
+    *(Resolved 2026-09-01 — stored generated columns
+    `contribution_granted` / `retreat_root_hashes` with indexes in
+    `scripts/migrations/007-episode-query-columns.sql`; both queries now
+    filter server-side. Apply the migration to live projects before
+    deploying.)*
 
 ---
 
