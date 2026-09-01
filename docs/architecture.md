@@ -348,8 +348,12 @@ practitioner flow:
 - **Operator**: Particle Auth EOA → ZeroDev Kernel (ERC-4337) → gasless attestations
 
 Particle Auth social login (Google) provides the operator EOA. ZeroDev
-Kernel sponsors gas. A session key enables batch attestation writes without
-re-signing each one. The /attest surface hides all crypto details behind
+Kernel sponsors gas. A session key enables escrow lifecycle writes without
+re-signing each one — and it is scoped, not sudo: it may only call
+`confirmCheckIn`, `claimDeposit`, and `cancelExpired` on the escrow
+contract, at zero native value, and it expires after 30 days (see
+`SESSION_KEY_FUNCTION_ALLOWLIST` in `src/booking/OperatorAuth.tsx`). The
+/operator surface hides all crypto details behind
 "Sign in with Google" — the operator never sees a wallet address, a chain
 name, or a gas concept.
 

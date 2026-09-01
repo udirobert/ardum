@@ -20,11 +20,13 @@
 //   4. createZeroDevPaymasterClient → sponsors gas for every UserOp
 //   5. createKernelAccountClient({ account, paymaster }) → gasless client
 //   6. generatePrivateKey → sessionKeySigner
-//   7. signerToSessionKeyValidator → sessionKeyValidator (sudo policy)
+//   7. signerToSessionKeyValidator → sessionKeyValidator, scoped by an
+//      ERC-7715-style permission policy (see SESSION_KEY_PERMISSIONS)
 //   8. createKernelAccount({ sudo: ecdsaValidator, regular: sessionKeyValidator })
 //      → the first UserOp through this account enables the session key on-chain
-//   9. The session key can then sign future UserOps without the operator's
-//      signature — gasless batch attestation writes.
+//   9. The session key can then sign future UserOps — but only the
+//      allowlisted escrow lifecycle calls, at zero native value, within
+//      the validity window. It can never move the account's funds.
 
 import {
   createContext,
@@ -32,13 +34,21 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { http, createPublicClient, zeroAddress } from "viem";
-import { arbitrumSepolia } from "viem/chains";
+import { http, createPublicClient, zeroAddress, type Address } from "viem";
+import { arbitrum, arbitrumSepolia } from "viem/chains";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { SETTLE_RPC } from "./constants";
+import { ESCROW_ABI } from "./escrow-abi";
+import {
+  ARBITRUM_ONE_CHAIN_ID,
+  ARBITRUM_SEPOLIA_CHAIN_ID,
+  ESCROW_CONTRACT_ADDRESS,
+  SETTLE_CHAIN_ID,
+  SETTLE_RPC,
+} from "./constants";
 
 type OperatorAuthState = {
   /** Particle EOA address (the owner/signer of the Kernel account). */
@@ -89,6 +99,20 @@ function zerodevRpc(apiKey: string, chainId: number): string {
 // survives page reloads. The private key never leaves the browser.
 const SESSION_KEY_STORAGE = "ardum:operator-session-key";
 
+// Session-key permission policy (ZeroDev session-key plugin, ERC-7715-style).
+// The key may only call these escrow lifecycle functions on the escrow
+// contract, with zero native value attached, and expires after 30 days —
+// after which a fresh key must be created (and enabled) by the operator.
+// This is what makes a localStorage session key an acceptable risk: the
+// worst an XSS attacker can do is mark check-ins or claim/cancel existing
+// bookings — never drain the account.
+const SESSION_KEY_VALIDITY_SECONDS = 30 * 24 * 60 * 60;
+const SESSION_KEY_FUNCTION_ALLOWLIST = [
+  "confirmCheckIn",
+  "claimDeposit",
+  "cancelExpired",
+] as const;
+
 function loadSessionPrivateKey(): string | null {
   try {
     return localStorage.getItem(SESSION_KEY_STORAGE);
@@ -123,15 +147,28 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
   // connect if a stored key exists).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [sessionKeyClient, setSessionKeyClient] = useState<any>(null);
+  // True right after createSessionKey, until the enable UserOp has landed.
+  // The enable UserOp is validated by the sudo (owner) signature embedded in
+  // the account's init code, so it bypasses the session-key permission
+  // checks. Once the plugin is enabled, every subsequent session-key UserOp
+  // is restricted to the allowlist — so arbitrary liveness transfers must go
+  // through the owner client instead (see sendGaslessTx).
+  const sessionKeyPendingEnable = useRef(false);
 
-  // The chain — Arbitrum Sepolia for testnet, Arbitrum One for mainnet.
-  // ZeroDev Kernel is ERC-4337, so it runs on any supported chain.
-  const chain = arbitrumSepolia; // TODO: swap to arbitrumOne for mainnet (SETTLE_CHAIN_ID === 42161)
+  // The chain follows SETTLE_CHAIN_ID: Arbitrum Sepolia when
+  // NEXT_PUBLIC_USE_TESTNET=true, Arbitrum One otherwise. ZeroDev Kernel is
+  // ERC-4337, so it runs on either chain.
+  const chain =
+    SETTLE_CHAIN_ID === ARBITRUM_ONE_CHAIN_ID ? arbitrum : arbitrumSepolia;
 
   // Initialise Particle Auth on mount
   useEffect(() => {
     if (!env) return;
     let cancelled = false;
+    const particleChain =
+      SETTLE_CHAIN_ID === ARBITRUM_ONE_CHAIN_ID
+        ? { chainName: "arbitrum", chainId: ARBITRUM_ONE_CHAIN_ID }
+        : { chainName: "arbitrum-sepolia", chainId: ARBITRUM_SEPOLIA_CHAIN_ID };
     (async () => {
       try {
         const { ParticleNetwork } = await import("@particle-network/auth");
@@ -140,8 +177,7 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
           projectId: env.particleProjectId,
           clientKey: env.particleClientKey,
           appId: env.particleAppId,
-          chainName: "arbitrum-sepolia",
-          chainId: 421614,
+          ...particleChain,
         });
         setParticleAuth(particle);
 
@@ -320,24 +356,26 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
   }, [particleAuth]);
 
   // Create a real session key: generate a private key, create a session key
-  // validator with sudo policy, and build a Kernel account client that uses
+  // validator scoped to the escrow allowlist (SESSION_KEY_FUNCTION_ALLOWLIST,
+  // zero value, 30-day validity), and build a Kernel account client that uses
   // the session key as a regular validator. The first UserOp through this
   // client enables the session key on-chain. The client is stored in state
   // so subsequent gasless writes (sendGaslessTx) route through it.
-  //
-  // TODO: scope the session key policy to specific contract calls (currently
-  // sudo — unrestricted). A sudo session key in localStorage is a high-value
-  // XSS target; narrow its permissions before production.
   const createSessionKey = useCallback(async (): Promise<boolean> => {
     if (!kernelClient || !env?.zerodevApiKey) {
       setError("Need a connected Kernel account to create a session key.");
       return false;
     }
+    if (!ESCROW_CONTRACT_ADDRESS) {
+      setError(
+        "Escrow contract not configured (NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS) — cannot scope a session key.",
+      );
+      return false;
+    }
     setError(null);
     try {
-      const { signerToSessionKeyValidator } = await import(
-        "@zerodev/session-key"
-      );
+      const { signerToSessionKeyValidator, getPermissionFromABI } =
+        await import("@zerodev/session-key");
       const {
         createKernelAccount,
         createKernelAccountClient,
@@ -366,15 +404,26 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
       const entryPoint = getEntryPoint("0.7");
       const kernelVersion = KERNEL_V3_1;
 
-      // Create the session key validator with no restrictions (sudo policy).
-      // In production, this would be scoped to specific contract calls.
+      // Scoped permission policy: only the allowlisted escrow lifecycle
+      // calls, on the escrow contract, at zero native value, expiring after
+      // the validity window. The key can never move the account's ETH.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const escrowAbi = ESCROW_ABI as any;
       const sessionKeyValidator = await signerToSessionKeyValidator(
         publicClient,
         {
           signer: sessionKeySigner,
           entryPoint,
           kernelVersion,
-          validatorData: {}, // sudo — no restrictions
+          validatorData: {
+            permissions: SESSION_KEY_FUNCTION_ALLOWLIST.map((functionName) => ({
+              ...getPermissionFromABI({ abi: escrowAbi, functionName }),
+              target: ESCROW_CONTRACT_ADDRESS as Address,
+              valueLimit: BigInt(0),
+            })),
+            validUntil:
+              Math.floor(Date.now() / 1000) + SESSION_KEY_VALIDITY_SECONDS,
+          },
         },
       );
 
@@ -417,6 +466,7 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
       });
 
       setSessionKeyClient(sessionClient);
+      sessionKeyPendingEnable.current = true;
       setSessionKeyActive(true);
       return true;
     } catch (err) {
@@ -427,12 +477,17 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
     }
   }, [kernelClient, env, chain]);
 
-  // Send a gasless UserOp. Prefers the session-key client (batch writes
-  // without re-signing); falls back to the owner kernel client if no session
-  // key is active. The UserOp is a 0-value self-transfer — minimal but
-  // genuine on-chain execution that proves the smart account is live.
+  // Send a gasless UserOp. While the session key is pending its on-chain
+  // enable, the UserOp routes through the session-key client (the enable
+  // UserOp is validated by the owner signature in the init code, so it
+  // bypasses the permission allowlist). Once enabled — or when no session
+  // key exists — the liveness transfer goes through the owner kernel
+  // client, because the scoped session key can only call the allowlisted
+  // escrow functions, never send arbitrary transfers.
   const sendGaslessTx = useCallback(async (): Promise<string | null> => {
-    const client = sessionKeyClient ?? kernelClient;
+    const useSessionKey =
+      sessionKeyClient !== null && sessionKeyPendingEnable.current;
+    const client = useSessionKey ? sessionKeyClient : kernelClient;
     if (!client) {
       setError("Kernel client not initialised.");
       return null;
@@ -454,6 +509,7 @@ export function OperatorAuthProvider({ children }: { children: ReactNode }) {
       const receipt = await client.waitForUserOperationReceipt({
         hash: userOpHash,
       });
+      if (useSessionKey) sessionKeyPendingEnable.current = false;
       return (
         (receipt as { receipt?: { transactionHash?: string } }).receipt
           ?.transactionHash ?? userOpHash

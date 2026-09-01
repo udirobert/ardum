@@ -124,8 +124,10 @@ practitioner flow:
 
 The two systems cannot run on the same EOA, so they're split by persona.
 The operator's Particle Auth social login (Google) provides the EOA;
-ZeroDev Kernel sponsors gas; a session key enables batch attestation
-writes without re-signing each one.
+ZeroDev Kernel sponsors gas; a scoped session key (escrow lifecycle calls
+only, zero value, 30-day expiry) enables escrow writes without re-signing
+each one. The operator's chain follows `SETTLE_CHAIN_ID` — Arbitrum
+Sepolia when `NEXT_PUBLIC_USE_TESTNET=true`, Arbitrum One otherwise.
 
 ## Consequences
 
