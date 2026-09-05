@@ -73,9 +73,10 @@ escrow, block 288972600).
   knowledge needed)
 - Agent API that makes Ardum listable as an Agent Service Provider on
   OKX.AI and other agent marketplaces
-- 392 tests passing (38 suites), including repository contract suite, ranking policy
-  property tests, recommendation conformance tests, and a 91-case
-  conversation-extractor corpus for the voice lane
+- 395 tests passing (38 suites; 12 skipped), including repository contract suite, ranking policy
+  property tests, recommendation conformance tests, an arrival
+  marketplace-gravity guard, and a 91-case conversation-extractor corpus
+  for the voice lane
 
 ## Link to Code
 
