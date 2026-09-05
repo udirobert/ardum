@@ -100,7 +100,8 @@ export default function ConversationalBooking({
       // performed inline by sendDeposit on the first cross-chain transfer;
       // a false return here is not an error.
       if (!delegated) {
-        setSecuringLabel("Preparing your account…");
+        // Account prep stays ambient — never a named user phase.
+        setSecuringLabel("Securing your place…");
         await ensureDelegated();
       }
 
@@ -264,36 +265,31 @@ export default function ConversationalBooking({
     // Derive rail steps from the securingLabel phase. Each step is
     // Mira-voiced and carries an evidence chip. The trace makes the
     // rails visible without naming the chain, upgrade, or EIP-7702.
+    // Rails are inspectable under disclosure — never named phases on the
+    // primary securing surface (ADR 0008 / experience-layer).
     const railSteps: RailStep[] = [
       {
         id: "prepare",
-        label: "Preparing your account",
-        chip: "session",
-        status:
-          securingLabel === "Preparing your account…"
-            ? "active"
-            : securingLabel === "Securing your place…" || securingLabel === "Confirming your place…"
-              ? "done"
-              : "pending",
-        detail:
-          securingLabel !== "Preparing your account…" ? "ready" : undefined,
+        label: "Getting ready",
+        chip: "ready",
+        status: "done",
+        detail: "session ready",
       },
       {
         id: "deposit",
         label: "Securing your place",
-        chip: "escrow",
+        chip: "held",
         status:
-          securingLabel === "Securing your place…"
-            ? "active"
-            : securingLabel === "Confirming your place…"
-              ? "done"
-              : "pending",
-        detail: securingLabel === "Confirming your place…" ? "deposit confirmed" : undefined,
+          securingLabel === "Confirming your place…" ? "done" : "active",
+        detail:
+          securingLabel === "Confirming your place…"
+            ? "deposit held until arrival"
+            : undefined,
       },
       {
         id: "attest",
-        label: "Confirming your place",
-        chip: "attested",
+        label: "Recording your place",
+        chip: "proof",
         status: securingLabel === "Confirming your place…" ? "active" : "pending",
       },
     ];
@@ -320,8 +316,13 @@ export default function ConversationalBooking({
           </div>
         </div>
         <div className="ml-16 space-y-4">
-          <CommitmentRailTrace steps={railSteps} />
           <BreathSync active={true} />
+          <details className="opacity-80">
+            <summary className="tag cursor-pointer">Progress details</summary>
+            <div className="mt-3">
+              <CommitmentRailTrace steps={railSteps} defaultExpanded />
+            </div>
+          </details>
         </div>
       </div>
     );
