@@ -20,6 +20,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate, formatDateTime } from "@/lib/format";
 import type { Episode } from "@/episodes/model";
+import { memoryDeletedLine } from "@/agent/mira-voice";
 
 type Props = {
   episodes: Episode[];
@@ -54,7 +55,7 @@ export default function MemoryView({ episodes }: Props) {
         setMessage("Could not delete. Please try again.");
         return;
       }
-      setMessage("The intention and its operational history were deleted.");
+      setMessage(memoryDeletedLine());
       // Server re-runs listOwned + projection with the same cookie;
       // the deleted episode drops out and the summary card falls to
       // isReturning=false when no other history remains. Wrapped in
@@ -93,7 +94,7 @@ export default function MemoryView({ episodes }: Props) {
 
       {episodes.length === 0 ? (
         <div className="border border-[color:var(--hairline)] rounded-sm p-5 bg-[color:var(--surface)]">
-          <p className="font-serif text-xl mb-2">Nothing retained.</p>
+          <p className="font-serif text-xl mb-2">I am not keeping anything yet.</p>
           <p className="text-sm text-[color:var(--muted)]">
             Mira will ask before giving a new intention a persistent home.
           </p>

@@ -100,7 +100,8 @@ export default function ConversationalBooking({
       // performed inline by sendDeposit on the first cross-chain transfer;
       // a false return here is not an error.
       if (!delegated) {
-        setSecuringLabel("Preparing your account…");
+        // Account prep stays ambient — never a named user phase.
+        setSecuringLabel("Securing your place…");
         await ensureDelegated();
       }
 
@@ -264,36 +265,31 @@ export default function ConversationalBooking({
     // Derive rail steps from the securingLabel phase. Each step is
     // Mira-voiced and carries an evidence chip. The trace makes the
     // rails visible without naming the chain, upgrade, or EIP-7702.
+    // Rails are inspectable under disclosure — never named phases on the
+    // primary securing surface (ADR 0008 / experience-layer).
     const railSteps: RailStep[] = [
       {
         id: "prepare",
-        label: "Preparing your account",
-        chip: "session",
-        status:
-          securingLabel === "Preparing your account…"
-            ? "active"
-            : securingLabel === "Securing your place…" || securingLabel === "Confirming your place…"
-              ? "done"
-              : "pending",
-        detail:
-          securingLabel !== "Preparing your account…" ? "ready" : undefined,
+        label: "Getting ready",
+        chip: "ready",
+        status: "done",
+        detail: "session ready",
       },
       {
         id: "deposit",
         label: "Securing your place",
-        chip: "escrow",
+        chip: "held",
         status:
-          securingLabel === "Securing your place…"
-            ? "active"
-            : securingLabel === "Confirming your place…"
-              ? "done"
-              : "pending",
-        detail: securingLabel === "Confirming your place…" ? "deposit confirmed" : undefined,
+          securingLabel === "Confirming your place…" ? "done" : "active",
+        detail:
+          securingLabel === "Confirming your place…"
+            ? "deposit held until arrival"
+            : undefined,
       },
       {
         id: "attest",
-        label: "Confirming your place",
-        chip: "attested",
+        label: "Recording your place",
+        chip: "proof",
         status: securingLabel === "Confirming your place…" ? "active" : "pending",
       },
     ];
@@ -320,8 +316,13 @@ export default function ConversationalBooking({
           </div>
         </div>
         <div className="ml-16 space-y-4">
-          <CommitmentRailTrace steps={railSteps} />
           <BreathSync active={true} />
+          <details className="opacity-80">
+            <summary className="tag cursor-pointer">Progress details</summary>
+            <div className="mt-3">
+              <CommitmentRailTrace steps={railSteps} defaultExpanded />
+            </div>
+          </details>
         </div>
       </div>
     );
@@ -428,29 +429,35 @@ export default function ConversationalBooking({
 
         <details className="mt-5 opacity-80">
           <summary className="tag cursor-pointer">How this is secured</summary>
-          <div className="mt-4">
+          <div className="mt-4 space-y-4">
             <EvidenceCards
               cards={[
                 {
-                  title: "Deposit held in escrow",
-                  body: "Your deposit is held until you arrive. The operator does not receive it before check-in.",
+                  title: "Deposit held until you arrive",
+                  body: "Your deposit stays protected until check-in. The retreat host does not receive it before you arrive.",
                   badge: "on-chain",
-                  source: "escrow contract",
+                  source: "your hold",
                   provenance: "held",
                 },
                 {
-                  title: "Booking attestation",
-                  body: "After confirmation, a canonical booking record — signed by your wallet — is stored on 0G Storage as verifiable proof of your reservation.",
+                  title: "Proof of your place",
+                  body: "After you confirm, a signed record of your reservation is kept so you and the host can both verify it later.",
                   badge: "attested",
-                  source: "0G Storage",
+                  source: "your booking",
                   provenance: "indexed",
                 },
               ]}
             />
-            <p className="text-xs text-[color:var(--muted)] mt-3 max-w-prose leading-relaxed">
-              Technical references (settlement, escrow, reservation record)
-              stay inspectable after you confirm.
-            </p>
+            <details className="opacity-70">
+              <summary className="text-xs text-[color:var(--muted)] cursor-pointer">
+                Technical details
+              </summary>
+              <p className="text-xs text-[color:var(--muted)] mt-2 max-w-prose leading-relaxed">
+                Settlement, escrow, and the reservation record stay inspectable
+                after you confirm — for auditors and support, not as the story
+                of this step.
+              </p>
+            </details>
           </div>
         </details>
 

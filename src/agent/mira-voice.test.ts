@@ -5,6 +5,7 @@ import {
   providerFailureLine,
   holdExpiredLine,
   memoryDeletedLine,
+  offlineLine,
 } from "./mira-voice";
 import type { MatchResult } from "@/matching/types";
 
@@ -195,5 +196,12 @@ describe("failure vocabulary", () => {
     expect(line).toMatch(/start fresh/);
     // No guilt, no upsell.
     expect(line).not.toMatch(/are you sure|wish|regret/i);
+  });
+
+  it("offlineLine keeps the episode and avoids stack jargon", () => {
+    const line = offlineLine();
+    expect(line).toMatch(/can't reach|offline|online/i);
+    expect(line).toMatch(/intention is still here|pick up/i);
+    expect(line).not.toMatch(/RPC|network error|fetch failed|wallet/i);
   });
 });

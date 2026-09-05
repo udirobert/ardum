@@ -67,14 +67,13 @@ export default async function MemoryPage() {
         What I am keeping in mind.
       </h1>
       <p className="text-[color:var(--muted)] text-base leading-relaxed mb-3">
-        Operational history belongs to each intention. It is stored behind an
-        anonymous ownership cookie, not in a public URL. You can inspect,
-        export, or delete it here.
+        This is what I am allowed to remember for you — each intention and the
+        steps that followed. It stays private to you, not in a public link.
+        You can inspect, export, or delete anything here.
       </p>
       <p className="why mb-8">
-        Each entry below is what Mira is allowed to remember — your intention,
-        what you have clarified, and the steps that followed. Nothing here is
-        shared with retreats, wallets, or invitees.
+        Nothing below is shared with retreat hosts or people you invite unless
+        you choose to. Boundaries are yours to open or close.
       </p>
 
       {/* If there's an active episode, surface a quiet link back to it

@@ -18,9 +18,9 @@ export default function AttestPage() {
         </p>
 
         <p className="why mb-12 max-w-prose">
-          Sign in with Google. No crypto wallet, no ETH, no technical setup.
-          Your Google account signs the retreat listing so practitioners
-          know it came from a real person.
+          Sign in with Google — that&apos;s enough. Your account signs the
+          listing so practitioners know it came from a real person. No
+          technical setup on the primary path.
         </p>
       </RevealSection>
 

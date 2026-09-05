@@ -163,25 +163,22 @@ export default function BookedLanding({
       {commitment && (
         <details className="opacity-80">
           <summary className="tag cursor-pointer">How this is secured</summary>
-          <div className="mt-3">
+          <div className="mt-3 space-y-3">
             <EvidenceCards
               cards={[
                 {
-                  title: "Deposit held in escrow",
-                  body: "Your deposit is held until you arrive. The operator does not receive it before check-in.",
+                  title: "Deposit held until you arrive",
+                  body: "Your deposit stays protected until check-in. The retreat host does not receive it before you arrive.",
                   badge: "on-chain",
                   source: commitment.depositTxId
-                    ? `tx ${commitment.depositTxId.slice(0, 18)}…`
-                    : "escrow contract",
-                  sourceUrl: commitment.depositTxId
-                    ? undefined
-                    : undefined,
+                    ? `receipt ${commitment.depositTxId.slice(0, 18)}…`
+                    : "your hold",
                   provenance: "held",
                 },
                 ...(commitment.bookingRootHash
                   ? [{
-                      title: "Booking attestation",
-                      body: "A canonical booking record, signed by your wallet and stored on 0G Storage. This is the verifiable proof of your reservation.",
+                      title: "Proof of your place",
+                      body: "A signed record of your reservation is kept so you and the host can both verify it later.",
                       badge: "attested" as const,
                       source: `record ${commitment.bookingRootHash.slice(0, 22)}…`,
                       provenance: "indexed",
@@ -189,10 +186,15 @@ export default function BookedLanding({
                   : []),
               ]}
             />
-            <p className="text-xs text-[color:var(--muted)] mt-3 max-w-prose leading-relaxed">
-              Technical references (settlement, escrow, reservation record)
-              stay inspectable after you confirm.
-            </p>
+            <details className="opacity-70">
+              <summary className="text-xs text-[color:var(--muted)] cursor-pointer">
+                Technical details
+              </summary>
+              <p className="text-xs text-[color:var(--muted)] mt-2 max-w-prose leading-relaxed">
+                Settlement and reservation records stay inspectable for support
+                and audits — not as the story of this step.
+              </p>
+            </details>
           </div>
         </details>
       )}

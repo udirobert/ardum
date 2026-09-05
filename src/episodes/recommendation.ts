@@ -1,4 +1,6 @@
 import { scoreAll } from "@/agent/score";
+import { BUDGET_BANDS, type BudgetBand } from "@/calibration/schema";
+import { formatUsd } from "@/lib/format";
 import type { PractitionerProfile } from "@/calibration/schema";
 import { localEvidence } from "@/evidence/catalog";
 import {
@@ -58,8 +60,23 @@ export function recommendForEpisode(
   // collected during clarify and fed into the ranking as real axes, so they
   // are no longer standing uncertainties on every pick.
   const uncertainties: string[] = [];
-  if (top.score < 0.75) {
-    uncertainties.push("The fit is useful, but at least one constraint is a stretch.");
+  const budgetCeiling: Record<BudgetBand, number> = {
+    "under-1k": 1000,
+    "1k-2k": 2000,
+    "2k-3k": 3000,
+    "3k-plus": Infinity,
+  };
+  const ceiling = budgetCeiling[budget];
+  if (Number.isFinite(ceiling) && top.priceUsd > ceiling) {
+    const bandLabel =
+      BUDGET_BANDS.find((b) => b.value === budget)?.label ?? budget;
+    uncertainties.push(
+      `Your limit is ${bandLabel}; this option is ${formatUsd(top.priceUsd)}. Continue only if that stretch is alright.`,
+    );
+  } else if (top.score < 0.75) {
+    uncertainties.push(
+      "The fit is useful, but at least one constraint is a stretch.",
+    );
   }
 
   return {

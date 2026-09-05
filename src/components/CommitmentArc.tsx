@@ -132,8 +132,20 @@ export default function CommitmentArc({
     "--arc": reduced ? 0 : `calc(sin(3.14159 * ${val} / 100))`,
   } as CSSProperties;
 
+  const meaning = committed
+    ? "Securing your place…"
+    : amount
+      ? `Slide to confirm ${amount} — nothing else is charged.`
+      : "Slide to confirm — nothing else is charged.";
+
   return (
     <div ref={wrapperRef} className={`commitment-arc ${className}`} style={cssVars}>
+      <p
+        className="text-sm text-[color:var(--muted)] mb-2 max-w-prose"
+        data-testid="commitment-arc-meaning"
+      >
+        {meaning}
+      </p>
       <div className="commitment-arc__labels">
         <span className="commitment-arc__label commitment-arc__label--start">
           {labelStart}

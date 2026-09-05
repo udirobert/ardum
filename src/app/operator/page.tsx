@@ -184,7 +184,7 @@ export default function OperatorPage() {
           <div>
             <p className="tag mb-1">operator</p>
             <h1 className="font-serif text-2xl sm:text-3xl tracking-tight">
-              Your retreats
+              This morning
             </h1>
           </div>
         </div>
@@ -233,14 +233,16 @@ export default function OperatorPage() {
               data. Aggregates only — the density gate holds. The header
               orb carries presence; no second orb here. */}
           {briefing && (
-            <div aria-live="polite" className="mb-5">
-              <p className="text-base leading-snug">{briefing.headline}</p>
+            <div aria-live="polite" className="mb-8 max-w-prose">
+              <p className="font-serif text-xl sm:text-2xl leading-snug tracking-tight">
+                {briefing.headline}
+              </p>
               {briefing.lines.length > 0 && (
-                <ul className="mt-1.5 space-y-0.5">
+                <ul className="mt-3 space-y-1.5">
                   {briefing.lines.map((line) => (
                     <li
                       key={line}
-                      className="text-xs leading-relaxed text-[color:var(--muted)]"
+                      className="text-sm leading-relaxed text-[color:var(--muted)]"
                     >
                       {line}
                     </li>
@@ -250,7 +252,8 @@ export default function OperatorPage() {
             </div>
           )}
 
-          <div className="border-t border-[color:var(--hairline)] pt-3 mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs">
+          <p className="tag mb-2">your retreats</p>
+          <div className="border-t border-[color:var(--hairline)] pt-3 mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs text-[color:var(--muted)]">
             <p>
               <span className="tabular-nums font-medium">
                 {state.retreats.length}
