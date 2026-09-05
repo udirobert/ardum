@@ -83,11 +83,16 @@ export default async function Home() {
       }
     }
   }
+  // Always bootstrap — even with no actor cookie — so first paint is the
+  // intention ask (or returning resume), not a centered "Mira" loading
+  // flash while the client fetches. Arrival contract: input must not wait.
   return (
     <ArrivalScreen
       greeting={greeting}
       preferredName={preferredName}
-      episodeBootstrap={episodeBootstrap}
+      episodeBootstrap={
+        episodeBootstrap ?? { episode: null, presence: null }
+      }
     />
   );
 }

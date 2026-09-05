@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMiraField } from "./MiraField";
 import { useMiraImpulse } from "./MiraImpulse";
@@ -17,6 +18,7 @@ import { DUSK_MUTED, DUSK_HEADING } from "@/aesthetics/dusk-theme";
 import type { Episode } from "@/episodes/model";
 import StaggerReveal from "@/components/StaggerReveal";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { providerFailureLine } from "@/agent/mira-voice";
 
 const AestheticCalibration = dynamic(
   () => import("@/aesthetics/AestheticCalibration"),
@@ -87,6 +89,7 @@ export default function ArrivalScreen({
   const [aestheticVector, setAestheticVector] = useState<AestheticVector>(
     () => readAestheticVector(),
   );
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Calibration completion lives in localStorage (client-only). Read it
   // through useSyncExternalStore with a server snapshot of `false` so the
@@ -115,6 +118,19 @@ export default function ArrivalScreen({
         ? "intention"
         : "aesthetic"
       : phase;
+
+  // Arrival contract: input focusable without waiting on stagger/orb.
+  useEffect(() => {
+    if (effectivePhase !== "intention" || committing) return;
+    const el = inputRef.current;
+    if (!el) return;
+    // Defer one frame so layout is ready; still within first-session window.
+    const id = window.requestAnimationFrame(() => {
+      el.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(id);
+    // arrival-autofocus
+  }, [effectivePhase, committing]);
 
   useEffect(() => {
     if (bootstrapped) return;
@@ -165,7 +181,7 @@ export default function ArrivalScreen({
         error?: string;
       };
       if (!response.ok || !data.episode) {
-        throw new Error(data.error ?? "Could not save this intention.");
+        throw new Error(providerFailureLine("Saving your intention"));
       }
       // The intention now exists — the orb answers with its strongest pulse
       // while the arrival animation holds.
@@ -176,7 +192,11 @@ export default function ArrivalScreen({
       }
       router.push(`/episode/${data.episode.id}`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not continue.");
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : providerFailureLine("Saving your intention"),
+      );
       setSubmitting(false);
       setCommitting(false);
     }
@@ -271,7 +291,7 @@ export default function ArrivalScreen({
           {/* Voice lane — Mira's line sits in the orb's lower third, not a top headline. */}
           <div className="flex-1 flex flex-col justify-end pb-6 sm:pb-10 text-center min-h-[38vh]">
             {effectivePhase === "intention" && (
-              <StaggerReveal>
+              <StaggerReveal eager>
                 {greetingNode}
                 <p className="tag mb-3 t-stagger-line">Mira</p>
                 <h1
@@ -293,7 +313,7 @@ export default function ArrivalScreen({
             )}
 
             {effectivePhase === "returning" && episode && current && (
-              <StaggerReveal>
+              <StaggerReveal eager>
                 {greetingNode}
                 <p className="tag mb-3 t-stagger-line">your active intention</p>
                 {(() => {
@@ -332,16 +352,19 @@ export default function ArrivalScreen({
           {/* Input lane — quiet ground; no panel chrome competing with the field. */}
           <div className="pb-12 sm:pb-14 pt-2">
             {effectivePhase === "intention" && (
-              <StaggerReveal>
+              <StaggerReveal eager>
                 <label className="block text-left t-stagger-line">
                   <span className="sr-only">Your intention</span>
                   <textarea
+                    ref={inputRef}
                     value={statement}
                     onChange={(event) => setStatement(event.target.value)}
                     onFocus={() => setInputFocused(true)}
                     onBlur={() => setInputFocused(false)}
                     rows={2}
                     maxLength={800}
+                    autoFocus
+                    data-testid="arrival-intention-input"
                     placeholder="I need to feel like myself again after this launch…"
                     className="w-full bg-transparent border-0 border-b py-4 text-xl sm:text-2xl font-serif leading-relaxed tracking-tight resize-none placeholder:opacity-40 focus:outline-none focus:ring-0"
                     style={{
@@ -354,9 +377,12 @@ export default function ArrivalScreen({
                   className="mt-5 text-left text-sm t-stagger-line t-stagger-line--2"
                   style={DUSK_MUTED}
                 >
-                  This stays on your device so you can resume with Mira. You can
-                  inspect or delete it anytime on{" "}
-                  <span className="underline">your intention &amp; privacy</span>.
+                  I&apos;ll keep this so we can resume. Inspect or delete anytime
+                  in{" "}
+                  <Link href="/memory" className="underline hover:opacity-100">
+                    your intention &amp; privacy
+                  </Link>
+                  .
                 </p>
                 {error && (
                   <p
@@ -380,7 +406,7 @@ export default function ArrivalScreen({
             )}
 
             {effectivePhase === "returning" && episode && (
-              <StaggerReveal>
+              <StaggerReveal eager>
                 <div className="flex flex-col items-center gap-4 t-stagger-line">
                   <button
                     type="button"
