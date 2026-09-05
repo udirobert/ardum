@@ -374,10 +374,28 @@ export default function RecommendationSurface({
 
       {nextDecision.kind === "ready-to-book" && (
         <div className="border-t border-[color:var(--hairline)] pt-6">
-          <p className="why mb-3">
-            Confirm amount and bounds. Mira handles the rest. You can
-            change your mind before that line.
-          </p>
+          <div className="why mb-4 space-y-2 max-w-prose">
+            <p>
+              Review price and bounds, then I&apos;ll secure this. You can
+              change your mind before that line.
+            </p>
+            <ul className="text-sm text-[color:var(--muted)] space-y-1 list-none pl-0">
+              <li>
+                Deposit {formatUsd(recommendation.priceUsd)} — held until you
+                arrive; nothing else charged without asking.
+              </li>
+              {episode.hold?.status === "active" && episode.hold.expiresAt && (
+                <li>
+                  Your planning hold is open until{" "}
+                  {formatDateTime(new Date(episode.hold.expiresAt))}.
+                </li>
+              )}
+              <li>
+                Google sign-in is required to secure — no wallet for you to
+                manage.
+              </li>
+            </ul>
+          </div>
           {!commitmentOpen ? (
             <div className="flex flex-col gap-2">
               <PrimaryButton
@@ -387,7 +405,7 @@ export default function RecommendationSurface({
                   actions.setCommitmentOpen(true);
                 }}
               >
-                {nextDecision.primaryLabel}
+                Review price and secure
               </PrimaryButton>
               {episode.hold?.status === "active" && (
                 <button

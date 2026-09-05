@@ -18,6 +18,7 @@ import { DUSK_MUTED, DUSK_HEADING } from "@/aesthetics/dusk-theme";
 import type { Episode } from "@/episodes/model";
 import StaggerReveal from "@/components/StaggerReveal";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { formatDateTime } from "@/lib/format";
 import { providerFailureLine } from "@/agent/mira-voice";
 
 const AestheticCalibration = dynamic(
@@ -408,6 +409,17 @@ export default function ArrivalScreen({
             {effectivePhase === "returning" && episode && (
               <StaggerReveal eager>
                 <div className="flex flex-col items-center gap-4 t-stagger-line">
+                  {episode.hold?.status === "active" && episode.hold.expiresAt && (
+                    <p
+                      className="text-sm leading-relaxed max-w-sm"
+                      style={DUSK_MUTED}
+                      data-testid="returning-hold-status"
+                    >
+                      Planning hold open until{" "}
+                      {formatDateTime(new Date(episode.hold.expiresAt))} — nothing
+                      booked or charged.
+                    </p>
+                  )}
                   <button
                     type="button"
                     onClick={() => {

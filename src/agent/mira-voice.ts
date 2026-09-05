@@ -161,7 +161,8 @@ export function bookingDialogue(depositUsd: number, retreatTitle: string) {
     ],
     needIdentity: [
       `I'll secure your place on ${retreatTitle}.`,
-      `Continue with Google — I'll handle the rest. You won't manage wallets or chains.`,
+      `Deposit ${amount}. Held until you arrive — nothing else is charged without asking.`,
+      `Google sign-in is next so I can secure the hold. No wallet or payment step for you — I'll handle the rest.`,
     ],
     restoring: ["One moment — I'm finding your place…"],
     securing: ["Securing your place…"],
