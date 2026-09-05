@@ -278,7 +278,11 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
                 onNudgeHide={() => setNudgeVisible(false)}
                 onPressingChange={setPressing}
               />
-              <MiraBeckon pressing={pressing} nudgeVisible={nudgeVisible} />
+              {/* Arrival first-session: never compete with the intention ask.
+                  Teach hold-for-nudge once they're in an episode. */}
+              {pathname !== "/" && (
+                <MiraBeckon pressing={pressing} nudgeVisible={nudgeVisible} />
+              )}
             </div>
           )}
           {children}

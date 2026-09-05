@@ -306,8 +306,8 @@ export default function ArrivalScreen({
                   className="mt-4 text-base sm:text-lg leading-relaxed max-w-md mx-auto t-stagger-line t-stagger-line--2"
                   style={DUSK_MUTED}
                 >
-                  No destination or dates yet — tell me what you want life to
-                  feel like on the other side, and I&apos;ll help you get there.
+                  Start with the feeling you&apos;re after — rest, clarity,
+                  a reset — and I&apos;ll help you give it shape.
                 </p>
               </StaggerReveal>
             )}
