@@ -66,3 +66,21 @@ Arrival is a four-phase state machine, each phase doing one job:
   the hero; the orb is the atmosphere.
 - No value-proposition paragraphs. The form teaches the premise faster
   than prose can.
+
+## Enforcement
+
+The marketplace-gravity row of the never-do list is enforced by
+[`src/components/__tests__/arrival-marketplace-guard.test.ts`](../../src/components/__tests__/arrival-marketplace-guard.test.ts).
+The guard reads `src/components/ArrivalScreen.tsx` and `src/app/page.tsx`
+and fails the build if any of the patterns below appear in either file:
+
+- `/browse\s+retreats/i`
+- `/search\s+destination/i`
+- `/filter\s+by/i`
+- `/compare\s+prices/i`
+- `/catalog/i`
+- `href="/retreats"` (and variants)
+
+When adding or removing a forbidden pattern, edit both this section and
+the `FORBIDDEN` list at the top of the guard test in the same change.
+The guard runs as part of `npm test` (vitest) inside the `verify` CI job.

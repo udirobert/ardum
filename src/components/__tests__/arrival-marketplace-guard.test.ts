@@ -3,9 +3,18 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Arrival contract never-list (docs/design/arrival.md):
- * no browse grid, destination search, filters, or catalog CTA on /.
- * Treat marketplace gravity as a regression bug.
+ * Arrival contract — marketplace-gravity guard.
+ *
+ * Source of truth: docs/design/arrival.md, "What arrival must never do"
+ * and "Enforcement" sections. When adding or removing a pattern, edit
+ * both this list and the Enforcement section in the same change.
+ *
+ * Contract: no browse grid, destination search, filters, or catalog CTA
+ * on /. Treat marketplace gravity as a regression bug.
+ *
+ * Runs in `npm test` (vitest) inside the `verify` CI job. Future UX
+ * contract guards (commit disclosure, operator ritual, etc.) should
+ * follow the same source-of-truth pattern.
  */
 const FORBIDDEN = [
   /browse\s+retreats/i,
