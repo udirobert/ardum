@@ -10,11 +10,12 @@ import { formatDate } from "@/lib/format";
 // the evidence stays subordinate to the decision it supports.
 //
 // Evidence vocabulary (replaces PDF/CSV badges):
-//   attested  — on-chain attestation (0G Storage root hash)
-//   on-chain  — settlement/escrow record (tx hash)
-//   semantic  — Cognee-enriched memory (supplementary, lossy)
+//   attested  — verifiable booking/listing proof (label: "proof")
+//   on-chain  — deposit/settlement hold (label: "held")
+//   semantic  — enriched memory (supplementary, lossy)
 //   reported  — anonymized cohort evidence (wider-aperture, contributed)
 //   public    — public web evidence (inspected claims)
+// Badge labels stay human; stack names live in technical disclosure only.
 //
 // The rows use dusk tokens and Mira's voice register — quiet, not clinical.
 
@@ -36,8 +37,8 @@ export type EvidenceCard = {
 };
 
 const BADGE_STYLES: Record<EvidenceBadge, { bg: string; label: string }> = {
-  attested: { bg: "var(--accent)", label: "0G" },
-  "on-chain": { bg: "var(--accent-ink)", label: "chain" },
+  attested: { bg: "var(--accent)", label: "proof" },
+  "on-chain": { bg: "var(--accent-ink)", label: "held" },
   semantic: { bg: "var(--muted)", label: "mem" },
   reported: { bg: "var(--accent-soft)", label: "cohort" },
   public: { bg: "var(--accent-soft)", label: "web" },

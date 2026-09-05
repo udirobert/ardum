@@ -428,29 +428,35 @@ export default function ConversationalBooking({
 
         <details className="mt-5 opacity-80">
           <summary className="tag cursor-pointer">How this is secured</summary>
-          <div className="mt-4">
+          <div className="mt-4 space-y-4">
             <EvidenceCards
               cards={[
                 {
-                  title: "Deposit held in escrow",
-                  body: "Your deposit is held until you arrive. The operator does not receive it before check-in.",
+                  title: "Deposit held until you arrive",
+                  body: "Your deposit stays protected until check-in. The retreat host does not receive it before you arrive.",
                   badge: "on-chain",
-                  source: "escrow contract",
+                  source: "your hold",
                   provenance: "held",
                 },
                 {
-                  title: "Booking attestation",
-                  body: "After confirmation, a canonical booking record — signed by your wallet — is stored on 0G Storage as verifiable proof of your reservation.",
+                  title: "Proof of your place",
+                  body: "After you confirm, a signed record of your reservation is kept so you and the host can both verify it later.",
                   badge: "attested",
-                  source: "0G Storage",
+                  source: "your booking",
                   provenance: "indexed",
                 },
               ]}
             />
-            <p className="text-xs text-[color:var(--muted)] mt-3 max-w-prose leading-relaxed">
-              Technical references (settlement, escrow, reservation record)
-              stay inspectable after you confirm.
-            </p>
+            <details className="opacity-70">
+              <summary className="text-xs text-[color:var(--muted)] cursor-pointer">
+                Technical details
+              </summary>
+              <p className="text-xs text-[color:var(--muted)] mt-2 max-w-prose leading-relaxed">
+                Settlement, escrow, and the reservation record stay inspectable
+                after you confirm — for auditors and support, not as the story
+                of this step.
+              </p>
+            </details>
           </div>
         </details>
 

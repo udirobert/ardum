@@ -23,6 +23,7 @@ import MiraOrb from "@/components/MiraOrb";
 import type { MiraPresence } from "@/agent/mira-presence";
 import type { MatchResult } from "@/matching/types";
 import { formatUsd } from "@/lib/format";
+import { noFitLine } from "@/agent/mira-voice";
 
 type Props = {
   alternatives: MatchResult[];
@@ -64,6 +65,13 @@ export default function ListeningSurface({
           </p>
         </div>
       </div>
+
+      {/* Empty pool — canonical no-fit vocabulary, no improvised stretch. */}
+      {shown.length === 0 ? (
+        <p className="text-base leading-relaxed" role="status" data-testid="listening-empty">
+          {noFitLine()}
+        </p>
+      ) : null}
 
       {/* Bounded alternative rows — scannable, elevate on the right. */}
       <div className="divide-y divide-[color:var(--hairline)]">

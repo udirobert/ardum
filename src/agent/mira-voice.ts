@@ -643,6 +643,7 @@ function daysSinceBookingSafe(bookedAt: string, now: number): number {
 //   - providerFailureLine() → workbench error banners (RPC, commit provider)
 //   - holdExpiredLine()    → nudgeForEpisode hold-expiring aftermath, detail payload
 //   - memoryDeletedLine()  → /memory deletion confirmation
+//   - offlineLine()        → network-down / unreachable provider banners
 
 /** The pool held nothing that fits — the honest answer, not a stretch. */
 export function noFitLine(): string {
@@ -662,4 +663,9 @@ export function holdExpiredLine(): string {
 /** The practitioner deleted their memory on /memory. Boundary honored. */
 export function memoryDeletedLine(): string {
   return "It's done — what I remembered is gone. We start fresh, and that's exactly as it should be.";
+}
+
+/** Network or device is offline — calm, no stack vocabulary. */
+export function offlineLine(): string {
+  return "I can't reach things right now. Your intention is still here — we'll pick up when you're back online.";
 }
