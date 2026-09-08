@@ -190,13 +190,21 @@ infrastructure (Particle Auth, ZeroDev, 0G, Arbitrum) is real but invisible.
 ```text
 src/
   app/          routes and user-facing workspaces
-  episodes/     episode model, repository, and orchestration
+  episodes/     episode model, repository, orchestration, and workbench UI
   automation/   monitoring, hold, and coordination providers
-  agent/        deterministic recommendation and optional explanation
-  memory/       semantic-memory boundary
-  evidence/     verifiable evidence boundary
-  booking/      commitment execution providers
+  agent/        deterministic ranking policy, Mira presence, and optional explanation
+  matching/     match-result reasoning types (given/when/then steps)
+  inventory/    retreat catalog and imagery
+  calibration/  conversational intake schema (energy, budget, social axes)
+  evidence/     verifiable evidence boundary (attestations, wider aperture)
+  attestation/  attestation schema, EIP-191 signing, and upload form
+  memory/       semantic-memory boundary (projector / observe / enrich)
+  identity/     actor cookie, profile repository, and signature verification
+  booking/      commitment execution providers (Magic, Particle, escrow, operator)
+  atlas/        flight search adapter (ATRIP) and IATA mapping
+  aesthetics/   retreat-vision imagery pipeline for workbench surfaces
   components/   shared presentation
+  hooks/, lib/, types/  utilities and shared contracts
 ```
 
 The structure evolves by consolidating existing modules into these boundaries,

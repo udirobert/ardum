@@ -13,8 +13,6 @@ type PublicEnv = {
   NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS: string;
   NEXT_PUBLIC_USE_TESTNET: string;
   NEXT_PUBLIC_ZERODEV_API_KEY: string;
-  NEXT_PUBLIC_OPENFORT_PUBLIC_KEY: string;
-  NEXT_PUBLIC_OPENFORT_POLICY_ID: string;
 };
 
 type ServerEnv = {
@@ -26,10 +24,7 @@ type ServerEnv = {
   OG_PRIVATE_KEY: string;
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
-  MAGIC_SECRET_KEY: string;
-  MAGIC_OIDC_PROVIDER_ID: string;
   PARTICLE_SERVER_KEY: string;
-  OPENFORT_SECRET_KEY: string;
   EVIDENCE_FETCH_ENDPOINT: string;
   EVIDENCE_FETCH_API_KEY: string;
 };
@@ -51,10 +46,6 @@ const publicEnv: PublicEnv = {
     process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS ?? "",
   NEXT_PUBLIC_USE_TESTNET: process.env.NEXT_PUBLIC_USE_TESTNET ?? "",
   NEXT_PUBLIC_ZERODEV_API_KEY: process.env.NEXT_PUBLIC_ZERODEV_API_KEY ?? "",
-  NEXT_PUBLIC_OPENFORT_PUBLIC_KEY:
-    process.env.NEXT_PUBLIC_OPENFORT_PUBLIC_KEY ?? "",
-  NEXT_PUBLIC_OPENFORT_POLICY_ID:
-    process.env.NEXT_PUBLIC_OPENFORT_POLICY_ID ?? "",
 };
 
 function readServerEnv(): ServerEnv {
@@ -67,10 +58,7 @@ function readServerEnv(): ServerEnv {
     OG_PRIVATE_KEY: process.env.OG_PRIVATE_KEY ?? "",
     SUPABASE_URL: process.env.SUPABASE_URL ?? "",
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
-    MAGIC_SECRET_KEY: process.env.MAGIC_SECRET_KEY ?? "",
-    MAGIC_OIDC_PROVIDER_ID: process.env.MAGIC_OIDC_PROVIDER_ID ?? "",
     PARTICLE_SERVER_KEY: process.env.PARTICLE_SERVER_KEY ?? "",
-    OPENFORT_SECRET_KEY: process.env.OPENFORT_SECRET_KEY ?? "",
     EVIDENCE_FETCH_ENDPOINT: process.env.EVIDENCE_FETCH_ENDPOINT ?? "",
     EVIDENCE_FETCH_API_KEY: process.env.EVIDENCE_FETCH_API_KEY ?? "",
   };
@@ -99,11 +87,6 @@ export function hasMagic(): boolean {
   return Boolean(publicEnv.NEXT_PUBLIC_MAGIC_API_KEY);
 }
 
-export function hasMagicServer(): boolean {
-  const e = readServerEnv();
-  return Boolean(e.MAGIC_SECRET_KEY);
-}
-
 export function hasParticleUA(): boolean {
   return Boolean(
     publicEnv.NEXT_PUBLIC_PARTICLE_PROJECT_ID &&
@@ -126,18 +109,6 @@ export function zerodevRpcUrl(chainId: number): string {
   const key = publicEnv.NEXT_PUBLIC_ZERODEV_API_KEY;
   if (!key) return "";
   return `https://rpc.zerodev.app/api/v3/${key}/chain/${chainId}`;
-}
-
-export function hasOpenfort(): boolean {
-  return Boolean(
-    publicEnv.NEXT_PUBLIC_OPENFORT_PUBLIC_KEY &&
-      publicEnv.NEXT_PUBLIC_OPENFORT_POLICY_ID,
-  );
-}
-
-export function hasOpenfortServer(): boolean {
-  const e = readServerEnv();
-  return Boolean(e.OPENFORT_SECRET_KEY);
 }
 
 export function hasEvidenceFetch(): boolean {
