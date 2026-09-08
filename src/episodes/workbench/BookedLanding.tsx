@@ -192,7 +192,10 @@ export default function BookedLanding({
               </summary>
               <p className="text-xs text-[color:var(--muted)] mt-2 max-w-prose leading-relaxed">
                 Settlement and reservation records stay inspectable for support
-                and audits — not as the story of this step.
+                and audits — not as the story of this step.{" "}
+                <Link href="/proof" className="underline underline-offset-4">
+                  Inspectable rails →
+                </Link>
               </p>
             </details>
           </div>
