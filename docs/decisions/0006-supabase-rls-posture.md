@@ -73,3 +73,21 @@ to the Supabase dashboard SQL Editor and the eventual
   audits, behaves identically to "broken in production" via any access
   path that doesn't match `BYPASSRLS`. The foot-gun shapes the rest of
   the system's mental model silently.
+
+## Addendum (2026-09-22) — 004 superseded by 008
+
+Supabase's Security Advisor flagged `rls_disabled_in_public` (critical) on the
+four tables 004 took offline. The finding was legitimate: 004 declared the
+server-only posture but never revoked Supabase's default `anon`/
+`authenticated` grants, so anyone with the project URL plus the (public by
+design) anon key could read and mutate every row via PostgREST.
+`008-rls-deny-all-for-non-service-roles.sql` re-enables RLS on all public
+tables and strips all table/sequence privileges from `anon`/`authenticated`,
+including future default grants. The service role is unaffected
+(`BYPASSRLS`); no browser code ever referenced the anon key.
+
+The "no policies = silent empty dataset" foot-gun that motivated 004 is
+resolved differently here: denied roles now fail loudly on missing privileges
+instead of returning empty results. The revert path above still stands for
+when authenticated identity lands — re-grant the specific roles and add real
+policies in one transaction.
