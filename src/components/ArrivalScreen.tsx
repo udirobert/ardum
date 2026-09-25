@@ -4,17 +4,17 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMiraField } from "./MiraField";
 import { useMiraImpulse } from "./MiraImpulse";
-import { preloadMiraScene } from "./MiraOrb";
-import { type MiraActivity, type MiraPresence } from "@/agent/mira-presence";
+import MiraOrb from "./MiraOrb";
+
+import { type MiraActivity, type MiraPresence, STEADY_PRESENCE } from "@/agent/mira-presence";
 import {
   hasCompletedAestheticCalibration,
   hasSkippedAestheticCalibration,
   readAestheticVector,
 } from "@/aesthetics/aesthetic-store";
 import type { AestheticVector } from "@/aesthetics/image-pool";
-import { DUSK_MUTED, DUSK_HEADING } from "@/aesthetics/dusk-theme";
+import { EDITORIAL_EYEBROW, EDITORIAL_MUTED } from "@/aesthetics/dusk-theme";
 import type { Episode } from "@/episodes/model";
 import StaggerReveal from "@/components/StaggerReveal";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
@@ -26,32 +26,19 @@ const AestheticCalibration = dynamic(
   { ssr: false },
 );
 
-// Warm the hero scene chunk as soon as the arrival bundle evaluates — the
-// shell field is this page's atmosphere.
-preloadMiraScene();
-
 type Phase = "loading" | "aesthetic" | "returning" | "intention";
 
 type Props = {
   greeting?: string | null;
   preferredName?: string | null;
-  /** When set, arrival skips the client episode list fetch. */
   episodeBootstrap?: {
     episode: Episode | null;
     presence: MiraPresence | null;
   };
 };
 
-function resolveInitialPhase(
-  active: Episode | null | undefined,
-): Phase {
+function resolveInitialPhase(active: Episode | null | undefined): Phase {
   if (active) return "returning";
-  // No active episode: we cannot decide between "aesthetic" and
-  // "intention" during the shared server/client render because that
-  // depends on localStorage. Start at "loading" and let the client
-  // derive the real entry phase from the calibration flag (see
-  // effectivePhase below) — this keeps the first paint identical on
-  // server and client and avoids a hydration mismatch.
   return "loading";
 }
 
@@ -64,27 +51,19 @@ export default function ArrivalScreen({
   const reduced = useReducedMotion();
   const bootstrapped = episodeBootstrap !== undefined;
   const [phase, setPhase] = useState<Phase>(
-    bootstrapped
-      ? resolveInitialPhase(episodeBootstrap.episode)
-      : "loading",
+    bootstrapped ? resolveInitialPhase(episodeBootstrap.episode) : "loading",
   );
   const [episode, setEpisode] = useState<Episode | null>(
     episodeBootstrap?.episode ?? null,
   );
   const [statement, setStatement] = useState("");
-  // Persistence is on by default — the anonymous actor cookie is set
-  // server-side on the first ownership-bearing request (ADR 0004), and
-  // the episode requires persistenceConsent to be created (service.ts).
-  // The transparency note below communicates this; the person can inspect
-  // or delete on /memory. No checkbox: false control that doesn't gate
-  // the submit is worse than transparent default-on.
   const [consent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [committing, setCommitting] = useState(false);
   const { fire } = useMiraImpulse();
   const [error, setError] = useState<string | null>(null);
   const [inputFocused, setInputFocused] = useState(false);
-  const [activePresence, setActivePresence] = useState<MiraPresence | null>(
+  const [activePresence] = useState<MiraPresence | null>(
     episodeBootstrap?.presence ?? null,
   );
   const [aestheticVector, setAestheticVector] = useState<AestheticVector>(
@@ -92,11 +71,6 @@ export default function ArrivalScreen({
   );
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Calibration completion lives in localStorage (client-only). Read it
-  // through useSyncExternalStore with a server snapshot of `false` so the
-  // first render matches the server exactly — no hydration mismatch and no
-  // synchronous setState inside an effect. After mount React re-renders with
-  // the true client value, which drives effectivePhase below.
   const calibrationDone = useSyncExternalStore(
     () => () => {},
     () =>
@@ -104,15 +78,9 @@ export default function ArrivalScreen({
     () => false,
   );
 
-  // The aesthetic calibration can be disabled via env flag. When disabled,
-  // new visitors skip straight to the intention input. Default: disabled —
-  // the intention ask is the first interaction, not image reactions.
   const calibrationEnabled =
     process.env.NEXT_PUBLIC_AESTHETIC_CALIBRATION_ENABLED === "true";
 
-  // The phase the UI actually renders. When bootstrapped with no active
-  // episode, the shared render lands on "loading"; the client derives the
-  // real entry phase from the calibration flag without touching setState.
   const effectivePhase: Phase =
     bootstrapped && phase === "loading"
       ? calibrationDone || !calibrationEnabled
@@ -120,17 +88,14 @@ export default function ArrivalScreen({
         : "aesthetic"
       : phase;
 
-  // Arrival contract: input focusable without waiting on stagger/orb.
   useEffect(() => {
     if (effectivePhase !== "intention" || committing) return;
     const el = inputRef.current;
     if (!el) return;
-    // Defer one frame so layout is ready; still within first-session window.
     const id = window.requestAnimationFrame(() => {
       el.focus({ preventScroll: true });
     });
     return () => window.cancelAnimationFrame(id);
-    // arrival-autofocus
   }, [effectivePhase, committing]);
 
   useEffect(() => {
@@ -146,7 +111,6 @@ export default function ArrivalScreen({
             (item) => !["completed"].includes(item.status),
           );
           setEpisode(active ?? null);
-          setActivePresence(data.activeMiraPresence ?? null);
           if (active) {
             setPhase("returning");
           } else if (
@@ -184,8 +148,6 @@ export default function ArrivalScreen({
       if (!response.ok || !data.episode) {
         throw new Error(providerFailureLine("Saving your intention"));
       }
-      // The intention now exists — the orb answers with its strongest pulse
-      // while the arrival animation holds.
       fire("commit");
       if (!reduced) {
         setCommitting(true);
@@ -216,247 +178,324 @@ export default function ArrivalScreen({
           ? "speaking"
           : "idle";
 
-  const fieldVeil =
-    effectivePhase === "aesthetic"
-      ? 0.12
-      : centered
-        ? 0.18
-        : inputFocused
-          ? 0.38
-          : effectivePhase === "intention"
-            ? 0.3
-            : 0.24;
-
-  useMiraField({
-    presence: activePresence,
-    activity: fieldActivity,
-    aestheticVector,
-    veil: fieldVeil,
-  });
-
   const greetingNode = greeting ? (
     <p
-      className="tag italic mb-3"
+      className="text-sm italic mb-4 leading-relaxed"
       aria-live="polite"
       data-testid="returning-greeting"
+      style={EDITORIAL_MUTED}
     >
       {greeting}
     </p>
   ) : null;
 
-  return (
-    <section className="relative flex flex-col min-h-[calc(100svh-56px)] overflow-hidden">
-      {centered && (
-        <div className="dusk relative z-10 flex-1 flex items-center justify-center px-6 text-center">
-          {effectivePhase === "loading" && (
-            <div>
-              {greetingNode}
-              <p
-                className="font-serif text-3xl sm:text-4xl tracking-tight"
-                aria-live="polite"
-                style={DUSK_HEADING}
-              >
-                Mira
-              </p>
-            </div>
-          )}
-          {committing && (
-            <div className="max-w-2xl" aria-live="polite" style={{ color: "#f6efe3" }}>
-              <p
-                className="font-serif text-3xl sm:text-5xl leading-snug tracking-tight"
-                style={DUSK_HEADING}
-              >
-                {statement
-                  .trim()
-                  .split(/\s+/)
-                  .map((word, i) => (
-                    <span
-                      key={i}
-                      className="word-gather"
-                      style={{ animationDelay: `${Math.min(i * 45, 600)}ms` }}
-                    >
-                      {word}{" "}
-                    </span>
-                  ))}
-              </p>
-              <span className="sr-only">
-                Intention recorded. Opening your episode.
-              </span>
-            </div>
-          )}
+  // Committing beat — centered parchment, words gather toward Mira
+  if (committing) {
+    return (
+      <section className="editorial min-h-[calc(100svh-56px)] flex items-center justify-center px-6 text-center">
+        <div className="max-w-2xl" aria-live="polite">
+          <p className="font-serif text-3xl sm:text-5xl leading-snug tracking-tight">
+            {statement
+              .trim()
+              .split(/\s+/)
+              .map((word, i) => (
+                <span
+                  key={i}
+                  className="word-gather"
+                  style={{ animationDelay: `${Math.min(i * 45, 600)}ms` }}
+                >
+                  {word}{" "}
+                </span>
+              ))}
+          </p>
+          <span className="sr-only">Intention recorded. Opening your episode.</span>
         </div>
-      )}
+      </section>
+    );
+  }
 
-      {!centered && effectivePhase !== "aesthetic" && (
-        <div className="dusk relative z-10 flex-1 flex flex-col max-w-xl mx-auto w-full px-6 sm:px-10">
-          {/* Voice lane — Mira's line sits in the orb's lower third, not a top headline. */}
-          <div className="flex-1 flex flex-col justify-end pb-6 sm:pb-10 text-center min-h-[38vh]">
-            {effectivePhase === "intention" && (
-              <StaggerReveal eager>
-                {greetingNode}
-                <p className="tag mb-3 t-stagger-line">Mira</p>
-                <h1
-                  className="font-serif text-3xl sm:text-5xl leading-[1.08] tracking-tight t-stagger-line t-stagger-line--2"
-                  style={DUSK_HEADING}
-                >
-                  {preferredName
-                    ? `What are you trying to make space for, ${preferredName}?`
-                    : "What are you trying to make space for?"}
-                </h1>
-                <p
-                  className="mt-4 text-base sm:text-lg leading-relaxed max-w-md mx-auto t-stagger-line t-stagger-line--2"
-                  style={DUSK_MUTED}
-                >
-                  Start with the feeling you&apos;re after — rest, clarity,
-                  a reset — and I&apos;ll help you give it shape.
-                </p>
-              </StaggerReveal>
-            )}
+  if (centered) {
+    return (
+      <section className="editorial min-h-[calc(100svh-56px)] flex items-center justify-center px-6 text-center">
+        <div>
+          {greetingNode}
+          <p
+            className="font-serif text-3xl sm:text-4xl tracking-tight"
+            aria-live="polite"
+          >
+            Mira
+          </p>
+          <p className="mt-3 text-sm" style={EDITORIAL_MUTED}>
+            giving your intention shape…
+          </p>
+        </div>
+      </section>
+    );
+  }
 
-            {effectivePhase === "returning" && episode && current && (
-              <StaggerReveal eager>
-                {greetingNode}
-                <p className="tag mb-3 t-stagger-line">your active intention</p>
-                {(() => {
-                  // Short intentions (1-3 words) look sparse at the
-                  // full 5xl scale designed for sentence-length
-                  // statements. Scale the heading down so a single
-                  // word doesn't dominate the screen awkwardly.
-                  const wordCount = current.statement.trim().split(/\s+/).length;
-                  const sizeClass =
-                    wordCount <= 2
-                      ? "text-2xl sm:text-3xl"
-                      : wordCount <= 5
-                        ? "text-3xl sm:text-4xl"
-                        : "text-3xl sm:text-5xl";
-                  return (
+  if (effectivePhase === "aesthetic") {
+    return (
+      <section className="editorial min-h-[calc(100svh-56px)] flex flex-col items-center justify-center w-full max-w-3xl mx-auto px-6 sm:px-10 py-10 text-center">
+        <AestheticCalibration
+          onVector={setAestheticVector}
+          onComplete={(pref) => {
+            setAestheticVector(pref.vector);
+            setPhase("intention");
+          }}
+        />
+      </section>
+    );
+  }
+
+  // Editorial refuge — asymmetric: type on the left, Mira anchored as
+  // illustration on the right. One quiet rule, generous whitespace,
+  // parchment ground. Mira is an anchor, not a full-bleed void.
+  const orbPresence = activePresence ?? STEADY_PRESENCE;
+
+  return (
+    <section className="editorial min-h-[calc(100svh-56px)]">
+      {/* Top rule — the refuge is a printed page */}
+      <div className="mx-auto max-w-[72rem] px-6 sm:px-10 lg:px-12">
+        <div className="h-px w-full bg-[color:var(--rule)]" aria-hidden />
+      </div>
+
+      <div className="mx-auto max-w-[72rem] px-6 sm:px-10 lg:px-12 py-10 sm:py-14 lg:py-16">
+        <div className="grid lg:grid-cols-[1.2fr_0.85fr] gap-10 lg:gap-12 items-start">
+          {/* ── Left: the ask ── */}
+          <div className="min-w-0">
+            <StaggerReveal eager>
+              <div className="max-w-[36rem]">
+                {effectivePhase === "intention" && (
+                  <>
+                    {greetingNode}
+                    <p className="t-stagger-line" style={EDITORIAL_EYEBROW}>
+                      Mira — your persistent guide
+                    </p>
                     <h1
-                      className={`font-serif ${sizeClass} leading-tight tracking-tight t-stagger-line t-stagger-line--2`}
-                      style={DUSK_HEADING}
+                      className="font-serif text-[2.05rem] sm:text-[2.9rem] lg:text-[3.25rem] leading-[1.02] tracking-tight t-stagger-line t-stagger-line--2"
                     >
-                      {current.statement}
+                      {preferredName
+                        ? `What are you trying to make space for, ${preferredName}?`
+                        : "What are you trying to make space for?"}
                     </h1>
-                  );
-                })()}
-                <p
-                  className="mt-4 text-base sm:text-lg leading-relaxed max-w-md mx-auto t-stagger-line t-stagger-line--2"
-                  style={DUSK_MUTED}
-                >
-                  {preferredName
-                    ? `I kept this alive for you, ${preferredName}. We can pick up where we left off, or change what matters now.`
-                    : "I kept this alive. We can pick up where we left off, or change what matters now."}
-                </p>
-              </StaggerReveal>
-            )}
-          </div>
-
-          {/* Input lane — quiet ground; no panel chrome competing with the field. */}
-          <div className="pb-12 sm:pb-14 pt-2">
-            {effectivePhase === "intention" && (
-              <StaggerReveal eager>
-                <label className="block text-left t-stagger-line">
-                  <span className="sr-only">Your intention</span>
-                  <textarea
-                    ref={inputRef}
-                    value={statement}
-                    onChange={(event) => setStatement(event.target.value)}
-                    onFocus={() => setInputFocused(true)}
-                    onBlur={() => setInputFocused(false)}
-                    rows={2}
-                    maxLength={800}
-                    autoFocus
-                    data-testid="arrival-intention-input"
-                    placeholder="I need to feel like myself again after this launch…"
-                    className="w-full bg-transparent border-0 border-b py-4 text-xl sm:text-2xl font-serif leading-relaxed tracking-tight resize-none placeholder:opacity-40 focus:outline-none focus:ring-0"
-                    style={{
-                      borderColor: "rgba(246,239,227,0.28)",
-                      color: "#f6efe3",
-                    }}
-                  />
-                </label>
-                <p
-                  className="mt-5 text-left text-sm t-stagger-line t-stagger-line--2"
-                  style={DUSK_MUTED}
-                >
-                  I&apos;ll keep this so we can resume. Inspect or delete anytime
-                  in{" "}
-                  <Link href="/memory" className="underline hover:opacity-100">
-                    your intention &amp; privacy
-                  </Link>
-                  .
-                </p>
-                {error && (
-                  <p
-                    className="mt-4 text-sm"
-                    role="alert"
-                    style={{ color: "#f0a88a" }}
-                  >
-                    {error}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={create}
-                  disabled={!statement.trim() || submitting}
-                  className="mt-8 w-full px-8 py-3.5 rounded-sm disabled:opacity-40 disabled:cursor-not-allowed t-stagger-line t-stagger-line--2"
-                  style={{ background: "#f6efe3", color: "#1a120d" }}
-                >
-                  {submitting ? "Giving it shape…" : "Tell Mira what matters →"}
-                </button>
-              </StaggerReveal>
-            )}
-
-            {effectivePhase === "returning" && episode && (
-              <StaggerReveal eager>
-                <div className="flex flex-col items-center gap-4 t-stagger-line">
-                  {episode.hold?.status === "active" && episode.hold.expiresAt && (
                     <p
-                      className="text-sm leading-relaxed max-w-sm"
-                      style={DUSK_MUTED}
-                      data-testid="returning-hold-status"
+                      className="mt-5 text-[1.05rem] sm:text-lg leading-relaxed t-stagger-line t-stagger-line--2"
+                      style={EDITORIAL_MUTED}
                     >
-                      Planning hold open until{" "}
-                      {formatDateTime(new Date(episode.hold.expiresAt))} — nothing
-                      booked or charged.
+                      Start with the feeling you&apos;re after — rest,
+                      clarity, a reset. I&apos;ll find the place, hold it
+                      while you decide, and handle the commitment when
+                      you&apos;re ready.
+                    </p>
+                    <p
+                      className="mt-4 text-sm t-stagger-line t-stagger-line--2"
+                      style={EDITORIAL_MUTED}
+                    >
+                      <Link
+                        href="/proof"
+                        className="underline decoration-[rgba(26,23,20,0.18)] underline-offset-4 hover:decoration-[rgba(26,23,20,0.38)]"
+                      >
+                        How this is secured
+                      </Link>
+                      {" · non-binding until you say so"}
+                    </p>
+                  </>
+                )}
+
+                {effectivePhase === "returning" && episode && current && (
+                  <>
+                    {greetingNode}
+                    <p className="t-stagger-line" style={EDITORIAL_EYEBROW}>
+                      your active intention
+                    </p>
+                    {(() => {
+                      const wordCount = current.statement.trim().split(/\s+/).length;
+                      const sizeClass =
+                        wordCount <= 2
+                          ? "text-2xl sm:text-3xl"
+                          : wordCount <= 5
+                            ? "text-3xl sm:text-4xl"
+                            : "text-[2.05rem] sm:text-[2.75rem]";
+                      return (
+                        <h1
+                          className={`font-serif ${sizeClass} leading-tight tracking-tight t-stagger-line t-stagger-line--2`}
+                        >
+                          {current.statement}
+                        </h1>
+                      );
+                    })()}
+                    <p
+                      className="mt-4 text-base sm:text-lg leading-relaxed t-stagger-line t-stagger-line--2"
+                      style={EDITORIAL_MUTED}
+                    >
+                      {preferredName
+                        ? `I kept this alive for you, ${preferredName}. We can pick up where we left off, or change what matters now.`
+                        : "I kept this alive. We can pick up where we left off, or change what matters now."}
+                    </p>
+                  </>
+                )}
+              </div>
+            </StaggerReveal>
+
+            {/* Input / action lane — quiet ground, underline only */}
+            <div className="mt-10 sm:mt-12 max-w-[36rem]">
+              {effectivePhase === "intention" && (
+                <StaggerReveal eager>
+                  <label className="block text-left t-stagger-line">
+                    <span className="sr-only">Your intention</span>
+                    <textarea
+                      ref={inputRef}
+                      value={statement}
+                      onChange={(event) => setStatement(event.target.value)}
+                      onFocus={() => setInputFocused(true)}
+                      onBlur={() => setInputFocused(false)}
+                      rows={2}
+                      maxLength={800}
+                      autoFocus
+                      data-testid="arrival-intention-input"
+                      placeholder="I need to feel like myself again after this launch…"
+                      className="arrival-input w-full bg-transparent border-0 border-b py-4 text-xl sm:text-2xl font-serif leading-relaxed tracking-tight resize-none focus:outline-none focus:ring-0"
+                      style={{
+                        borderColor: "rgba(26,23,20,0.18)",
+                        color: "#1a1714",
+                      }}
+                    />
+                  </label>
+                  <p
+                    className="mt-4 text-left text-sm leading-relaxed t-stagger-line t-stagger-line--2"
+                    style={EDITORIAL_MUTED}
+                  >
+                    I&apos;ll keep this so we can resume. Inspect or delete
+                    anytime in{" "}
+                    <Link
+                      href="/memory"
+                      className="underline decoration-[rgba(26,23,20,0.18)] underline-offset-4 hover:decoration-[rgba(26,23,20,0.32)]"
+                    >
+                      your intention &amp; privacy
+                    </Link>
+                    .
+                  </p>
+                  {error && (
+                    <p
+                      className="mt-4 text-sm"
+                      role="alert"
+                      style={{ color: "#8a3a20" }}
+                    >
+                      {error}
                     </p>
                   )}
                   <button
                     type="button"
-                    onClick={() => {
-                      fire("lean");
-                      router.push(`/episode/${episode.id}`);
+                    onClick={create}
+                    disabled={!statement.trim() || submitting}
+                    className="mt-8 w-full sm:w-auto px-8 py-3.5 rounded-sm disabled:opacity-40 disabled:cursor-not-allowed t-stagger-line t-stagger-line--2 text-[15px] tracking-wide"
+                    style={{ background: "#1a1714", color: "#fbf6ee" }}
+                  >
+                    {submitting ? "Giving it shape…" : "Tell Mira what matters →"}
+                  </button>
+
+                  {/* Mobile illustration — keep Mira visible below the fold on small screens */}
+                  <div className="lg:hidden mt-10 flex flex-col items-center gap-3 t-stagger-line t-stagger-line--2">
+                    <div className="w-[200px] h-[200px] rounded-full overflow-hidden border border-[color:var(--rule)] bg-[color:var(--paper-strong)] flex items-center justify-center">
+                      <div className="w-full h-full">
+                        <MiraOrb
+                          size={200}
+                          presence={orbPresence}
+                          activity={fieldActivity}
+                          aestheticVector={aestheticVector}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-center max-w-[22ch]" style={EDITORIAL_MUTED}>
+                      Mira holds the space while you decide.
+                    </p>
+                  </div>
+                </StaggerReveal>
+              )}
+
+              {effectivePhase === "returning" && episode && (
+                <StaggerReveal eager>
+                  <div className="flex flex-col items-start gap-4 t-stagger-line">
+                    {episode.hold?.status === "active" && episode.hold.expiresAt && (
+                      <p
+                        className="text-sm leading-relaxed"
+                        style={EDITORIAL_MUTED}
+                        data-testid="returning-hold-status"
+                      >
+                        Planning hold open until{" "}
+                        {formatDateTime(new Date(episode.hold.expiresAt))} — nothing
+                        booked or charged.
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        fire("lean");
+                        router.push(`/episode/${episode.id}`);
+                      }}
+                      className="w-full sm:w-auto px-7 py-3 rounded-sm text-[15px]"
+                      style={{ background: "#1a1714", color: "#fbf6ee" }}
+                    >
+                      Continue →
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPhase("intention")}
+                      className="text-sm underline decoration-[rgba(26,23,20,0.18)] underline-offset-4 hover:decoration-[rgba(26,23,20,0.32)] transition-colors"
+                      style={EDITORIAL_MUTED}
+                    >
+                      or start a different intention
+                    </button>
+                  </div>
+                </StaggerReveal>
+              )}
+            </div>
+
+            {/* Proof strip — tiny, low-contrast, not a sales block */}
+            <div className="mt-12 pt-6 border-t border-[color:var(--rule)] max-w-[36rem]">
+              <p className="text-xs leading-relaxed" style={{ color: "rgba(26,23,20,0.42)" }}>
+                No marketplace, no filters, no urgency. One intention → three questions → one held place you can release.
+              </p>
+            </div>
+          </div>
+
+          {/* ── Right: anchored illustration ── */}
+          <div className="hidden lg:block lg:sticky lg:top-24">
+            <StaggerReveal eager>
+              <div className="t-stagger-line">
+                <div className="relative aspect-[4/4.6] rounded-[20px] overflow-hidden border border-[color:var(--rule)] bg-[color:var(--paper-strong)] flex items-center justify-center">
+                  {/* Warm inset glow so the orb reads as presence on paper */}
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    aria-hidden
+                    style={{
+                      background:
+                        "radial-gradient(ellipse 72% 62% at 50% 42%, rgba(168,90,58,0.10) 0%, transparent 62%), radial-gradient(ellipse 90% 86% at 50% 100%, rgba(26,23,20,0.04) 0%, transparent 55%)",
                     }}
-                    className="w-full max-w-sm px-7 py-3 rounded-sm"
-                    style={{ background: "#f6efe3", color: "#1a120d" }}
-                  >
-                    Continue →
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPhase("intention")}
-                    className="text-sm text-[color:var(--muted)] hover:text-foreground transition-colors"
-                    style={{ color: "rgba(246,239,227,0.6)" }}
-                  >
-                    or start a different intention
-                  </button>
+                  />
+                  <div className="relative w-[78%] h-[78%] flex items-center justify-center">
+                    <MiraOrb
+                      size={360}
+                      presence={orbPresence}
+                      activity={fieldActivity}
+                      aestheticVector={aestheticVector}
+                    />
+                  </div>
+                  {/* Quiet plate label */}
+                  <div className="absolute bottom-0 inset-x-0 px-5 py-4 border-t border-[color:var(--rule)] bg-[rgba(251,246,238,0.72)] backdrop-blur-[6px]">
+                    <p className="text-xs leading-relaxed" style={EDITORIAL_MUTED}>
+                      Mira is steady until you speak. She doesn&apos;t watch — she holds.
+                    </p>
+                  </div>
                 </div>
-              </StaggerReveal>
-            )}
+                <p className="mt-3 text-xs" style={{ color: "rgba(26,23,20,0.42)" }}>
+                  Hold on Mira for a nudge once you&apos;ve begun. No surveillance — only when you ask.
+                </p>
+              </div>
+            </StaggerReveal>
           </div>
         </div>
-      )}
-
-      {effectivePhase === "aesthetic" && (
-        <div className="dusk relative z-10 flex-1 flex flex-col items-center justify-center w-full max-w-3xl mx-auto px-6 sm:px-10 py-10 text-center overflow-y-auto">
-          <AestheticCalibration
-            onVector={setAestheticVector}
-            onComplete={(pref) => {
-              setAestheticVector(pref.vector);
-              setPhase("intention");
-            }}
-          />
-        </div>
-      )}
+      </div>
     </section>
   );
 }

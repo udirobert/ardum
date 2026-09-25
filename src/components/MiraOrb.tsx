@@ -1,14 +1,11 @@
 "use client";
 
-// Mira — the agent persona that guides users through Ardum.
-//
-// The orb is a living presence: domain-warped marble inside a morphing
-// metaball silhouette. Posture, valence, and reactions come from
-// src/agent/mira-presence.ts (operational projection). See
-// docs/design/mira-presence.md.
+// Mira — persistent warm presence. The 2D domain-warped marble metaball
+// is the hero for every tier. No spikes, no surveillance, no creature.
+// Posture comes from mira-presence; reactions and impulses modulate
+// turbulence/brightness, never silhouette threat.
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import dynamic from "next/dynamic";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { readAestheticVector } from "@/aesthetics/aesthetic-store";
@@ -31,49 +28,9 @@ import { useAttentionSignals, breathMultiplier } from "@/hooks/useAttentionSigna
 import { haptic } from "@/lib/haptics";
 import { frameDelta, paramsChanged, smoothApproach, smoothFactor } from "@/lib/motion";
 
-const MiraScene = dynamic(() => import("./MiraScene"), { ssr: false });
+// Kept for compatibility — callers warm the old 3D chunk eagerly. Now a no-op so no three/fiber is fetched.
+export function preloadMiraScene() {}
 
-/**
- * Warm the hero scene chunk (three/fiber/postprocessing) before the render
- * tree reaches a scene-tier orb. Call from surfaces that will show one —
- * module identity matches the dynamic() import above, so this is a pure
- * prefetch, not a second copy.
- */
-export function preloadMiraScene() {
-  if (typeof window !== "undefined") void import("./MiraScene");
-}
-
-const SCENE_MIN_PX = 64;
-// Crossfade from the instant 2D field to the 3D scene once it has a GL
-// context; release the 2D context shortly after the fade completes.
-const SCENE_FADE_MS = 900;
-const UNDERLAY_RELEASE_MS = 1300;
-
-type MiraOrbProps = {
-  /** Journey posture — projected from episode or activity helpers. */
-  presence?: MiraPresence;
-  /** Transient overlay when busy / narrating (merged via mergePresence). */
-  activity?: MiraActivity;
-  size?: number;
-  children?: ReactNode;
-  className?: string;
-  aestheticVector?: AestheticVector | null;
-  /**
-   * Fill the parent container as an ambient field instead of a fixed-size
-   * badge. Always renders the hero scene; drops the ring/badge chrome.
-   * The shell field (MiraField) is the one persistent fill orb; page-level
-   * orbs are inline signatures.
-   */
-  fill?: boolean;
-  /**
-   * View-transition shared-element name. Set on the one primary orb per
-   * route so Mira morphs between pages as a persistent presence instead
-   * of fading out with the old page and back in with the new one.
-   */
-  viewTransitionName?: string;
-};
-
-// Ardum base palette (sRGB 0–1).
 const COL_DARK = [0.431, 0.224, 0.145] as const;
 const COL_WARM = [0.659, 0.353, 0.227] as const;
 const COL_LIGHT = [0.847, 0.659, 0.573] as const;
@@ -95,7 +52,6 @@ function vectorToPalette(v: AestheticVector | null | undefined): {
       cream: [...COL_CREAM] as RGB,
     };
   }
-
   const warmth = (v.warm - v.cool) * 0.18;
   const darkness = (v.dark - v.light) * 0.12;
   const expansion = (v.expansive - v.intimate) * 0.04;
@@ -113,30 +69,10 @@ function vectorToPalette(v: AestheticVector | null | undefined): {
   ];
 
   return {
-    dark: shift(
-      COL_DARK,
-      warmth * 0.6 - cool * 0.5,
-      -warmth * 0.2 + cool * 0.1 - darkness * 0.3,
-      -warmth * 0.3 + cool * 0.4,
-    ),
-    warm: shift(
-      COL_WARM,
-      warmth * 0.5 - cool * 0.4 - darkness * 0.2,
-      -warmth * 0.15 - darkness * 0.1,
-      -warmth * 0.25 + cool * 0.35,
-    ),
-    light: shift(
-      COL_LIGHT,
-      warmth * 0.3 - cool * 0.2 - darkness * 0.15 + expansion * 0.05,
-      warmth * 0.1 - darkness * 0.1 + expansion * 0.05,
-      -warmth * 0.1 + cool * 0.25 + expansion * 0.05,
-    ),
-    cream: shift(
-      COL_CREAM,
-      warmth * 0.05 - cool * 0.04 - darkness * 0.08,
-      -cool * 0.02 - darkness * 0.06,
-      cool * 0.05 - darkness * 0.05,
-    ),
+    dark: shift(COL_DARK, warmth * 0.6 - cool * 0.5, -warmth * 0.2 + cool * 0.1 - darkness * 0.3, -warmth * 0.3 + cool * 0.4),
+    warm: shift(COL_WARM, warmth * 0.5 - cool * 0.4 - darkness * 0.2, -warmth * 0.15 - darkness * 0.1, -warmth * 0.25 + cool * 0.35),
+    light: shift(COL_LIGHT, warmth * 0.3 - cool * 0.2 - darkness * 0.15 + expansion * 0.05, warmth * 0.1 - darkness * 0.1 + expansion * 0.05, -warmth * 0.1 + cool * 0.25 + expansion * 0.05),
+    cream: shift(COL_CREAM, warmth * 0.05 - cool * 0.04 - darkness * 0.08, -cool * 0.02 - darkness * 0.06, cool * 0.05 - darkness * 0.05),
   };
 }
 
@@ -159,8 +95,8 @@ uniform float u_pinch;
 uniform float u_bloom;
 uniform float u_asymmetry;
 uniform float u_reaction;
-uniform float u_metaball; // 1 = full morph, 0 = circle mask (inline tier)
-uniform float u_lift;     // raises the field center (fill tier matches hero framing)
+uniform float u_metaball;
+uniform float u_lift;
 uniform vec3  u_dark;
 uniform vec3  u_warm;
 uniform vec3  u_light;
@@ -269,11 +205,22 @@ function lerp(a: number, b: number, t: number) {
 }
 
 const REACTION_MS = 2400;
-// Frame-rate-independent morph rates (matches MiraScene's budget).
 const MORPH_BASE_RATE = 7.6;
 const MORPH_KICK = 1.9;
 const MORPH_KICK_DECAY = 5.0;
-const PALETTE_RATE_2D = 1.52; // per-second palette blend (was PALR 0.025/frame)
+const PALETTE_RATE_2D = 1.52;
+
+type MiraOrbProps = {
+  presence?: MiraPresence;
+  activity?: MiraActivity;
+  size?: number;
+  children?: ReactNode;
+  className?: string;
+  aestheticVector?: AestheticVector | null;
+  fill?: boolean;
+  viewTransitionName?: string;
+  enableSurveillance?: boolean;
+};
 
 export default function MiraOrb({
   presence = STEADY_PRESENCE,
@@ -284,6 +231,7 @@ export default function MiraOrb({
   aestheticVector,
   fill = false,
   viewTransitionName,
+  enableSurveillance = false,
 }: MiraOrbProps) {
   const orbRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -299,59 +247,48 @@ export default function MiraOrb({
   const tier = fill ? "hero" : renderTier(size);
   const effectivePresence = mergePresence(presence, activity);
   const ring = ringStyle(effectivePresence.posture);
-  const useScene = fill || size >= SCENE_MIN_PX;
-  // Fill mode: the 2D field paints at first frame while the scene chunk
-  // loads, then crossfades to the instanced-capsule scene.
-  const [sceneReady, setSceneReady] = useState(false);
-  const [underlayGone, setUnderlayGone] = useState(false);
-  const handleSceneReady = useCallback(() => setSceneReady(true), []);
-  const drawsUnderlay = fill && !underlayGone;
+  const [glFailed, setGlFailed] = useState(false);
+
   const [storedVector] = useState(() =>
     typeof window !== "undefined" ? readAestheticVector() : null,
   );
   const resolvedVector = aestheticVector ?? storedVector;
-  const [reactionPulse, setReactionPulse] = useState(0);
   const [pokePulse, setPokePulse] = useState(0);
   const [pokeEpoch, setPokeEpoch] = useState(0);
   const { impulse } = useMiraImpulse();
-  const attention = useAttentionSignals();
-  const baseMorph = morphParamsForTier(effectivePresence, tier);
-  // Modulate speed with attention — the whole scene breathes differently
-  // based on whether the person is idle, focused, or returning.
-  const morph: MorphParams = {
-    ...baseMorph,
-    speed: baseMorph.speed * breathMultiplier(attention),
-    // Phase 3 poke: a transient brightness burst layered on the steady
-    // nudgeAvailable boost. Decays over ~1.5s so the orb leans in once,
-    // then settles to its slightly brighter resting state.
-    brightness: baseMorph.brightness + pokePulse * 0.15,
-  };
-  const palette = vectorToPalette(resolvedVector);
-  // Derive holdTension from posture — when Mira is "holding", the capsule
-  // shell should exhibit surface-tension drip behavior.
-  const holdTension = effectivePresence.posture === "holding" ? 0.7 : 0;
 
-  // Gentle nudge when tab regains focus — Mira noticed you came back.
+  // Refs so the RAF shader loop reads latest values without recreating the effect.
+  const pokePulseRef = useRef(pokePulse);
+  const impulseRef = useRef(impulse);
+  const attentionRef = useRef<"active" | "idle" | "focused" | "returning">("active");
+  useEffect(() => {
+    pokePulseRef.current = pokePulse;
+  }, [pokePulse]);
+  useEffect(() => {
+    impulseRef.current = impulse;
+  }, [impulse]);
+
+  const rawAttention = useAttentionSignals(enableSurveillance);
+  const attention = enableSurveillance ? rawAttention : "active";
+  useEffect(() => {
+    attentionRef.current = attention;
+  }, [attention]);
+
   const prevAttention = useRef(attention);
   const prevNudge = useRef(false);
   useEffect(() => {
+    if (!enableSurveillance) return;
     if (attention === "returning" && prevAttention.current !== "returning") {
       haptic("nudge");
-      // If a nudge is waiting when you return, re-poke so you notice it.
-      // Deferred to a rAF callback so we don't setState synchronously in
-      // the effect body (avoids cascading renders).
       if (effectivePresence.nudgeAvailable) {
         requestAnimationFrame(() => setPokeEpoch((e) => e + 1));
       }
     }
     prevAttention.current = attention;
-  }, [attention, effectivePresence.nudgeAvailable]);
+  }, [attention, effectivePresence.nudgeAvailable, enableSurveillance]);
 
-  // Poke when a nudge becomes available — a one-time brightness lean-in.
-  // For the two most decision-relevant nudge kinds (hold-expiring,
-  // price-drop), also fire a gentle haptic so it's felt on mobile, not
-  // just seen. The other kinds stay visual-only — restraint by default.
   useEffect(() => {
+    if (!enableSurveillance) return;
     if (effectivePresence.nudgeAvailable && !prevNudge.current) {
       setPokeEpoch((e) => e + 1);
       const kind = effectivePresence.nudgeKind;
@@ -360,13 +297,11 @@ export default function MiraOrb({
       }
     }
     prevNudge.current = !!effectivePresence.nudgeAvailable;
-  }, [effectivePresence.nudgeAvailable, effectivePresence.nudgeKind]);
+  }, [effectivePresence.nudgeAvailable, effectivePresence.nudgeKind, enableSurveillance]);
 
-  // Decay the poke pulse back to 0 over ~1.5s. The epoch counter restarts
-  // the decay cleanly if a second poke fires mid-decay. The peak value is
-  // set inside the first rAF tick (not synchronously in the effect body).
   useEffect(() => {
     if (pokeEpoch === 0) return;
+    if (!enableSurveillance) return;
     let raf = 0;
     const start = performance.now();
     const POKE_MS = 1500;
@@ -381,7 +316,7 @@ export default function MiraOrb({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [pokeEpoch]);
+  }, [pokeEpoch, enableSurveillance]);
 
   useEffect(() => {
     presenceRef.current = mergePresence(presence, activity);
@@ -398,74 +333,67 @@ export default function MiraOrb({
     }
   }, [effectivePresence.reaction]);
 
+  // Keep the CSS breathe in sync with posture — but only for non-fill badges.
   useEffect(() => {
-    if (useScene) return;
+    if (fill) return;
     const orb = orbRef.current;
     if (!orb) return;
-    // Modulate breath duration with attention signals — idle slows, focus quickens.
     const baseDuration = parseFloat(breathDuration(effectivePresence.posture));
     const modulated = baseDuration * breathMultiplier(attention);
     orb.style.animationDuration = `${modulated}s`;
-  }, [effectivePresence.posture, useScene, attention]);
-
-  useEffect(() => {
-    if (!fill || !sceneReady || underlayGone) return;
-    const timer = window.setTimeout(
-      () => setUnderlayGone(true),
-      UNDERLAY_RELEASE_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, [fill, sceneReady, underlayGone]);
+  }, [effectivePresence.posture, fill, attention]);
 
   useEffect(() => {
     paletteRef.current = vectorToPalette(resolvedVector);
   }, [resolvedVector]);
 
+  // 2D marble renderer — fills or badges share the same shader; the hero lifts its center.
   useEffect(() => {
-    if (!reactionRef.current.active) return;
-    let raf = 0;
-    const tick = (now: number) => {
-      const elapsed = now - reactionRef.current.startedAt;
-      if (elapsed > REACTION_MS) {
-        reactionRef.current.active = false;
-        setReactionPulse(0);
-        return;
-      }
-      setReactionPulse(Math.sin((elapsed / REACTION_MS) * Math.PI));
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [effectivePresence.reaction?.eventId]);
-
-  useEffect(() => {
-    if (useScene && !drawsUnderlay) return;
+    if (glFailed) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     if (liveGLOrbs >= MAX_GL_ORBS) return;
 
-    const gl =
-      canvas.getContext("webgl", {
-        alpha: true,
-        premultipliedAlpha: false,
-        antialias: true,
-      }) ||
-      (canvas.getContext("experimental-webgl", {
-        alpha: true,
-        premultipliedAlpha: false,
-      }) as WebGLRenderingContext | null);
-    if (!gl) return;
+    let gl: WebGLRenderingContext | null = null;
+    try {
+      gl =
+        (canvas.getContext("webgl", {
+          alpha: true,
+          premultipliedAlpha: false,
+          antialias: true,
+        }) as WebGLRenderingContext | null) ||
+        (canvas.getContext("experimental-webgl", {
+          alpha: true,
+          premultipliedAlpha: false,
+        }) as WebGLRenderingContext | null);
+    } catch {
+      queueMicrotask(() => setGlFailed(true));
+      return;
+    }
+    if (!gl) {
+      queueMicrotask(() => setGlFailed(true));
+      return;
+    }
 
     const vs = compile(gl, gl.VERTEX_SHADER, VERT_SRC);
     const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG_SRC);
-    if (!vs || !fs) return;
+    if (!vs || !fs) {
+      queueMicrotask(() => setGlFailed(true));
+      return;
+    }
 
     const prog = gl.createProgram();
-    if (!prog) return;
+    if (!prog) {
+      queueMicrotask(() => setGlFailed(true));
+      return;
+    }
     gl.attachShader(prog, vs);
     gl.attachShader(prog, fs);
     gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      queueMicrotask(() => setGlFailed(true));
+      return;
+    }
     gl.useProgram(prog);
 
     const buf = gl.createBuffer();
@@ -520,8 +448,8 @@ export default function MiraOrb({
       const py = Math.max(1, Math.round((rect?.height ?? size) * dpr));
       canvas.width = px;
       canvas.height = py;
-      gl.viewport(0, 0, px, py);
-      gl.uniform2f(u.res, px, py);
+      gl!.viewport(0, 0, px, py);
+      gl!.uniform2f(u.res, px, py);
     };
     fitCanvas();
     gl.uniform1f(u.metaball, tier === "inline" ? 0 : 1);
@@ -529,8 +457,16 @@ export default function MiraOrb({
 
     liveGLOrbs++;
 
-    const targetMorph = (): MorphParams =>
-      morphParamsForTier(presenceRef.current, tier);
+    const targetMorph = (): MorphParams => {
+      const base = morphParamsForTier(presenceRef.current, tier);
+      const mult = breathMultiplier(attentionRef.current);
+      return {
+        ...base,
+        speed: base.speed * mult,
+        brightness: base.brightness + pokePulseRef.current * 0.15 + impulseRef.current * 0.12,
+        turbulence: base.turbulence + impulseRef.current * 0.3,
+      };
+    };
 
     const cur: MorphParams = { ...targetMorph() };
     let raf = 0;
@@ -541,7 +477,6 @@ export default function MiraOrb({
 
     const draw = (now: number) => {
       const target = targetMorph();
-      // Frame-rate independent via real dt, with a response burst on change.
       const sec = now / 1000;
       const dt = prevSec < 0 ? 0 : frameDelta(prevSec, sec);
       prevSec = sec;
@@ -580,22 +515,22 @@ export default function MiraOrb({
         }
       }
 
-      gl.uniform3fv(u.dark, curPal.dark);
-      gl.uniform3fv(u.warm, curPal.warm);
-      gl.uniform3fv(u.light, curPal.light);
-      gl.uniform3fv(u.cream, curPal.cream);
-      gl.uniform1f(u.time, (now - start) / 1000);
-      gl.uniform1f(u.speed, cur.speed);
-      gl.uniform1f(u.turb, cur.turbulence);
-      gl.uniform1f(u.bright, cur.brightness);
-      gl.uniform1f(u.blobCount, cur.blobCount);
-      gl.uniform1f(u.orbitRadius, cur.orbitRadius);
-      gl.uniform1f(u.orbitSpeed, cur.orbitSpeed);
-      gl.uniform1f(u.pinch, cur.pinch);
-      gl.uniform1f(u.bloom, cur.bloom);
-      gl.uniform1f(u.asymmetry, cur.asymmetry);
-      gl.uniform1f(u.reaction, reactionPulse);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      gl!.uniform3fv(u.dark, curPal.dark);
+      gl!.uniform3fv(u.warm, curPal.warm);
+      gl!.uniform3fv(u.light, curPal.light);
+      gl!.uniform3fv(u.cream, curPal.cream);
+      gl!.uniform1f(u.time, (now - start) / 1000);
+      gl!.uniform1f(u.speed, cur.speed);
+      gl!.uniform1f(u.turb, cur.turbulence);
+      gl!.uniform1f(u.bright, cur.brightness);
+      gl!.uniform1f(u.blobCount, cur.blobCount);
+      gl!.uniform1f(u.orbitRadius, cur.orbitRadius);
+      gl!.uniform1f(u.orbitSpeed, cur.orbitSpeed);
+      gl!.uniform1f(u.pinch, cur.pinch);
+      gl!.uniform1f(u.bloom, cur.bloom);
+      gl!.uniform1f(u.asymmetry, cur.asymmetry);
+      gl!.uniform1f(u.reaction, reactionPulse);
+      gl!.drawArrays(gl!.TRIANGLES, 0, 6);
 
       if (!reduced) raf = requestAnimationFrame(draw);
     };
@@ -604,12 +539,23 @@ export default function MiraOrb({
     if (fill && typeof ResizeObserver !== "undefined") {
       resizeObserver = new ResizeObserver(() => {
         fitCanvas();
-        // Resizing the backing store clears the canvas; the animated path
-        // repaints next frame, the static path must repaint here.
         if (reduced) draw(start + 3200);
       });
       resizeObserver.observe(canvas);
     }
+
+    // Context loss = poster, not void.
+    const onLost = (e: Event) => {
+      e.preventDefault();
+      if (raf) cancelAnimationFrame(raf);
+      liveGLOrbs = Math.max(0, liveGLOrbs - 1);
+      setGlFailed(true);
+    };
+    const onRestored = () => {
+      setGlFailed(false);
+    };
+    canvas.addEventListener("webglcontextlost", onLost);
+    canvas.addEventListener("webglcontextrestored", onRestored);
 
     if (reduced) {
       draw(start + 3200);
@@ -620,11 +566,100 @@ export default function MiraOrb({
     return () => {
       if (raf) cancelAnimationFrame(raf);
       resizeObserver?.disconnect();
+      canvas.removeEventListener("webglcontextlost", onLost);
+      canvas.removeEventListener("webglcontextrestored", onRestored);
       liveGLOrbs = Math.max(0, liveGLOrbs - 1);
-      const lose = gl.getExtension("WEBGL_lose_context");
-      lose?.loseContext();
+      try {
+        const lose = gl!.getExtension("WEBGL_lose_context");
+        lose?.loseContext();
+      } catch {}
     };
-  }, [size, reduced, tier, useScene, fill, drawsUnderlay]);
+  }, [size, reduced, tier, fill, glFailed]);
+
+  // Designed poster when GL is unavailable or lost — warm, not a void.
+  if (glFailed) {
+    if (fill) {
+      return (
+        <div className={`relative h-full w-full overflow-hidden ${className ?? ""}`} aria-hidden>
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(ellipse 68% 62% at 50% 44%, rgba(216,168,146,0.55) 0%, rgba(168,90,58,0.42) 26%, rgba(58,36,24,0.95) 58%, #0f0a07 100%)",
+            }}
+          />
+          <div
+            className="absolute inset-0 opacity-[0.04]"
+            style={{
+              backgroundImage:
+                "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+            }}
+          />
+          <div
+            className="absolute rounded-full blur-[42px]"
+            style={{
+              left: "50%",
+              top: "42%",
+              width: "min(42vw, 420px)",
+              height: "min(42vw, 420px)",
+              transform: "translate(-50%, -50%)",
+              background: "radial-gradient(circle at 38% 32%, rgba(246,241,231,0.45), rgba(216,168,146,0.28) 45%, transparent 72%)",
+            }}
+          />
+          <span aria-live="polite" aria-atomic="true" className="sr-only">
+            {presenceAnnouncement(effectivePresence)}
+          </span>
+          {children}
+        </div>
+      );
+    }
+    const ringRadius = (size - 8) / 2;
+    const ringCircumference = 2 * Math.PI * ringRadius;
+    const gapSize = ring === "open" ? ringCircumference * 0.18 : ring === "radiating" ? ringCircumference * 0.25 : 0;
+    const visibleLength = ringCircumference - gapSize;
+    return (
+      <motion.div
+        initial={reduced || viewTransitionName ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className={`flex flex-col items-center gap-3 ${className ?? ""}`}
+      >
+        <div
+          ref={orbRef}
+          className="relative rounded-full mira-orb"
+          style={{
+            width: size,
+            height: size,
+            viewTransitionName,
+            background: "radial-gradient(circle at 35% 30%, rgba(168,90,58,0.45), rgba(58,36,24,0.95) 68%, #0f0a07)",
+            border: "1px solid rgba(168,90,58,0.18)",
+          }}
+          aria-hidden
+        >
+          <div
+            className="absolute inset-0 rounded-full pointer-events-none"
+            style={{ background: "radial-gradient(circle at 38% 32%, rgba(246,241,231,0.38), transparent 55%)" }}
+          />
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 ${size} ${size}`} fill="none">
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={ringRadius}
+              stroke="rgba(110,57,37,0.45)"
+              strokeWidth="0.75"
+              strokeDasharray={`${visibleLength} ${gapSize}`}
+              strokeLinecap="round"
+              style={{ transition: "stroke-dasharray 1.2s ease-in-out", transform: "rotate(-90deg)", transformOrigin: "center" }}
+            />
+          </svg>
+        </div>
+        <span aria-live="polite" aria-atomic="true" className="sr-only">
+          {presenceAnnouncement(effectivePresence)}
+        </span>
+        {children}
+      </motion.div>
+    );
+  }
 
   if (fill) {
     return (
@@ -634,39 +669,7 @@ export default function MiraOrb({
         transition={{ duration: 0.8, ease: "easeOut" }}
         className={`relative h-full w-full ${className ?? ""}`}
       >
-        {drawsUnderlay && (
-          <canvas
-            ref={canvasRef}
-            aria-hidden
-            className="absolute inset-0 h-full w-full"
-            style={{
-              opacity: sceneReady ? 0 : 1,
-              // Ease-out crossfade: the scene fades in gently rather than
-              // snapping over the 2D field, so the handoff never spikes
-              // in luminance.
-              transition: `opacity ${SCENE_FADE_MS}ms cubic-bezier(0.16,1,0.3,1)`,
-            }}
-          />
-        )}
-        <div
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            opacity: sceneReady ? 1 : 0,
-            transition: `opacity ${SCENE_FADE_MS}ms cubic-bezier(0.16,1,0.3,1)`,
-          }}
-        >
-          <MiraScene
-            fill
-            size={size}
-            morph={morph}
-            palette={palette}
-            reactionPulse={reactionPulse}
-            impulse={impulse}
-            holdTension={holdTension}
-            onReady={handleSceneReady}
-          />
-        </div>
+        <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full" />
         <span aria-live="polite" aria-atomic="true" className="sr-only">
           {presenceAnnouncement(effectivePresence)}
         </span>
@@ -677,12 +680,7 @@ export default function MiraOrb({
 
   const ringRadius = (size - 8) / 2;
   const ringCircumference = 2 * Math.PI * ringRadius;
-  const gapSize =
-    ring === "open"
-      ? ringCircumference * 0.18
-      : ring === "radiating"
-        ? ringCircumference * 0.25
-        : 0;
+  const gapSize = ring === "open" ? ringCircumference * 0.18 : ring === "radiating" ? ringCircumference * 0.25 : 0;
   const visibleLength = ringCircumference - gapSize;
 
   return (
@@ -692,42 +690,6 @@ export default function MiraOrb({
       transition={{ duration: 0.6, ease: "easeOut" }}
       className={`flex flex-col items-center gap-3 ${className ?? ""}`}
     >
-      {useScene ? (
-        <div
-          className="relative"
-          style={{ width: size, height: size, viewTransitionName }}
-          aria-hidden
-        >
-          <MiraScene
-            size={size}
-            morph={morph}
-            palette={palette}
-            reactionPulse={reactionPulse}
-            impulse={impulse}
-            holdTension={holdTension}
-          />
-          <svg
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            viewBox={`0 0 ${size} ${size}`}
-            fill="none"
-          >
-            <circle
-              cx={size / 2}
-              cy={size / 2}
-              r={ringRadius}
-              stroke="rgba(110,57,37,0.45)"
-              strokeWidth="0.75"
-              strokeDasharray={`${visibleLength} ${gapSize}`}
-              strokeLinecap="round"
-              style={{
-                transition: "stroke-dasharray 1.2s ease-in-out",
-                transform: "rotate(-90deg)",
-                transformOrigin: "center",
-              }}
-            />
-          </svg>
-        </div>
-      ) : (
       <div
         ref={orbRef}
         className="relative rounded-full mira-orb"
@@ -735,36 +697,21 @@ export default function MiraOrb({
           width: size,
           height: size,
           viewTransitionName,
-          background:
-            "radial-gradient(circle at 35% 30%, rgba(168,90,58,0.35), rgba(168,90,58,0.08) 60%, transparent 80%)",
+          background: "radial-gradient(circle at 35% 30%, rgba(168,90,58,0.35), rgba(168,90,58,0.08) 60%, transparent 80%)",
           border: "1px solid rgba(168,90,58,0.15)",
         }}
         aria-hidden
       >
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full rounded-full"
-        />
+        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full rounded-full" />
         <div
           className="absolute inset-0 rounded-full pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(circle at 38% 32%, rgba(246,241,231,0.35), transparent 55%)",
-          }}
+          style={{ background: "radial-gradient(circle at 38% 32%, rgba(246,241,231,0.35), transparent 55%)" }}
         />
         <div
           className="absolute inset-0 rounded-full opacity-30 pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(circle at 50% 50%, rgba(168,90,58,0.2), transparent 70%)",
-            transform: "scale(1.4)",
-          }}
+          style={{ background: "radial-gradient(circle at 50% 50%, rgba(168,90,58,0.2), transparent 70%)", transform: "scale(1.4)" }}
         />
-        <svg
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          viewBox={`0 0 ${size} ${size}`}
-          fill="none"
-        >
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 ${size} ${size}`} fill="none">
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -772,46 +719,22 @@ export default function MiraOrb({
             stroke="rgba(110,57,37,0.55)"
             strokeWidth="0.75"
             strokeDasharray={`${visibleLength} ${gapSize}`}
-            strokeDashoffset={0}
             strokeLinecap="round"
-            style={{
-              transition: "stroke-dasharray 1.2s ease-in-out",
-              transform: "rotate(-90deg)",
-              transformOrigin: "center",
-            }}
+            style={{ transition: "stroke-dasharray 1.2s ease-in-out", transform: "rotate(-90deg)", transformOrigin: "center" }}
           />
         </svg>
         {ring === "radiating" && (
-          <svg
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            viewBox={`0 0 ${size} ${size}`}
-            fill="none"
-            style={{ overflow: "visible" }}
-          >
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 ${size} ${size}`} fill="none" style={{ overflow: "visible" }}>
             {[0, 72, 144, 216, 288].map((angle, i) => {
               const rad = (angle * Math.PI) / 180;
               const dotR = size / 2 + 3;
-              const cx =
-                Math.round((size / 2 + dotR * Math.cos(rad)) * 1000) / 1000;
-              const cy =
-                Math.round((size / 2 + dotR * Math.sin(rad)) * 1000) / 1000;
-              return (
-                <circle
-                  key={i}
-                  cx={cx}
-                  cy={cy}
-                  r="0.8"
-                  fill="rgba(168,90,58,0.5)"
-                  style={{
-                    animation: `mira-radiate 3s ease-in-out ${i * 0.2}s infinite`,
-                  }}
-                />
-              );
+              const cx = Math.round((size / 2 + dotR * Math.cos(rad)) * 1000) / 1000;
+              const cy = Math.round((size / 2 + dotR * Math.sin(rad)) * 1000) / 1000;
+              return <circle key={i} cx={cx} cy={cy} r="0.8" fill="rgba(168,90,58,0.5)" style={{ animation: `mira-radiate 3s ease-in-out ${i * 0.2}s infinite` }} />;
             })}
           </svg>
         )}
       </div>
-      )}
       <span aria-live="polite" aria-atomic="true" className="sr-only">
         {presenceAnnouncement(effectivePresence)}
       </span>

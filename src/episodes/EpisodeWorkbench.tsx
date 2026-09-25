@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import MiraOrb, { preloadMiraScene } from "@/components/MiraOrb";
+import MiraOrb from "@/components/MiraOrb";
 import { useMiraField } from "@/components/MiraField";
 import { useMiraImpulse, type ImpulseKind } from "@/components/MiraImpulse";
 import ClarifyPanel from "@/episodes/ClarifyPanel";
@@ -33,9 +33,7 @@ import {
   type DerivedViews,
 } from "./workbench";
 
-// Warm the hero scene chunk as soon as the episode bundle evaluates — the
-// shell field is this page's atmosphere.
-preloadMiraScene();
+
 
 type Props = { episodeId: string };
 
@@ -131,7 +129,7 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
     presence: payload?.miraPresence ?? null,
     activity: busy || !payload ? "processing" : "idle",
     aestheticVector,
-    veil: thinking ? 0.12 : 0.18,
+    veil: 0.18,
     episode: payload?.episode ?? null,
   });
 
@@ -489,14 +487,17 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
         <button
           type="button"
           onClick={() => router.push("/")}
-          className="tag hover:text-foreground"
+          className="text-sm hover:opacity-100 transition-opacity"
+          style={{ color: "rgba(246,239,227,0.62)" }}
         >
           ← your intentions
         </button>
       </div>
 
       <div className="mb-6">
-        <p className="tag mb-2">what you are making space for</p>
+        <p className="text-xs tracking-[0.08em] uppercase mb-2" style={{ color: "rgba(246,239,227,0.52)" }}>
+          what you are making space for
+        </p>
         <h1 className="font-serif text-2xl sm:text-3xl tracking-tight leading-tight">
           {intention.statement}
         </h1>
@@ -705,14 +706,16 @@ export default function EpisodeWorkbench({ episodeId }: Props) {
       </div>
 
       <details className="mt-8 opacity-80">
-        <summary className="tag cursor-pointer mb-4">the journey so far</summary>
+        <summary className="cursor-pointer mb-4 text-xs tracking-[0.08em] uppercase" style={{ color: "rgba(246,239,227,0.52)" }}>
+          the journey so far
+        </summary>
         <ol className="space-y-3">
           {episode.events
             .slice()
             .reverse()
             .map((item) => (
               <li key={item.id} className="flex gap-4 text-sm">
-                <time className="tag w-28 shrink-0">
+                <time className="w-28 shrink-0 text-xs tracking-wide" style={{ color: "rgba(246,239,227,0.48)" }}>
                   {formatDate(new Date(item.createdAt))}
                 </time>
                 <span>{item.summary}</span>

@@ -5,14 +5,16 @@ on top of forms.
 
 ## The Mira field
 
-The app shell owns one persistent hero orb. `MiraFieldProvider`
-(`components/MiraField.tsx`, mounted in `app/layout.tsx`) renders a fixed
-full-bleed stack — dusk gradient, `MiraOrb fill`, legibility scrims, an
-optional veil — behind every journey route (`/`, `/episode/*`,
-`/invite/*`). The field
-survives navigation: Mira never remounts, shrinks, or pops in between
-arrival and episode. Header and footer carry explicit cream backgrounds and
-mask the field; page content floats above it at `z-10`.
+The app shell owns one persistent hero orb — but only once a journey
+exists. `MiraFieldProvider` (`components/MiraField.tsx`, mounted in
+`app/layout.tsx`) renders a fixed full-bleed stack — dusk gradient,
+`MiraOrb fill`, legibility scrims, an optional veil — behind journey
+routes (`/episode/*`, `/invite/*`). The field is pathname-gated off
+arrival (`/`) and tooling surfaces. Arrival is a parchment refuge with
+an anchored illustration orb; the field survives navigation between
+journey surfaces so Mira never remounts or pops in mid-episode. Header
+and footer mask the field where it is active; elsewhere they are the
+page background. Content floats above the field at `z-10`.
 
 Journey surfaces feed the field through `useMiraField({ presence, activity,
 aestheticVector, veil })` — posture comes from operational projections,
@@ -29,32 +31,30 @@ wholesale — surface cards become dark glass, headings gain glow-proof
 shadows. Secondary tooling surfaces (memory, attest, retreats) keep the
 light document look; the field is pathname-gated off there.
 
-## Arrival
+## Arrival — editorial refuge
 
-Mira is the atmosphere for the entire arrival — every phase renders over
-the shell field. There is no phase where she is a badge watching from the
-sidelines.
+Arrival is **warm parchment, not a full-bleed dusk field**. The route
+renders in the `.editorial` token scope (`globals.css` — `--paper: #fbf6ee`,
+`--rule`, `--editorial-max: 72rem`): an editorial refuge with an asymmetric
+layout, a hairline rule, and Mira anchored as an illustration — not a void.
+The shell field is off on `/`; arrival owns its own orb instance.
 
-**Voice lane (composition contract):** on arrival, Mira is the *medium* for
-the ask — not wallpaper behind a form. Copy and input obey three bindings:
-
-| Binding | Rule |
+| Element | Rule |
 |---------|------|
-| **Spatial** | Mira's question lives in the orb's **lower third** (voice lane), not a top-of-page headline stacked above a panel |
-| **Temporal** | Prompt lines appear under `activity: speaking`; the textarea focus maps to `activity: listening`; submit maps to `processing` → `arriving` |
-| **Optical** | raised `veil` while typing — the field recedes so language reads first |
+| **Parchment** | `.editorial` redefines `--background/--muted/--hairline/--surface` to paper tones; `body::before` terracotta wash is suppressed via `body:has(.editorial)::before { opacity: 0 }` |
+| **Asymmetric grid** | Left: serif ask + underline input + proof strip. Right (desktop): framed illustration plate holding `MiraOrb` with a quiet inset glow and plate label. Mobile: compact centered orb below the input |
+| **Voice lane** | Mira's question is still the medium for the ask — large serif, generous whitespace. `activity: speaking/listening/processing/arriving` still drives the illustration orb |
+| **Underline input** | `.editorial textarea.arrival-input` — ink-on-paper placeholder/focus treatment (no boxed ring) |
+| **Chrome** | `SiteChrome` renders a parchment header/footer on `/` (paper background, ink text, editorial eyebrow tagline), transparent dusk chrome over the field elsewhere — single source in `lib/field-routes.ts` |
 
-No bordered “settings card” on the first intention ask. One serif question,
-one quiet underline input, one primary action. Panel chrome (`DUSK_PANEL`)
-remains for invite (multi-party branch), not for the solo arrival ask.
+No bordered "settings card" on the first intention ask — the refuge *is*
+the card. `DUSK_PANEL` remains for invite (multi-party branch), not arrival.
+`MiraImpulseProvider` at the shell level still reaches the illustration orb.
 
-**Performance tiering:** every field surface crossfades — the lightweight
-2D metaball paints from the first frame while the 3D scene chunk streams in,
-then eases over (`MiraOrb fill` handles the handoff internally). Arrival
-warms the scene chunk eagerly (`preloadMiraScene` at module scope) so the
-capsule shell is ready before the intention is; episode routes reuse the
-already-warm scene. The camera answers the cursor with a subtle parallax,
-so the presence reads as aware of the person, not looping behind glass.
+Mira is an anchor, not wallpaper: the desktop plate (4:4.6 frame with
+inset glow) and the mobile badge are the same `MiraOrb` (2D marble
+metaball, no three/fiber). No capsule shell, no raymarch — see
+Dependencies. `preloadMiraScene()` is a retained no-op for compatibility.
 
 Phases:
 
@@ -306,11 +306,12 @@ system provides real deadlines when they exist.
 - Commitment dissolve: `FluidParticlePour` — 2D SPH fluid particles
   stream from the confirmation area into the orb on booking success
   (`components/FluidParticlePour.tsx`). Canvas self-destructs after ~2.5s.
-- Hold-state drip: `uHoldTension` uniform in the capsule shell — lower-
-  hemisphere capsules oscillate downward like a suspended droplet deciding
-  whether to fall.
-
 ## Dependencies
 
-Hero 3D loads lazily: `three`, `@react-three/fiber`, `@react-three/drei`,
-`@react-three/postprocessing`. Inline orbs remain lightweight 2D WebGL metaballs.
+All orbs are lightweight 2D WebGL metaballs (`MiraOrb` — domain-warped
+marble shader). The previous `three` / `@react-three/fiber` /
+`@react-three/drei` / `@react-three/postprocessing` / `postprocessing`
+hero stack (capsule shell, raymarch, `uHoldTension` drip) is removed —
+arrival's editorial refuge and the journey field both run on the 2D
+standard. `preloadMiraScene` remains as a no-op so eager-warm call sites
+need no change.

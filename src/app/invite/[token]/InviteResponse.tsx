@@ -1,15 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { preloadMiraScene } from "@/components/MiraOrb";
 import { useMiraField } from "@/components/MiraField";
 import { useMiraImpulse } from "@/components/MiraImpulse";
 import { DUSK_PANEL } from "@/aesthetics/dusk-theme";
 import { formatDateTime } from "@/lib/format";
-
-// Warm the hero scene chunk as soon as the invite bundle evaluates — the
-// shell field is this page's atmosphere.
-preloadMiraScene();
 
 type Invitation = {
   participantName: string;

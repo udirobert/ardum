@@ -37,6 +37,7 @@ import {
 } from "@/agent/mira-presence";
 import { hasNudge, nudgeForEpisode, type Nudge } from "@/agent/mira-voice";
 import { useScrollProgress } from "@/hooks/useScrollProgress";
+import { isFieldRoute } from "@/lib/field-routes";
 import type { AestheticVector } from "@/aesthetics/image-pool";
 import type { Episode } from "@/episodes/model";
 
@@ -71,13 +72,9 @@ const SCRIM = [
   "radial-gradient(ellipse 78% 78% at 50% 48%, rgba(15,10,7,0) 52%, rgba(15,10,7,0.36) 100%)",
 ].join(", ");
 
-/** Routes where the field is the atmosphere. */
+/** Routes where the field is the atmosphere (single source: lib/field-routes). */
 function fieldActive(pathname: string): boolean {
-  return (
-    pathname === "/" ||
-    pathname.startsWith("/episode/") ||
-    pathname.startsWith("/invite/")
-  );
+  return isFieldRoute(pathname);
 }
 
 const MiraFieldContext = createContext<
@@ -216,10 +213,7 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
   const scrollProgress = useScrollProgress();
 
   // Compute nudge availability and merge it into the presence so the orb
-  // leans in (poke) when Mira has something to say. projectMiraPresence is
-  // the source of posture; nudgeAvailable is layered on here to keep the
-  // presence module decoupled from voice. The nudgeKind rides along so the
-  // poke can vary its haptic by urgency.
+  // leans in (poke) when Mira has something to say.
   const basePresence = config?.presence ?? STEADY_PRESENCE;
   const episode = config?.episode;
   const nudgeAvailable = episode ? hasNudge(episode) : false;
@@ -230,11 +224,12 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
     ? { ...basePresence, nudgeAvailable: true, nudgeKind }
     : basePresence;
 
-  // Phase 3: the poke — a subtle 6px lean toward the whisper position when
-  // Mira has a nudge ready. Phase 4: scroll-responsive sizing — the orb
-  // grows up to 1.05x as the practitioner scrolls past the fold. Both
-  // transforms ride an eased CSS transition so they glide, never snap.
-  const orbTransform = `translateX(${nudgeAvailable ? 6 : 0}px) scale(${1 + scrollProgress * 0.05})`;
+  const hasEpisode = !!episode;
+  // Poke and growth only after the practitioner has spoken — arrival first
+  // paint stays still. Scroll growth is a gentle companion, not a watcher.
+  const pokeOffset = hasEpisode && nudgeAvailable ? 6 : 0;
+  const growth = hasEpisode ? scrollProgress * 0.04 : 0;
+  const orbTransform = `translateX(${pokeOffset}px) scale(${1 + growth})`;
 
   return (
     <MiraImpulseProvider>
@@ -251,8 +246,7 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
                 className="absolute inset-0"
                 style={{
                   transform: orbTransform,
-                  transition:
-                    "transform 900ms cubic-bezier(0.16,1,0.3,1)",
+                  transition: "transform 900ms cubic-bezier(0.16,1,0.3,1)",
                 }}
               >
                 <MiraOrb
@@ -261,6 +255,7 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
                   presence={presence}
                   activity={config?.activity}
                   aestheticVector={config?.aestheticVector}
+                  enableSurveillance={hasEpisode}
                 />
               </div>
               <div className="absolute inset-0" style={{ background: SCRIM }} />

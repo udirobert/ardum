@@ -14,6 +14,12 @@
   --accent-soft: #d8a892;
   --accent-ink: #6e3925;
   --ease-ardum: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Editorial refuge tokens — parchment + rule + editorial measure */
+  --paper: #fbf6ee;
+  --paper-strong: #f3ece0;
+  --rule: rgba(26, 23, 20, 0.1);
+  --rule-strong: rgba(26, 23, 20, 0.16);
+  --editorial-max: 72rem; /* 1152px — reading-width cap for the editorial lane */
 }
 
 @theme inline {
@@ -70,6 +76,43 @@ body::before {
 /* Hairline rule used between sections. */
 .rule {
   border-color: var(--hairline);
+}
+
+/* Editorial refuge — parchment world for arrival. Not a SaaS page, not a
+   cosmic void: a printed refuge you want to linger in. Large measure,
+   generous whitespace, one quiet rule, Mira anchored as illustration. */
+.editorial {
+  --background: var(--paper);
+  --foreground: #1a1714;
+  --muted: #6b6056;
+  --hairline: var(--rule);
+  --surface: #fffdf9;
+  --surface-strong: var(--paper-strong);
+  background: var(--paper);
+  color: var(--foreground);
+}
+.editorial .rule {
+  border-color: var(--rule);
+}
+.editorial .rule-strong {
+  border-color: var(--rule-strong);
+}
+/* Hide the warm terracotta body ::before wash when the editorial refuge owns the page — parchment is its own atmosphere. */
+body:has(.editorial)::before {
+  opacity: 0;
+}
+/* Editorial underline input — ink on parchment, quiet until focus. */
+.editorial textarea.arrival-input::placeholder {
+  color: rgba(26, 23, 20, 0.42);
+}
+.editorial textarea.arrival-input:focus-visible {
+  outline: none;
+}
+.editorial textarea.arrival-input:focus {
+  border-color: rgba(26, 23, 20, 0.38) !important;
+}
+.editorial textarea.arrival-input:focus::placeholder {
+  color: rgba(26, 23, 20, 0.26);
 }
 
 /* The "why" line — small, muted, italic. Used everywhere reasoning is shown. */
@@ -159,7 +202,18 @@ body::before {
     0 1px 3px rgba(9, 5, 3, 0.55);
 }
 .dusk textarea::placeholder {
-  color: rgba(246, 239, 227, 0.4);
+  color: rgba(246, 239, 227, 0.55);
+}
+/* The arrival underline input: replace the boxed focus ring with a
+   brightened underline so the ask stays quiet on first paint. */
+.dusk textarea.arrival-input:focus-visible {
+  outline: none;
+}
+.dusk textarea.arrival-input:focus {
+  border-color: rgba(246, 239, 227, 0.55) !important;
+}
+.dusk textarea.arrival-input:focus::placeholder {
+  color: rgba(246, 239, 227, 0.32);
 }
 /* Over the field, surface cards become dark glass — frosted, luminous,
    with Mira's warm light bleeding through from behind. The card reads

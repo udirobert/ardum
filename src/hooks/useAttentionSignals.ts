@@ -38,7 +38,7 @@ export function breathMultiplier(state: AttentionState): number {
 const IDLE_THRESHOLD_MS = 5000;
 const RETURNING_DURATION_MS = 2000;
 
-export function useAttentionSignals(): AttentionState {
+export function useAttentionSignals(enabled = true): AttentionState {
   const [state, setState] = useState<AttentionState>("active");
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const returningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,6 +59,7 @@ export function useAttentionSignals(): AttentionState {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     // Activity signals: scroll, pointermove, keydown
     const onActivity = () => resetIdle();
 
@@ -118,7 +119,7 @@ export function useAttentionSignals(): AttentionState {
       if (idleTimer.current) clearTimeout(idleTimer.current);
       if (returningTimer.current) clearTimeout(returningTimer.current);
     };
-  }, [resetIdle]);
+  }, [resetIdle, enabled]);
 
   return state;
 }
