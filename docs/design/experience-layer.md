@@ -58,8 +58,9 @@ Dependencies. `preloadMiraScene()` is a retained no-op for compatibility.
 
 Phases:
 
-1. **First paint** — the 2D metaball field is visible from the first
-   frame (`MiraOrb fill` underlay) while the 3D scene streams in behind it.
+1. **First paint** — the 2D marble metaball orb is visible from the
+   first frame; there is no scene to stream in behind it (see
+   Dependencies).
 2. **Aesthetic calibration** — four image reactions (`AestheticCalibration`)
    build a session vector over the ambient field. Swipe left/right on mobile;
    resonate/skip impulses ripple the orb and each reaction retunes its
@@ -235,7 +236,8 @@ Mira stays fixed; the decision surface slides.
 `MiraImpulseProvider` lives at the shell level (`MiraFieldProvider` in
 `app/layout.tsx`), so every journey surface — arrival, workbench, invite,
 operator — reaches the orb. Kinds: `lean`, `commit`, `reject`, `resonate`,
-`skip`. Decaying 0–1 scalar drives shader uniforms on hero `MiraScene`.
+`skip`. Decaying 0–1 scalar drives shader uniforms on the active
+`MiraOrb`.
 
 ## Information-first surfaces
 
@@ -288,14 +290,45 @@ system provides real deadlines when they exist.
 
 - Route changes: React `<ViewTransition>` (`app/layout.tsx`, gated by
   `experimental.viewTransition`). Enter and exit overlap so navigation
-  reads as one continuous move. Two anchors persist: the header
-  (`site-header`) is pinned as the spatial anchor, and Mira — each
-  route's primary orb carries `viewTransitionName="mira-orb"`, so the
-  browser morphs the same orb to its new position/size while content
-  crossfades (she never disappears and re-enters). The shell field
-  stays as persistent ambient outside the page group. CSS in
-  `globals.css` under the view-transition pseudo-elements; reduced
-  motion zeroes all durations.
+  reads as one continuous move. CSS lives in `globals.css` under the
+  view-transition pseudo-elements; reduced motion zeroes all durations.
+
+  Three view-transition names articulate the **parchment → dusk
+  handoff** (the seam between the editorial refuge and the journey
+  field):
+
+  - **`site-header`** (`SiteChrome`) — the chrome washes ink (parchment
+    header) ↔ dusk cream (transparent field chrome) via a short
+    crossfade (200ms out / 360ms in) beneath the orb glide, instead of
+    a hard swap. Pinned at `z-index: 100`, above the morphing orb.
+  - **`arrival-rule`** (top hairline in `ArrivalScreen`) — the printed
+    page articulates its own seam: the rule draws left→right on arrival
+    entry (520ms, 80ms delay, `transform-origin: left`) and retracts
+    right→left on exit (280ms, `transform-origin: right`).
+  - **`mira-orb`** — Mira's presence never disappears and re-enters.
+    Exactly **one primary orb per page** carries the name; the browser
+    morphs it to its new position/size while content crossfades. The
+    group glide runs 520ms — longer than the page — so presence leads
+    the wash; old/new snapshots hold opacity (no ghosting). Any orb
+    carrying the name also skips its framer-motion fade-in so the
+    transition owns its entrance.
+
+    Ownership of the name is single-source per route:
+
+    | Route | Primary `mira-orb` carrier |
+    |-------|----------------------------|
+    | `/` (parchment) | the **desktop plate orb** in `ArrivalScreen`. The mobile badge orb carries no name — duplicate names break ViewTransition, and the desktop handoff is the morph that matters |
+    | `/episode/*`, `/invite/*` (dusk) | the **shell field fill orb** (`MiraFieldProvider`) — the arrival plate morphs into the field orb itself, so refuge and journey share one continuous presence |
+    | `/memory`, `/operator` (field off) | that page's inline orb |
+
+    Journey inline signature orbs (`RecommendationSurface`,
+    `BookedLanding`) intentionally pair off — no name — because the
+    field fill is the journey's primary orb.
+
+  The page group itself exits with drift + blur (220ms) and enters with
+  a rise + defocus (460ms, 42ms delay) so content yields while the
+  anchors glide. The shell field sits outside the page group as
+  persistent ambient; its scrim/veil fade with root.
 - In-flow steps: transitions.dev `t-page-slide`, `t-stagger`.
 - Recommendation emergence: `GooeyEmergence` SVG filter makes the retreat
   card bud off from the orb with viscous fluid detachment

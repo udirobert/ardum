@@ -323,7 +323,7 @@ body:has(.editorial)::before {
   opacity: calc(0.35 + var(--vision-calm, 0.6) * 0.25);
 }
 
-/* Hero orb — 3D scene owns motion; disable CSS breathe */
+/* Scene-tier orb — shader owns motion; disable CSS breathe */
 .mira-orb--scene {
   animation: none !important;
 }
