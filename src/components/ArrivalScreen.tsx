@@ -254,9 +254,13 @@ export default function ArrivalScreen({
 
   return (
     <section className="editorial min-h-[calc(100svh-56px)]">
-      {/* Top rule — the refuge is a printed page */}
+      {/* Top rule — the refuge is a printed page; view-transition name so it draws on entry and retracts on exit. */}
       <div className="mx-auto max-w-[72rem] px-6 sm:px-10 lg:px-12">
-        <div className="h-px w-full bg-[color:var(--rule)]" aria-hidden />
+        <div
+          className="h-px w-full bg-[color:var(--rule)]"
+          aria-hidden
+          style={{ viewTransitionName: "arrival-rule" } as React.CSSProperties}
+        />
       </div>
 
       <div className="mx-auto max-w-[72rem] px-6 sm:px-10 lg:px-12 py-10 sm:py-14 lg:py-16">
@@ -394,7 +398,10 @@ export default function ArrivalScreen({
                     {submitting ? "Giving it shape…" : "Tell Mira what matters →"}
                   </button>
 
-                  {/* Mobile illustration — keep Mira visible below the fold on small screens */}
+                  {/* Mobile illustration — keep Mira visible below the fold on small screens.
+                      No viewTransitionName here: the desktop plate is the single VT source for
+                      "mira-orb" on this route (duplicate names break ViewTransition). Mobile
+                      still reads as Mira, just without the morph — desktop handoff carries. */}
                   <div className="lg:hidden mt-10 flex flex-col items-center gap-3 t-stagger-line t-stagger-line--2">
                     <div className="w-[200px] h-[200px] rounded-full overflow-hidden border border-[color:var(--rule)] bg-[color:var(--paper-strong)] flex items-center justify-center">
                       <div className="w-full h-full">
@@ -479,6 +486,7 @@ export default function ArrivalScreen({
                       presence={orbPresence}
                       activity={fieldActivity}
                       aestheticVector={aestheticVector}
+                      viewTransitionName="mira-orb"
                     />
                   </div>
                   {/* Quiet plate label */}

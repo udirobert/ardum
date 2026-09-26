@@ -249,6 +249,8 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
                   transition: "transform 900ms cubic-bezier(0.16,1,0.3,1)",
                 }}
               >
+                {/* viewTransitionName on the fill makes the arrival plate morph into the field orb.
+                    Only the primary journey orb participates — journey badge orbs now pair off. */}
                 <MiraOrb
                   fill
                   size={480}
@@ -256,6 +258,7 @@ export function MiraFieldProvider({ children }: { children: ReactNode }) {
                   activity={config?.activity}
                   aestheticVector={config?.aestheticVector}
                   enableSurveillance={hasEpisode}
+                  viewTransitionName="mira-orb"
                 />
               </div>
               <div className="absolute inset-0" style={{ background: SCRIM }} />

@@ -399,44 +399,96 @@ body:has(.editorial)::before {
    Route navigations run through React's <ViewTransition> (layout.tsx).
    The page content exits/fades while the new page arrives — overlapped,
    so navigation reads as one continuous move, not stop-start.
-   Two anchors persist across routes: the header (site-header) and Mira —
-   each route's primary orb shares the mira-orb view-transition name and
-   morphs to its new position/size instead of fading out and back in.
-   The shell field (MiraField, layout.tsx) stays persistent outside the
-   page group as ambient atmosphere. */
+
+   Three anchors articulate the parchment → dusk handoff:
+     site-header  — ink (paper) ↔ cream (dusk) chrome washes, not a hard cut
+     arrival-rule — the printed rule draws on arrival entry and retracts on exit
+     mira-orb     — the single primary orb: desktop plate (paper, 360) morphs
+                    into the shell field fill (480) so Mira glides instead of
+                    fading out and back in. Journey inline orbs pair off (no VT)
+                    so this morph stays clean. Duration outlasts the page to lead.
+
+   The shell field (MiraField, layout.tsx) is outside the page group; the
+   field itself fades with root while the orb glides inside its group. */
+
+@keyframes page-exit {
+  from { opacity: 1; transform: translateY(0); filter: blur(0); }
+  to   { opacity: 0; transform: translateY(-6px); filter: blur(2px); }
+}
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); filter: blur(3px); }
+  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+@keyframes arrival-rule-draw {
+  from { opacity: 0; transform: scaleX(0); }
+  to   { opacity: 1; transform: scaleX(1); }
+}
+@keyframes arrival-rule-retract {
+  from { opacity: 1; transform: scaleX(1); }
+  to   { opacity: 0; transform: scaleX(0); }
+}
+@keyframes site-header-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes site-header-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 
 ::view-transition-old(.page-out) {
-  animation: fade-out 180ms var(--ease-ardum) both;
+  animation: page-exit 220ms var(--ease-ardum) both;
 }
 ::view-transition-new(.page-in) {
-  animation: fade-in-up 360ms var(--ease-ardum) both;
+  animation: page-enter 460ms var(--ease-ardum) both;
+  animation-delay: 42ms;
 }
 
-/* The header is the fixed spatial anchor during transitions. */
+/* Editorial rule — draws left→right on arrival entry, retracts right→left on exit. */
+::view-transition-group(arrival-rule) {
+  z-index: 6;
+}
+::view-transition-old(arrival-rule) {
+  animation: arrival-rule-retract 280ms var(--ease-ardum) both;
+  transform-origin: right center;
+}
+::view-transition-new(arrival-rule) {
+  animation: arrival-rule-draw 520ms var(--ease-ardum) both;
+  animation-delay: 80ms;
+  transform-origin: left center;
+}
+
+/* Chrome washes ink ↔ dusk cream instead of popping: a short crossfade under the orb glide. */
 ::view-transition-group(site-header) {
-  animation: none;
+  animation-duration: 360ms;
+  animation-timing-function: var(--ease-ardum);
   z-index: 100;
 }
 ::view-transition-old(site-header) {
-  display: none;
+  animation: site-header-out 200ms var(--ease-ardum) both;
 }
 ::view-transition-new(site-header) {
-  animation: none;
+  animation: site-header-in 360ms var(--ease-ardum) both;
+}
+::view-transition-image-pair(site-header) {
+  isolation: auto;
 }
 
-/* Mira is the second anchor: the primary orb on each route shares this
-   name, so the browser morphs one orb into the next position/size while
-   the page content crossfades — presence never disappears and re-enters.
-   old/new keep their own opacity (no crossfade ghosting); the group
-   carries the glide. */
+/* Primary orb morph: plate (parchment) ↔ fill (dusk field). Group carries width/height/transform
+   glide at 520ms (longer than page) so presence leads the wash; old/new snapshots hold opacity
+   (no ghosting), and the dusk scrim/veil fade with root. */
 ::view-transition-group(mira-orb) {
-  animation-duration: 360ms;
+  animation-duration: 520ms;
   animation-timing-function: var(--ease-ardum);
   z-index: 90;
 }
 ::view-transition-old(mira-orb),
 ::view-transition-new(mira-orb) {
   animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-image-pair(mira-orb) {
+  isolation: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {

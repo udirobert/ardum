@@ -153,7 +153,9 @@ export default function RecommendationSurface({
           speaking, so they share a single presence. */}
       {letter && letter.lines.length > 0 && (
         <div className="flex items-start gap-3">
-          <MiraOrb size={40} presence={miraPresence ?? undefined} className="flex-shrink-0 mt-1" viewTransitionName="mira-orb" />
+          {/* No viewTransitionName here — the journey's primary orb is the shell field (MiraField fill).
+              Inline signature orbs pair off so the parchment→dusk morph stays clean. */}
+          <MiraOrb size={40} presence={miraPresence ?? undefined} className="flex-shrink-0 mt-1" />
           <div className="space-y-2 leading-relaxed flex-1">
             {letter.recognitionLineCount > 0 && (
               <div className="space-y-2">

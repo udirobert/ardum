@@ -580,7 +580,11 @@ export default function MiraOrb({
   if (glFailed) {
     if (fill) {
       return (
-        <div className={`relative h-full w-full overflow-hidden ${className ?? ""}`} aria-hidden>
+        <div
+          className={`relative h-full w-full overflow-hidden ${className ?? ""}`}
+          aria-hidden
+          style={viewTransitionName ? ({ viewTransitionName } as React.CSSProperties) : undefined}
+        >
           <div
             className="absolute inset-0"
             style={{
@@ -662,12 +666,17 @@ export default function MiraOrb({
   }
 
   if (fill) {
+    // fill now participates in ViewTransition handoff: the arrival plate
+    // morphs into the journey field (parchment → dusk). The style is on
+    // the motion wrapper so the captured old/new planes share the same
+    // morph, not just the inner canvas.
     return (
       <motion.div
         initial={reduced ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
         className={`relative h-full w-full ${className ?? ""}`}
+        style={viewTransitionName ? ({ viewTransitionName } as React.CSSProperties) : undefined}
       >
         <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full" />
         <span aria-live="polite" aria-atomic="true" className="sr-only">
